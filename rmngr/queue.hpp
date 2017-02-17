@@ -6,6 +6,9 @@
 #include <boost/graph/directed_graph.hpp>
 #include <boost/graph/graphviz.hpp>
 
+namespace rmngr
+{
+
 struct DefaultCheck
 {
     template <typename T>
@@ -102,4 +105,6 @@ class Queue
             boost::write_graphviz(out, this->dependency_graph, label_writer(this->dependency_graph));
         }
 };
+
+} // namespace rmngr
 
