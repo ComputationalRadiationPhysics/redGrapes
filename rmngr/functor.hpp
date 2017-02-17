@@ -78,7 +78,7 @@ class Functor
         Queue<Functor, CheckFunctor, Label>& queue;
 };
 
-#define FUNCTOR(name, ...) \
+#define FUNCTOR(name, queue, ...) \
     Functor name (queue, BOOST_PP_STRINGIZE(name), { __VA_ARGS__ });
 
 } // namespace rmngr
