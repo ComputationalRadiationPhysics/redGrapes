@@ -4,8 +4,11 @@
 #include <string>
 #include <boost/preprocessor/stringize.hpp>
 
-#include "queue.hpp"
-#include "resource.hpp"
+#include <rmngr/queue.hpp>
+#include <rmngr/resource.hpp>
+
+namespace rmngr
+{
 
 class Functor
 {
@@ -78,4 +81,5 @@ class Functor
 #define FUNCTOR(name, ...) \
     Functor name (queue, BOOST_PP_STRINGIZE(name), { __VA_ARGS__ });
 
+} // namespace rmngr
 

@@ -1,5 +1,8 @@
 #pragma once
 
+namespace rmngr
+{
+
 class ResourceAccess
 {
     public:
@@ -28,4 +31,6 @@ class Resource
         ResourceAccess read;
         ResourceAccess write;
 };
+
+} // namespace rmngr
 

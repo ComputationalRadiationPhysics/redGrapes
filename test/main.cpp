@@ -1,14 +1,15 @@
 #include <iostream>
-#include "queue.hpp"
-#include "resource.hpp"
-#include "functor.hpp"
+
+#include <rmngr/queue.hpp>
+#include <rmngr/resource.hpp>
+#include <rmngr/functor.hpp>
 
 int main(int argc, char* argv[])
 {
-    Queue<Functor, Functor::CheckFunctor, Functor::Label> queue;
+    rmngr::Queue<rmmngr::Functor, rmmngr::Functor::CheckFunctor, rmmngr::Functor::Label> queue;
 
-    Resource a(1);
-    Resource b(2);
+    rmngr::Resource a(1);
+    rmngr::Resource b(2);
 
     FUNCTOR(functor1, a.read);
     FUNCTOR(functor2, a.write);
