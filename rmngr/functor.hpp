@@ -17,7 +17,15 @@ class Functor
         {
             static inline bool check(Functor const& a, Functor const& b)
             {
-                return a.depends_on(b);
+                for(ResourceAccess const& ra : a.resource_list)
+                {
+                    for(ResourceAccess const& rb : b.resource_list)
+                    {
+                        if(check_dependency(ra, rb))
+                            return true;
+                    }
+                }
+                return false;
             }
         };
 
@@ -51,26 +59,6 @@ class Functor
         void operator() (void)
         {
             this->queue.push(*this);
-        }
-
-        bool depends_on(ResourceAccess const& a) const
-        {
-            for(ResourceAccess const& b : this->resource_list)
-            {
-                if(check_dependency(a, b))
-                    return true;
-            }
-            return false;
-        }
-
-        bool depends_on(Functor const& f) const
-        {
-            for(ResourceAccess const& a : f.resource_list)
-            {
-                if(this->depends_on(a))
-                    return true;
-            }
-            return false;
         }
 
     private:
