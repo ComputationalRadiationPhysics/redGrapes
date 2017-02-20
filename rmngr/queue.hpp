@@ -38,6 +38,8 @@ class Queue
         typedef boost::directed_graph<VertexProp> DependencyGraph;
         typedef typename boost::graph_traits<DependencyGraph>::vertex_descriptor VertexID;
         typedef typename boost::graph_traits<DependencyGraph>::edge_descriptor EdgeID;
+        typedef typename boost::graph_traits<DependencyGraph>::in_edge_iterator InEdgeIterator;
+        typedef typename boost::graph_traits<DependencyGraph>::out_edge_iterator OutEdgeIterator;
 
         DependencyGraph dependency_graph;
         std::vector<VertexID> pending;
@@ -79,20 +81,20 @@ class Queue
                 Element const& prev = this->dependency_graph[i].elem;
                 if(DependencyCheck::check(elem, prev))
                 {
-                    bool defined = false;
+                    // check if it is already dependent
                     for(VertexID j : boost::adaptors::reverse(deplist))
                     {
-                        Element const& dep_elem = this->dependency_graph[j].elem;
-                        if(DependencyCheck::check(dep_elem, prev))
+                        // iterate over parents (in vertices)
+                        InEdgeIterator ei, ei_end;
+                        for(boost::tie(ei, ei_end) = boost::in_edges(j, this->dependency_graph); ei != ei_end; ++ei)
                         {
-                            defined = true;
-                            break;
+                            if(boost::source(*ei, this->dependency_graph) == i) // v depends indirectly on i
+                                goto push;
                         }
                     }
 
-                    if(! defined)
-                        this->dependency_graph.add_edge(i, v);
-
+                    this->dependency_graph.add_edge(i, v);
+push:
                     deplist.push_back(i);
                 }
             }
