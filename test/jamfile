@@ -1,0 +1,9 @@
+
+using testing ;
+
+unit-test test : [ glob-tree *.cpp ] :
+	<library>/rmngr
+	<library>/boost//unit_test_framework/<link>shared
+	<define>BOOST_TEST_DYN_LINK
+	;
+
