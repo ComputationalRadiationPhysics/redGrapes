@@ -57,6 +57,17 @@ class Matrix : public std::valarray<T>
             return (*this)[ std::slice(c, this->height, this->width) ];
         }
 
+        void print(void)
+        {
+            for(int i = 0; i < this->height; ++i)
+            {
+                for(int j = 0; j < this->width; ++j)
+                    std::cout << (*this)(i,j) << "; ";
+                std::cout << std::endl;
+            }
+            std::cout << std::endl;
+        }
+
     private:
         int width; // number of colums, length of a row
         int height; // number of rows, length of a column
