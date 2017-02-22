@@ -39,7 +39,7 @@ class BoolDependency
         bool state;
 }; // class BoolDependency
 
-template <typename Element, typename Dependency=BoolDependency>
+template <typename Element, typename Dependency=BoolDependency, typename ElementHasher=std::hash<Element> >
 class DependencyManager
 {
     public:
@@ -124,7 +124,7 @@ class DependencyManager
                         }
                     }
 
-                    this->print();
+                    //this->print();
                 }
         };
 
@@ -187,7 +187,7 @@ class DependencyManager
         DependencyMatrix dependency_matrix;
         bool matrix_old;
 
-        std::unordered_map<Element, VertexID> elements;
+        std::unordered_map<Element, VertexID, ElementHasher> elements;
 }; // class DependencyManager
 
 } // namespace rmngr
