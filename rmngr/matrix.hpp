@@ -2,6 +2,7 @@
 #pragma once
 
 #include <valarray>
+#include <iostream>
 
 namespace rmngr
 {
