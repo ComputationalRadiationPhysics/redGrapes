@@ -10,10 +10,10 @@ BOOST_AUTO_TEST_CASE(access)
     rmngr::StaticResource<rmngr::IOAccess> a;
     rmngr::StaticResource<rmngr::IOAccess> b;
 
-    auto read_a = a.create_resource_access(rmngr::IOAccess::read);
-    auto write_a = a.create_resource_access(rmngr::IOAccess::write);
-    auto read_b = b.create_resource_access(rmngr::IOAccess::read);
-    auto write_b = b.create_resource_access(rmngr::IOAccess::write);
+    auto read_a = *a.make_access({rmngr::IOAccess::read});
+    auto write_a = *a.make_access({rmngr::IOAccess::write});
+    auto read_b = *b.make_access({rmngr::IOAccess::read});
+    auto write_b = *b.make_access({rmngr::IOAccess::write});
 
     BOOST_CHECK( read_a.check_dependency(read_a) == false );
     BOOST_CHECK( read_a.check_dependency(write_a) == true );
