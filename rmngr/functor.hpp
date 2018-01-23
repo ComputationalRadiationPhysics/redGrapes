@@ -1,73 +1,60 @@
 #pragma once
 
-#include <vector>
-#include <string>
-#include <boost/preprocessor/stringize.hpp>
-
-#include <rmngr/queue.hpp>
-#include <rmngr/resource.hpp>
+#include <functional>
 
 namespace rmngr
 {
 
-class Functor
+struct DelayedFunctorInterface
 {
-    public:
-        struct CheckFunctor
-        {
-            static inline bool check(Functor const& a, Functor const& b)
-            {
-                for(ResourceAccess const& ra : a.resource_list)
-                {
-                    for(ResourceAccess const& rb : b.resource_list)
-                    {
-                        if(check_dependency(ra, rb))
-                            return true;
-                    }
-                }
-                return false;
-            }
-        };
+    virtual ~DelayedFunctorInterface() {};
+    virtual void run (void) = 0;
+}; // class DelayedFunctorInterface
 
-        struct Label
-        {
-            static inline std::string getLabel(Functor const& f)
-            {
-                std::string label;
-                label.append(f.name);
-                label.append("\n");
-                for(ResourceAccess const& a : f.resource_list)
-                {
-                    label.append(std::to_string(a.resourceID));
-                    if(a.write)
-                        label.append("w");
-                    else
-                        label.append("r");
-                }
-
-                return label;
-            }
-        };
-
-        Functor(Queue<Functor, CheckFunctor, Label>& queue_, std::string const& name_, std::vector<ResourceAccess> const& ral)
-            : queue(queue_), name(name_), resource_list(ral)
-        {
-        }
-
-        std::string name;
-
-        void operator() (void)
-        {
-            this->queue.push(*this);
-        }
-
+template <typename Pusher, typename Functor>
+class DelayingFunctor
+{
     private:
-        std::vector<ResourceAccess> resource_list;
-        Queue<Functor, CheckFunctor, Label>& queue;
-};
+        template <typename AppliedFunctor>
+        class DelayedFunctor : virtual public DelayedFunctorInterface, public AppliedFunctor
+        {
+            public:
+                DelayedFunctor(AppliedFunctor const& f)
+                    : AppliedFunctor(f)
+                {}
 
-#define FUNCTOR(name, queue, ...) \
-    Functor name (queue, BOOST_PP_STRINGIZE(name), { __VA_ARGS__ });
+                void run (void)
+                {
+                    (*this)();
+                }
+        };
+
+        template <typename AppliedFunctor>
+        static DelayedFunctor<AppliedFunctor> make_delayed_functor(AppliedFunctor const& f)
+        {
+            return DelayedFunctor<AppliedFunctor>(f);
+        }
+
+        Pusher pusher;
+        Functor functor;
+
+    public:
+        DelayingFunctor(Pusher const& pusher_, Functor const& functor_)
+            :  pusher(pusher_), functor(functor_)
+        {}
+
+        template <typename... Args>
+        void operator() (Args&&... args)
+        {
+            this->pusher(this->functor, make_delayed_functor(std::bind(this->functor, args...)));
+        }
+}; // class DelayingFunctor
+
+template <typename Pusher, typename Functor>
+DelayingFunctor<Pusher, Functor> make_delaying(Pusher const& p, Functor const& f)
+{
+    return DelayingFunctor<Pusher, Functor>(p, f);
+}
 
 } // namespace rmngr
 
