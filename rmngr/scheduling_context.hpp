@@ -1,0 +1,122 @@
+
+#pragma once
+
+#include <mutex>
+#include <rmngr/resource_user.hpp>
+#include <rmngr/functor.hpp>
+
+#include <rmngr/queue.hpp>
+#include <rmngr/thread_dispatcher.hpp>
+
+namespace rmngr
+{
+
+template <std::size_t max_threads=1>
+class SchedulingContext
+{
+    private:
+        class Schedulable : public ResourceUser, virtual public DelayedFunctorInterface
+        {
+            public:
+                Schedulable(std::vector<std::shared_ptr<ResourceAccess>> const& access_list_, std::string label_= {})
+                    : ResourceUser(access_list_), state(pending), label(label_)
+                {}
+
+                enum { pending, ready, running, done, } state;
+                std::string label;
+        }; // class Schedulable
+
+        template <typename DelayedFunctor>
+        class SchedulableFunctor : public DelayedFunctor, public Schedulable
+        {
+            public:
+                SchedulableFunctor(DelayedFunctor const& f, std::vector<std::shared_ptr<ResourceAccess>> const& access_list_, std::string label_)
+                    : DelayedFunctor(f), Schedulable(access_list_, label_) {}
+        }; // class SchedulableFunctor
+
+        template <typename Functor>
+        class ProtoSchedulableFunctor : public ResourceUser, public Functor
+        {
+            public:
+                ProtoSchedulableFunctor(Functor const& f, std::vector<std::shared_ptr<ResourceAccess>> const& resource_list, std::string label_= {})
+                    : ResourceUser(resource_list), Functor(f), label(label_) {}
+
+                template <typename DelayedFunctor>
+                SchedulableFunctor<DelayedFunctor>* clone(DelayedFunctor const& f) const
+                {
+                    return new SchedulableFunctor<DelayedFunctor>(f, this->access_list, this->label);
+                }
+
+                std::string label;
+        }; // class ProtoSchedulableFunctor
+
+        struct Pusher
+        {
+            SchedulingContext& context;
+
+            template <typename Functor, typename DelayedFunctor>
+            void operator() (ProtoSchedulableFunctor<Functor> const& proto, DelayedFunctor const& delayed)
+            {
+                std::lock_guard<std::mutex> lock(context.queue_mutex);
+                context.queue.push(proto.clone(delayed));
+            }
+        }; // struct Pusher
+
+        struct ReadyMarker
+        {
+            using ID = typename Queue<Schedulable, ReadyMarker>::ID;
+            SchedulingContext& context;
+            void operator() (ID id)
+            {
+                std::cout << "now ready.." << std::endl;
+                if(context.queue[id].state == Schedulable::pending)
+                {
+                    context.dispatcher.push({&context, id});
+                    context.queue[id].state = Schedulable::ready;
+                }
+            }
+        }; // struct ReadyMarker
+
+        struct Executor
+        {
+            using ID = typename Queue<Schedulable, ReadyMarker>::ID;
+            SchedulingContext* context;
+            ID id;
+
+            void operator() (void)
+            {
+                context->queue_mutex.lock();
+                Schedulable& s = context->queue[id];
+                context->queue_mutex.unlock();
+
+                s.state = Schedulable::running;
+                s.run();
+                s.state = Schedulable::done;
+
+                std::lock_guard<std::mutex> lock(context->queue_mutex);
+                context->queue.finish(id);
+            };
+        }; // struct Executor
+
+        std::mutex queue_mutex;
+        Queue<Schedulable, ReadyMarker> queue;
+        ThreadDispatcher<Executor, max_threads> dispatcher;
+
+    public:
+        SchedulingContext()
+            : queue(
+        {
+            *this
+        })
+        {}
+
+        template <typename Functor>
+        DelayingFunctor<Pusher, ProtoSchedulableFunctor<Functor>> make_functor(Functor const& f, std::vector<std::shared_ptr<ResourceAccess>> const& resource_list= {}, std::string name= {})
+        {
+            return make_delaying(Pusher({*this}), ProtoSchedulableFunctor<Functor>(f, resource_list, name));
+        }
+
+}; // class SchedulingContext
+
+} // namespace rmngr
+

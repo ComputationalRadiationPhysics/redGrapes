@@ -20,8 +20,9 @@ class DelayingFunctor
         {
             public:
                 DelayedFunctor(AppliedFunctor const& f)
-                    : AppliedFunctor(f)
-                {}
+                    : AppliedFunctor(f) {}
+
+                ~DelayedFunctor() {}
 
                 void run (void)
                 {
@@ -40,8 +41,7 @@ class DelayingFunctor
 
     public:
         DelayingFunctor(Pusher const& pusher_, Functor const& functor_)
-            :  pusher(pusher_), functor(functor_)
-        {}
+            :  pusher(pusher_), functor(functor_) {}
 
         template <typename... Args>
         void operator() (Args&&... args)
