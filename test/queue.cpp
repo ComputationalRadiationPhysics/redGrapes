@@ -1,40 +1,29 @@
 #include <boost/test/unit_test.hpp>
 
-#include <iostream>
-#include <string>
 #include <rmngr/queue.hpp>
 
 BOOST_AUTO_TEST_SUITE(queue);
 
-using namespace rmngr;
-
-BOOST_AUTO_TEST_CASE(q)
+struct ReadyMarker
 {
-    struct Check
+    void operator() (std::size_t id)
     {
-        static inline bool check(int const& a, int const& b)
-        {
-            return (a == b);
-        }
-    };
+    }
+};
 
-    struct Label
-    {
-        static inline std::string getLabel(int const& a)
-        {
-            return std::to_string(a);
-        }
-    };
+BOOST_AUTO_TEST_CASE(push)
+{
+    ReadyMarker r;
+    rmngr::Queue<int, ReadyMarker> queue(r);
 
-    Queue<int, Check, Label> queue;
+    using ID = rmngr::Queue<int, ReadyMarker>::ID;
+    std::array<ID, 100> ids;
 
-    queue.push(10);
-    queue.push(20);
-    queue.push(20);
-    queue.push(4);
-    queue.push(20);
+    for(int i = 0; i < 100; ++i)
+        ids[i] = queue.push(new int(2*i));
 
-    queue.write_dependency_graph(std::cout);
+    for(int i = 0; i < 100; ++i)
+        BOOST_ASSERT(queue[ids[i]] == 2*i);
 }
 
 BOOST_AUTO_TEST_SUITE_END();
