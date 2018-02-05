@@ -1,111 +1,65 @@
 #pragma once
 
-#include <iostream>
-#include <vector>
-#include <boost/range/adaptor/reversed.hpp>
-#include <boost/graph/directed_graph.hpp>
-#include <boost/graph/graphviz.hpp>
+#include <list>
+#include <map>
+#include <memory>
 
 namespace rmngr
 {
 
-struct DefaultCheck
-{
-    template <typename T>
-    static inline bool check(T const& a, T const& b)
-    {
-        return true;
-    }
-};
-
-struct DefaultLabel
-{
-    template <typename T>
-    static inline std::string getLabel(T const& a)
-    {
-        return std::string("unnamed");
-    }
-};
-
-template <typename Element, typename DependencyCheck=DefaultCheck, typename Label=DefaultLabel>
+template <typename T, typename ReadyMarker>
 class Queue
 {
-    private:
-        struct VertexProp
-        {
-            Element const& elem;
-        };
-        typedef boost::directed_graph<VertexProp> DependencyGraph;
-        typedef typename boost::graph_traits<DependencyGraph>::vertex_descriptor VertexID;
-        typedef typename boost::graph_traits<DependencyGraph>::edge_descriptor EdgeID;
-        typedef typename boost::graph_traits<DependencyGraph>::in_edge_iterator InEdgeIterator;
-        typedef typename boost::graph_traits<DependencyGraph>::out_edge_iterator OutEdgeIterator;
-
-        DependencyGraph dependency_graph;
-        std::vector<VertexID> pending;
-
-        class label_writer
-        {
-            public:
-                label_writer(DependencyGraph const& graph_)
-                    : graph(graph_)
-                {
-                }
-
-                template <class VertexOrEdge>
-                void operator()(std::ostream& out, VertexOrEdge const& v) const
-                {
-                    out << "[label=\"" << Label::getLabel(this->graph[v].elem) << "\"]";
-                }
-
-            private:
-                DependencyGraph const& graph;
-        };
-
     public:
-        Queue()
+        typedef std::size_t ID;
+
+        Queue(ReadyMarker const& mark_ready_)
+            : id_counter(0), mark_ready(mark_ready_)
+        {}
+
+        virtual ~Queue()
+        {}
+
+        virtual ID push(T* a)
         {
+            auto it = this->queue.insert(this->queue.begin(), std::unique_ptr<T>(a));
+            ID id = ++this->id_counter;
+            this->id_map[id] = it;
+            this->update_ready(id);
+            return id;
         }
 
-        ~Queue()
+        virtual void finish(ID id)
         {
+            auto it = this->id_map[id];
+            this->queue.erase(it);
+            this->id_map.erase(id);
         }
 
-        void push(Element const& elem)
+        T& operator[] (ID id)
         {
-            VertexID v = this->dependency_graph.add_vertex({elem});
-
-            std::vector<VertexID> deplist;
-            for(VertexID i : boost::adaptors::reverse(this->pending))
-            {
-                Element const& prev = this->dependency_graph[i].elem;
-                if(DependencyCheck::check(elem, prev))
-                {
-                    // check if it is already dependent
-                    for(VertexID j : boost::adaptors::reverse(deplist))
-                    {
-                        // iterate over parents (in vertices)
-                        InEdgeIterator ei, ei_end;
-                        for(boost::tie(ei, ei_end) = boost::in_edges(j, this->dependency_graph); ei != ei_end; ++ei)
-                        {
-                            if(boost::source(*ei, this->dependency_graph) == i) // v depends indirectly on i
-                                goto push;
-                        }
-                    }
-
-                    this->dependency_graph.add_edge(i, v);
-push:
-                    deplist.push_back(i);
-                }
-            }
-
-            this->pending.push_back(v);
+            return **this->id_map[id];
         }
 
-        void write_dependency_graph(std::ostream& out)
+    protected:
+        std::list<std::unique_ptr<T>> queue;
+
+        virtual bool is_ready(ID id) const
         {
-            boost::write_graphviz(out, this->dependency_graph, label_writer(this->dependency_graph));
+            return true;
         }
+
+        void update_ready(ID id)
+        {
+            if(this->is_ready(id))
+                this->mark_ready(id);
+        }
+
+    private:
+        std::map<ID, typename std::list<typename std::unique_ptr<T>>::iterator> id_map;
+        ID id_counter;
+
+        ReadyMarker mark_ready;
 };
 
 } // namespace rmngr
