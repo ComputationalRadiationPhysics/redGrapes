@@ -11,7 +11,7 @@
 namespace rmngr
 {
 
-template <std::size_t max_threads=1>
+template <template <typename, typename, typename...> typename Scheduler = Queue, std::size_t n_threads=1, typename... Args>
 class SchedulingContext
 {
     private:
@@ -68,11 +68,10 @@ class SchedulingContext
             SchedulingContext& context;
             void operator() (ID id)
             {
-                std::cout << "now ready.." << std::endl;
                 if(context.queue[id].state == Schedulable::pending)
                 {
-                    context.dispatcher.push({&context, id});
                     context.queue[id].state = Schedulable::ready;
+                    context.dispatcher.push({&context, id});
                 }
             }
         }; // struct ReadyMarker
@@ -99,16 +98,13 @@ class SchedulingContext
         }; // struct Executor
 
         std::mutex queue_mutex;
-        Queue<Schedulable, ReadyMarker> queue;
-        ThreadDispatcher<Executor, max_threads> dispatcher;
+        Scheduler<Schedulable, ReadyMarker, Args...> scheduler;
+        Queue<Schedulable, ReadyMarker>& queue = scheduler;
+        ThreadDispatcher<Executor, n_threads> dispatcher;
 
     public:
         SchedulingContext()
-            : queue(
-        {
-            *this
-        })
-        {}
+            : scheduler(ReadyMarker({*this})) {}
 
         template <typename Functor>
         DelayingFunctor<Pusher, ProtoSchedulableFunctor<Functor>> make_functor(Functor const& f, std::vector<std::shared_ptr<ResourceAccess>> const& resource_list= {}, std::string name= {})
