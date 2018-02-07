@@ -2,6 +2,7 @@
 #pragma once
 
 #include <mutex>
+#include <utility>
 #include <rmngr/resource_user.hpp>
 #include <rmngr/functor.hpp>
 
@@ -30,8 +31,8 @@ class SchedulingContext
         class SchedulableFunctor : public DelayedFunctor, public Schedulable
         {
             public:
-                SchedulableFunctor(DelayedFunctor const& f, std::vector<std::shared_ptr<ResourceAccess>> const& access_list_, std::string label_)
-                    : DelayedFunctor(f), Schedulable(access_list_, label_) {}
+                SchedulableFunctor(DelayedFunctor&& f, std::vector<std::shared_ptr<ResourceAccess>> const& access_list_, std::string label_)
+                    : DelayedFunctor(std::forward<DelayedFunctor>(f)), Schedulable(access_list_, label_) {}
         }; // class SchedulableFunctor
 
         template <typename Functor>
@@ -42,9 +43,9 @@ class SchedulingContext
                     : ResourceUser(resource_list), Functor(f), label(label_) {}
 
                 template <typename DelayedFunctor>
-                SchedulableFunctor<DelayedFunctor>* clone(DelayedFunctor const& f) const
+                SchedulableFunctor<DelayedFunctor>* clone(DelayedFunctor&& f) const
                 {
-                    return new SchedulableFunctor<DelayedFunctor>(f, this->access_list, this->label);
+                    return new SchedulableFunctor<DelayedFunctor>(std::forward<DelayedFunctor>(f), this->access_list, this->label);
                 }
 
                 std::string label;
@@ -55,10 +56,10 @@ class SchedulingContext
             SchedulingContext& context;
 
             template <typename Functor, typename DelayedFunctor>
-            void operator() (ProtoSchedulableFunctor<Functor> const& proto, DelayedFunctor const& delayed)
+            void operator() (ProtoSchedulableFunctor<Functor> const& proto, DelayedFunctor&& delayed)
             {
                 std::lock_guard<std::mutex> lock(context.queue_mutex);
-                context.queue.push(proto.clone(delayed));
+                context.queue.push(proto.clone(std::forward<DelayedFunctor>(delayed)));
             }
         }; // struct Pusher
 
