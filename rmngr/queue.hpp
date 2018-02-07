@@ -3,6 +3,7 @@
 #include <list>
 #include <map>
 #include <memory>
+#include <algorithm>
 
 namespace rmngr
 {
@@ -20,31 +21,35 @@ class Queue
         virtual ~Queue()
         {}
 
-        virtual ID push(T* a)
+        ID push(T* a)
         {
-            auto it = this->queue.insert(this->queue.begin(), std::unique_ptr<T>(a));
             ID id = ++this->id_counter;
-            this->id_map[id] = it;
+            this->objects[id] = std::unique_ptr<T>(a);
+            this->push_(id);
+            this->queue.insert(this->queue.begin(), id);
             this->update_ready(id);
             return id;
         }
 
-        virtual void finish(ID id)
+        void finish(ID id)
         {
-            auto it = this->id_map[id];
-            this->queue.erase(it);
-            this->id_map.erase(id);
+            this->finish_(id);
+            this->queue.erase(std::find(this->queue.begin(), this->queue.end(), id));
+            this->objects.erase(id);
         }
 
         T& operator[] (ID id)
         {
-            return **this->id_map[id];
+            return *this->objects[id];
         }
 
     protected:
-        std::list<std::unique_ptr<T>> queue;
+        std::list<ID> queue;
 
-        virtual bool is_ready(ID id) const
+        virtual void push_(ID id) {}
+        virtual void finish_(ID id) {}
+
+        virtual bool is_ready(ID id)
         {
             return true;
         }
@@ -56,7 +61,7 @@ class Queue
         }
 
     private:
-        std::map<ID, typename std::list<typename std::unique_ptr<T>>::iterator> id_map;
+        std::map<ID, std::unique_ptr<T>> objects;
         ID id_counter;
 
         ReadyMarker mark_ready;
