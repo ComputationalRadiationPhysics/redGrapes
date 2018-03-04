@@ -1,22 +1,47 @@
 
+/**
+ * @file rmngr/scheduling_context.hpp
+ */
+
 #pragma once
 
 #include <mutex>
 #include <utility>
+#include <fstream>
 #include <rmngr/resource_user.hpp>
 #include <rmngr/functor.hpp>
-
-#include <rmngr/queue.hpp>
+#include <rmngr/functor_queue.hpp>
+#include <rmngr/dependency_graph.hpp>
+#include <rmngr/dependency_refinement.hpp>
+#include <rmngr/scheduling_graph.hpp>
 #include <rmngr/thread_dispatcher.hpp>
+#include <rmngr/observer_ptr.hpp>
 
 namespace rmngr
 {
 
-template <template <typename, typename, typename...> typename Scheduler = Queue, std::size_t n_threads=1, typename... Args>
+/** Manages scheduling-policies and the transition to dispatching the jobs.
+ */
+template
+<
+    std::size_t n_threads=1,
+    //typename DispatchPolicy = FIFO,
+    //... /* scheduling policies (e.g. resource user, label, main_thread, exclusive,..) */
+    >
 class SchedulingContext
 {
-    private:
+    public:
+        /**
+         * Base class storing all scheduling info and the functor
+         */
         class Schedulable : public ResourceUser, virtual public DelayedFunctorInterface
+        /*
+          : boost::mpl::inherit_linearly
+          <
+          boost::mpl::set<SchedulingPolicies...>,
+          boost::mpl::inherit< boost::mpl::_1, scheduling_traits<boost::mpl::_2>::flags >
+          >::type
+         */
         {
             public:
                 Schedulable(std::vector<std::shared_ptr<ResourceAccess>> const& access_list_, std::string label_= {})
@@ -39,7 +64,7 @@ class SchedulingContext
         class ProtoSchedulableFunctor : public ResourceUser, public Functor
         {
             public:
-                ProtoSchedulableFunctor(Functor const& f, std::vector<std::shared_ptr<ResourceAccess>> const& resource_list, std::string label_= {})
+                ProtoSchedulableFunctor(Functor const& f, std::vector<std::shared_ptr<ResourceAccess>> const& resource_list= {}, std::string label_= {})
                     : ResourceUser(resource_list), Functor(f), label(label_) {}
 
                 template <typename DelayedFunctor>
@@ -51,68 +76,90 @@ class SchedulingContext
                 std::string label;
         }; // class ProtoSchedulableFunctor
 
-        struct Pusher
-        {
-            SchedulingContext& context;
-
-            template <typename Functor, typename DelayedFunctor>
-            void operator() (ProtoSchedulableFunctor<Functor> const& proto, DelayedFunctor&& delayed)
-            {
-                std::lock_guard<std::mutex> lock(context.queue_mutex);
-                context.queue.push(proto.clone(std::forward<DelayedFunctor>(delayed)));
-            }
-        }; // struct Pusher
-
         struct ReadyMarker
         {
-            using ID = typename Queue<Schedulable, ReadyMarker>::ID;
             SchedulingContext& context;
-            void operator() (ID id)
+            void operator() (Schedulable& s)
             {
-                if(context.queue[id].state == Schedulable::pending)
+                if(s.state == Schedulable::pending)
                 {
-                    context.queue[id].state = Schedulable::ready;
-                    context.dispatcher.push({&context, id});
+                    s.state = Schedulable::ready;
+                    context.dispatcher.push({&context, &s});
                 }
             }
         }; // struct ReadyMarker
 
         struct Executor
         {
-            using ID = typename Queue<Schedulable, ReadyMarker>::ID;
             SchedulingContext* context;
-            ID id;
+            Schedulable* s;
 
             void operator() (void)
             {
-                context->queue_mutex.lock();
-                Schedulable& s = context->queue[id];
-                context->queue_mutex.unlock();
+                context->write_graphviz();
+                s->state = Schedulable::running;
+                s->run();
+                s->state = Schedulable::done;
+                context->write_graphviz();
 
-                s.state = Schedulable::running;
-                s.run();
-                s.state = Schedulable::done;
-
-                std::lock_guard<std::mutex> lock(context->queue_mutex);
-                context->queue.finish(id);
+                std::lock_guard<std::mutex> lock(context->scheduler_mutex);
+                context->scheduler.finish(s); // after here, no references should be dangling
+                //delete s;
             };
         }; // struct Executor
 
-        std::mutex queue_mutex;
-        Scheduler<Schedulable, ReadyMarker, Args...> scheduler;
-        Queue<Schedulable, ReadyMarker>& queue = scheduler;
+    public:
+        std::mutex scheduler_mutex;
+        SchedulingGraph<observer_ptr<Schedulable>, ReadyMarker> scheduler;
         ThreadDispatcher<Executor, n_threads> dispatcher;
+
+        struct Updater
+        {
+            SchedulingContext* context;
+            void operator() (void)
+            {
+                std::lock_guard<std::mutex> lock(context->scheduler_mutex);
+                this->context->scheduler.update_schedule();
+            }
+        };
 
     public:
         SchedulingContext()
-            : scheduler(ReadyMarker({*this})) {}
+            : scheduler(ReadyMarker({*this}))
+        {}
 
-        template <typename Functor>
-        DelayingFunctor<Pusher, ProtoSchedulableFunctor<Functor>> make_functor(Functor const& f, std::vector<std::shared_ptr<ResourceAccess>> const& resource_list= {}, std::string name= {})
+        void write_graphviz(void)
         {
-            return make_delaying(Pusher({*this}), ProtoSchedulableFunctor<Functor>(f, resource_list, name));
-        }
+            std::lock_guard<std::mutex> lock(this->scheduler_mutex);
 
+            static int step = 0;
+            ++step;
+            std::string name = std::string("Step ") + std::to_string(step);
+            std::string path = std::string("step_") + std::to_string(step) + std::string(".dot");
+            std::cout << "write schedulinggraph to " << path << std::endl;
+            std::ofstream file(path);
+            this->scheduler.write_graphviz(file,
+                                           boost::make_function_property_map<Schedulable*>([](Schedulable* const& s)
+            {
+                return s->label;
+            }),
+            boost::make_function_property_map<Schedulable*>([](Schedulable* const& s)
+            {
+                switch(s->state)
+                {
+                    case Schedulable::done:
+                        return std::string("grey");
+                    case Schedulable::running:
+                        return std::string("green");
+                    case Schedulable::ready:
+                        return std::string("yellow");
+                    default:
+                        return std::string("red");
+                }
+            }), name);
+
+            file.close();
+        }
 }; // class SchedulingContext
 
 } // namespace rmngr
