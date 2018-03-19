@@ -6,6 +6,10 @@
 #pragma once
 
 #include <map>
+#include <boost/graph/adjacency_list.hpp>
+#include <boost/graph/labeled_graph.hpp>
+#include <boost/graph/graph_traits.hpp>
+#include <boost/graph/copy.hpp>
 #include <boost/graph/graphviz.hpp>
 #include <boost/property_map/property_map.hpp>
 #include <boost/property_map/function_property_map.hpp>
@@ -17,27 +21,48 @@ namespace rmngr
  *
  * @tparam ID type to identify nodes
  */
-template<typename ID, typename ReadyMarker>
+template<
+    typename ID,
+    typename ReadyMarker
+    >
 class SchedulingGraph
 {
     private:
-        using Graph = typename boost::adjacency_list<boost::listS,
-              boost::listS,
-              boost::bidirectionalS,
-              ID>;
+        using Graph = typename boost::adjacency_list<
+                      boost::setS,
+                      boost::vecS,
+                      boost::bidirectionalS,
+                      ID
+                      >;
+
         using LabeledGraph = typename boost::labeled_graph<Graph, ID>;
+
+    public:
         using VertexID = typename boost::graph_traits<Graph>::vertex_descriptor;
         using EdgeID = typename boost::graph_traits<Graph>::edge_descriptor;
         using VertexIterator = typename boost::graph_traits<Graph>::vertex_iterator;
         using InEdgeIterator = typename boost::graph_traits<Graph>::in_edge_iterator;
 
         /// return id from vertex_descriptor
-        static inline ID graph_get(LabeledGraph& graph, VertexID v)
+        template <typename T_Graph>
+        static inline ID graph_get(T_Graph& graph, VertexID v)
         {
             return boost::get(boost::vertex_bundle, graph)[v];
         }
 
-    public:
+        // TODO: factor out
+        static inline std::pair<VertexID, bool> find_vertex(ID a, Graph& graph)
+        {
+            VertexIterator it, end;
+            for( boost::tie(it, end) = boost::vertices(graph); it != end; ++it)
+            {
+                if( graph_get(graph, *it) == a )
+                    return std::make_pair(*it, true);
+            }
+
+            return std::make_pair(VertexID{}, false);
+        }
+
         SchedulingGraph(ReadyMarker const& mr)
             : mark_ready(mr) {}
 
@@ -52,8 +77,8 @@ class SchedulingGraph
 
                 void add_vertex(ID a)
                 {
-                    this->dependency_graph.add_vertex(a);
-                    this->dependency_graph[a] = a;
+                    this->precedence_graph.add_vertex(a);
+                    this->precedence_graph[a] = a;
                 }
 
                 /// get vertex descriptor
@@ -81,6 +106,7 @@ class SchedulingGraph
                 };
 
             private:
+                friend class SchedulingGraph;
                 LabeledGraph precedence_graph;
         }; // class Refinement
 
@@ -92,7 +118,7 @@ class SchedulingGraph
         bool is_ready(ID a)
         {
             // if node has no out edges, it does not depend on others
-            return (boost::out_degree(this->scheduling_graph.vertex(a), this->scheduling_graph) == 0);
+            return (boost::out_degree(find_vertex(a, this->scheduling_graph).first, this->scheduling_graph) == 0);
         }
 
         /**
@@ -100,44 +126,52 @@ class SchedulingGraph
          */
         void update_schedule(void)
         {
-            std::cout << "reschedule" << std::endl;
-
             // merge all refinements into one graph
             this->scheduling_graph.clear();
 
             for(auto const& r : this->refinements)
             {
                 // copy all vertices and edges from refinement into the scheduling graph
-                struct labeled_vertex_copier
+                struct vertex_copier
                 {
-                    LabeledGraph& src;
-                    LabeledGraph& dest;
+                    Graph& src;
+                    Graph& dest;
+                    VertexID parent;
 
-                    void operator() (VertexID in, VertexID out) const
+                    void operator() (VertexID in, VertexID out)
                     {
                         ID a = graph_get(src, in);
-                        boost::put(boost::vertex_bundle, a, dest.graph());
-                        dest[a] = a;
+                        dest[out] = a;
+                        add_edge(parent, out, dest);
                     }
                 };
 
-                boost::copy_graph(r.second->precendence_graph,
-                                  this->scheduling_graph,
-                                  boost::vertex_index_map(boost::get(boost::vertex_bundle, r.second->precedence_graph)),
-                                  boost::vertex_copy(labeled_vertex_copier{}));
-
-                // wait for the root node
-                VertexIterator it, end;
-                for(boost::tie(it, end) = boost::vertices(r.second->precendence_graph); it != end; ++it)
-                    boost::add_edge_by_label(r.first, graph_get(r.second->precedence_graph, *it));
+                std::pair<VertexID, bool> parent = find_vertex( r.first, this->scheduling_graph );
+                if( parent.second )
+                {
+                    // copy & add dependency to parent node
+                    boost::copy_graph(r.second->precedence_graph.graph(),
+                                      this->scheduling_graph,
+                                      boost::vertex_copy( vertex_copier
+                    {
+                        r.second->precedence_graph.graph(),
+                        this->scheduling_graph,
+                        parent.first
+                    }));
+                }
+                else
+                {
+                    // we have no parent node
+                    boost::copy_graph(r.second->precedence_graph.graph(), this->scheduling_graph);
+                }
             }
 
-            // TODO
+            // TODO: apply scheduling policy
 
             // check which vertices are ready
             VertexIterator it, end;
             for(boost::tie(it, end) = boost::vertices(this->scheduling_graph); it != end; ++it)
-                this->update_ready(graph_get(this->scheduling_graph, *it));
+                this->update_ready(graph_get(scheduling_graph,*it));
         }
 
         /** Remove a node from the graphs and reschedule
@@ -153,6 +187,13 @@ class SchedulingGraph
             }
 
             this->update_schedule();
+        }
+
+        rmngr::observer_ptr< Refinement >
+        make_refinement( ID parent )
+        {
+            this->refinements[ parent ] = std::unique_ptr<Refinement> ( new Refinement() );
+            return rmngr::observer_ptr<Refinement>( this->refinements[parent] );
         }
 
         /** Write the current scheduling-graph as graphviz
@@ -191,12 +232,17 @@ class SchedulingGraph
             boost::write_graphviz_dp(out, this->scheduling_graph, dp, std::string("id"));
         }
 
+        Graph& graph(void)
+        {
+            return this->scheduling_graph;
+        }
+
     private:
         /// list of sub-graphs
         std::map<ID, std::unique_ptr<Refinement>> refinements;
 
         /// main graph
-        LabeledGraph scheduling_graph;
+        Graph scheduling_graph;
         ReadyMarker mark_ready;
 
         /// Mark ready if it is
