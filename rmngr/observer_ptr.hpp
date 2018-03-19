@@ -49,6 +49,11 @@ class observer_ptr
             return this->ptr;
         }
 
+        T* operator-> (void) const
+        {
+            return ptr;
+        }
+
         friend bool operator==(observer_ptr<T> const& a, observer_ptr<T> const& b)
         {
             return a.ptr == b.ptr;
