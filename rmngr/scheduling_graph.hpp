@@ -70,11 +70,24 @@ class SchedulingGraph
          * Base class for handling the precedence-graphs, which get
          * composed to the scheduling graph
          */
-        class Refinement
+        class RefinementBase
         {
             public:
-                virtual ~Refinement() {};
+                virtual ~RefinementBase() {};
 
+                /// get graph object
+                Graph& graph(void)
+                {
+                    return this->precedence_graph.graph();
+                }
+
+                virtual void finish(ID a)
+                {
+                    boost::clear_vertex_by_label(a, this->precedence_graph);
+                    boost::remove_vertex(a, this->precedence_graph);
+                };
+
+            protected:
                 void add_vertex(ID a)
                 {
                     this->precedence_graph.add_vertex(a);
@@ -93,21 +106,40 @@ class SchedulingGraph
                     boost::add_edge_by_label(b, a, this->precedence_graph);
                 }
 
-                /// get graph object
-                Graph& graph(void)
-                {
-                    return this->precedence_graph.graph();
-                }
-
-                virtual void finish(ID a)
-                {
-                    boost::clear_vertex_by_label(a, this->precedence_graph);
-                    boost::remove_vertex(a, this->precedence_graph);
-                };
-
             private:
                 friend class SchedulingGraph;
                 LabeledGraph precedence_graph;
+        }; // class RefinementBase
+
+        template<
+            typename RefinementPolicy
+            >
+        class Refinement :
+            public RefinementBase,
+            private RefinementPolicy
+        {
+            public:
+                void push(ID a)
+                {
+                    this->add_vertex(a);
+
+                    for( auto b : this->queue )
+                    {
+                        if( this->RefinementPolicy::is_sequential(b, a) )
+                            this->add_edge(b, a);
+                    }
+
+                    this->queue.insert(this->queue.begin(), a);
+                }
+
+                void finish(ID a)
+                {
+                    this->queue.erase(std::find(this->queue.begin(), this->queue.end(), a));
+                    this->RefinementBase::finish(a);
+                }
+
+            private:
+                std::list<ID> queue;
         }; // class Refinement
 
         /** Check if a node has no dependencies
@@ -189,11 +221,13 @@ class SchedulingGraph
             this->update_schedule();
         }
 
-        rmngr::observer_ptr< Refinement >
+        template <typename Policy>
+        rmngr::observer_ptr< Refinement<Policy> >
         make_refinement( ID parent )
         {
-            this->refinements[ parent ] = std::unique_ptr<Refinement> ( new Refinement() );
-            return rmngr::observer_ptr<Refinement>( this->refinements[parent] );
+            auto ptr = new Refinement<Policy>();
+            this->refinements[ parent ] = std::unique_ptr<RefinementBase>( ptr );
+            return rmngr::observer_ptr< Refinement<Policy> >( ptr );
         }
 
         /** Write the current scheduling-graph as graphviz
@@ -239,7 +273,7 @@ class SchedulingGraph
 
     private:
         /// list of sub-graphs
-        std::map<ID, std::unique_ptr<Refinement>> refinements;
+        std::map<ID, std::unique_ptr<RefinementBase>> refinements;
 
         /// main graph
         Graph scheduling_graph;
