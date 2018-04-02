@@ -39,6 +39,11 @@ class observer_ptr
             return *this;
         }
 
+        operator bool () const
+        {
+            return (this->ptr != nullptr);
+        }
+
         operator T& () const
         {
             return *this->ptr;
