@@ -1,9 +1,9 @@
 
-#pragma once
-
 /*
  * @file rmngr/refined_graph.hpp
  */
+
+#pragma once
 
 #include <unordered_map>
 #include <memory> // std::unique_ptr<>
@@ -55,8 +55,8 @@ class RefinedGraph
             {
                 for (auto & r : this->refinements)
                 {
-                    auto found = r.second->find_refinement(parent);
-                    if (found != nullptr)
+                    observer_ptr<RefinedGraph> found = r.second->find_refinement(parent);
+                    if (found)
                         return found;
                 }
 
@@ -68,7 +68,7 @@ class RefinedGraph
         observer_ptr<Refinement>
         make_refinement(ID parent)
         {
-            auto ptr = new Refinement();
+            Refinement* ptr = new Refinement();
             this->refinements[parent] = std::unique_ptr<RefinedGraph>(ptr);
             return observer_ptr<Refinement>(ptr);
         }
@@ -77,12 +77,36 @@ class RefinedGraph
         observer_ptr<Refinement>
         refinement(ID parent)
         {
-            observer_ptr<Refinement> ref(this->find_refinement(parent));
+            observer_ptr<Refinement> ref((Refinement*)(void*)this->find_refinement(parent));
 
-            if (ref == observer_ptr<Refinement>(nullptr))
+            if (! ref)
                 ref = make_refinement<Refinement>(parent);
 
             return ref;
+        }
+
+        /// recursively remove a vertex
+        /// does it belong here?
+        virtual bool finish(ID a)
+        {
+            auto v = graph_find_vertex(a, this->graph());
+
+            if (v.second)
+            {
+                boost::clear_vertex(v.first, this->graph());
+                boost::remove_vertex(v.first, this->graph());
+                return true;
+            }
+            else
+            {
+                for( auto & r : this->refinements )
+                {
+                    if ( r.second->finish(a) )
+                        return true;
+                }
+            }
+
+            return false;
         }
 
     private:
@@ -124,7 +148,7 @@ class RefinedGraph
         {
             for (auto & r : this->refinements)
             {
-                std::pair<VertexID, bool> parent = find_vertex(r.first, target_graph);
+                std::pair<VertexID, bool> parent = graph_find_vertex(r.first, target_graph);
 
                 if (parent.second)
                     r.second->copy(target_graph, parent.first);

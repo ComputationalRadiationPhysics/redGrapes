@@ -1,9 +1,9 @@
 
-#pragma once
-
-/*
+/**
  * @file rmngr/graph_util.hpp
  */
+
+#pragma once
 
 #include <utility> // std::pair
 #include <boost/graph/graph_traits.hpp>
@@ -11,7 +11,9 @@
 namespace rmngr
 {
 
-/// get vertex-property from vertex-descriptor
+/**
+ * get vertex-property from vertex-descriptor
+ */
 template <typename Graph>
 typename Graph::vertex_property_type
 graph_get(
@@ -22,17 +24,21 @@ graph_get(
     return boost::get(boost::vertex_bundle, graph)[v];
 }
 
-/// find vertex-descriptor from property
-template <
-    typename Graph,
-    typename ID
->
+/**
+ * find vertex-descriptor from property
+ *
+ * TODO: overload for boost::labeled_graph
+ *
+ * @return pair of (vertex-descriptor, true) if vertex with
+ *         property exists, else (_, false)
+ */
+template <typename Graph>
 std::pair<
     typename boost::graph_traits<Graph>::vertex_descriptor,
     bool
 >
-find_vertex(
-    ID a,
+graph_find_vertex(
+    typename Graph::vertex_property_type a,
     Graph & graph
 )
 {
