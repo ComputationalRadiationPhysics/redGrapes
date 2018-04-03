@@ -64,6 +64,23 @@ class RefinedGraph
             }
         }
 
+        observer_ptr<RefinedGraph>
+        find_refinement_containing(ID a)
+        {
+            if (graph_find_vertex(a, this->graph()).second)
+                return this;
+
+            for (auto & r : this->refinements)
+            {
+                observer_ptr<RefinedGraph> found = r.second->find_refinement_containing(a);
+                if (found)
+                    return found;
+            }
+
+            return nullptr;
+        }
+
+
         template <typename Refinement>
         observer_ptr<Refinement>
         make_refinement(ID parent)
@@ -77,32 +94,45 @@ class RefinedGraph
         observer_ptr<Refinement>
         refinement(ID parent)
         {
-            observer_ptr<Refinement> ref((Refinement*)(void*)this->find_refinement(parent));
+            observer_ptr<RefinedGraph> ref(this->find_refinement(parent));
 
             if (! ref)
-                ref = make_refinement<Refinement>(parent);
+            {
+                observer_ptr<RefinedGraph> base(this->find_refinement_containing(parent));
+                if (base)
+                    return base->template make_refinement<Refinement>(parent);
+                // else: parent doesnt exist, return nullptr
+            }
 
-            return ref;
+            return dynamic_cast<Refinement*>((RefinedGraph*)ref);
         }
 
         /// recursively remove a vertex
         /// does it belong here?
         virtual bool finish(ID a)
         {
-            auto v = graph_find_vertex(a, this->graph());
+            if (this->refinements.count(a) == 0)
+            {
+                auto v = graph_find_vertex(a, this->graph());
 
-            if (v.second)
-            {
-                boost::clear_vertex(v.first, this->graph());
-                boost::remove_vertex(v.first, this->graph());
-                return true;
-            }
-            else
-            {
-                for( auto & r : this->refinements )
+                if (v.second)
                 {
-                    if ( r.second->finish(a) )
-                        return true;
+                    boost::clear_vertex(v.first, this->graph());
+                    boost::remove_vertex(v.first, this->graph());
+                    return true;
+                }
+                else
+                {
+                    for(auto & r : this->refinements)
+                    {
+                        if (r.second->finish(a))
+                        {
+                            if (boost::num_vertices(r.second->graph()) == 0)
+                                this->refinements.erase(r.first);
+
+                            return true;
+                        }
+                    }
                 }
             }
 
