@@ -18,8 +18,6 @@ template <typename Queue>
 class FunctorQueue
 {
     private:
-        Queue& queue;
-
         struct Pusher
         {
             Queue& queue;
@@ -31,9 +29,11 @@ class FunctorQueue
             }
         }; // struct Pusher
 
+        Pusher pusher;
+
     public:
-        FunctorQueue(Queue& queue_)
-            : queue(queue_)
+        FunctorQueue(Queue& queue)
+            : pusher{queue}
         {}
 
         /**
@@ -48,10 +48,16 @@ class FunctorQueue
         template <typename ProtoFunctor>
         DelayingFunctor<Pusher, ProtoFunctor> make_functor(ProtoFunctor const& proto)
         {
-            return make_delaying(Pusher({this->queue}), proto);
+            return make_delaying(this->pusher, proto);
         }
 
 }; // class FunctorQueue
+
+template <typename Queue>
+FunctorQueue<Queue> make_functor_queue(Queue& queue)
+{
+    return FunctorQueue<Queue>(queue);
+}
 
 }; // namespace rmngr
 
