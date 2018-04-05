@@ -75,3 +75,15 @@ class observer_ptr
 
 }; // namespace rmngr
 
+namespace std
+{
+    template <typename T>
+    struct hash<rmngr::observer_ptr<T>>
+    {
+        size_t operator() (rmngr::observer_ptr<T> const& p) const noexcept
+        {
+            return size_t((T*)p);
+        }
+    }; // struct hash
+} // namespace std
+
