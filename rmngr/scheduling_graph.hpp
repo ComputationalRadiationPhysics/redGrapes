@@ -25,27 +25,26 @@ namespace rmngr
  * @tparam ID type to identify nodes
  */
 template <
-    typename ID,
-    typename ReadyMarker
+    typename ReadyMarker,
+    typename Graph,
+    typename RefinementGraph = Graph
 >
 class SchedulingGraph
 {
-    private:
-        using Graph = typename boost::adjacency_list <
-            boost::setS,
-            boost::vecS,
-            boost::bidirectionalS,
-            ID
-        >;
-
     public:
+        using ID = typename Graph::vertex_property_type;
         using VertexID = typename boost::graph_traits<Graph>::vertex_descriptor;
         using EdgeID = typename boost::graph_traits<Graph>::edge_descriptor;
         using VertexIterator = typename boost::graph_traits<Graph>::vertex_iterator;
         using InEdgeIterator = typename boost::graph_traits<Graph>::in_edge_iterator;
 
-        SchedulingGraph(ReadyMarker const & rm, observer_ptr<RefinedGraph<Graph>> main_ref)
-          : mark_ready(rm), main_refinement(main_ref) {}
+        SchedulingGraph(
+            observer_ptr<RefinedGraph<RefinementGraph>> main_ref,
+            ReadyMarker ready_marker
+        )
+            : main_refinement(main_ref),
+              mark_ready(ready_marker)
+        {}
 
         /** Check if a node has no dependencies
          *
@@ -114,7 +113,7 @@ class SchedulingGraph
             auto ids = boost::make_function_property_map<VertexID>(
                 [this](VertexID const & id)
                 {
-                    return size_t(graph_get(id, this->scheduling_graph));
+                    return size_t((void*)graph_get(id, this->scheduling_graph));
                 }
             );
             auto names = boost::make_function_property_map<VertexID>(
@@ -154,7 +153,7 @@ class SchedulingGraph
         }
 
     private:
-        observer_ptr<RefinedGraph<Graph>> main_refinement;
+        observer_ptr<RefinedGraph<RefinementGraph>> main_refinement;
         Graph scheduling_graph;
         ReadyMarker mark_ready;
 
