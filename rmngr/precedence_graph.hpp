@@ -10,8 +10,10 @@
 #include <boost/graph/labeled_graph.hpp>
 #include <boost/graph/copy.hpp>
 
+#include <rmngr/refined_graph.hpp>
 #include <rmngr/observer_ptr.hpp>
 #include <iostream>
+
 namespace rmngr
 {
 

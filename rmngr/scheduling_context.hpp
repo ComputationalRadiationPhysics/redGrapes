@@ -5,14 +5,15 @@
 
 #pragma once
 
+#include <boost/graph/adjacency_list.hpp>
+
 #include <mutex>
 #include <utility>
 #include <fstream>
 #include <rmngr/resource_user.hpp>
 #include <rmngr/functor.hpp>
 #include <rmngr/functor_queue.hpp>
-#include <rmngr/dependency_graph.hpp>
-#include <rmngr/dependency_refinement.hpp>
+#include <rmngr/precedence_graph.hpp>
 #include <rmngr/scheduling_graph.hpp>
 #include <rmngr/thread_dispatcher.hpp>
 #include <rmngr/observer_ptr.hpp>
@@ -22,12 +23,11 @@ namespace rmngr
 
 /** Manages scheduling-policies and the transition to dispatching the jobs.
  */
-template
-<
-    std::size_t n_threads=1,
+template<
+    std::size_t n_threads=1
     //typename DispatchPolicy = FIFO,
     //... /* scheduling policies (e.g. resource user, label, main_thread, exclusive,..) */
-    >
+>
 class SchedulingContext
 {
     public:
@@ -79,12 +79,16 @@ class SchedulingContext
         struct ReadyMarker
         {
             SchedulingContext& context;
-            void operator() (Schedulable& s)
+            void operator() (Schedulable* s)
             {
-                if(s.state == Schedulable::pending)
+                if(s->state == Schedulable::pending)
                 {
-                    s.state = Schedulable::ready;
-                    context.dispatcher.push({&context, &s});
+                    s->state = Schedulable::ready;
+                    context.dispatcher.push({&context, s});
+                }
+                else if(s->state == Schedulable::done)
+                {
+                    context.finish(s);
                 }
             }
         }; // struct ReadyMarker
@@ -103,29 +107,34 @@ class SchedulingContext
                 context->write_graphviz();
 
                 std::lock_guard<std::mutex> lock(context->scheduler_mutex);
-                context->scheduler.finish(s); // after here, no references should be dangling
-                //delete s;
+                context->finish(s);
             };
         }; // struct Executor
 
     public:
+        using Graph = boost::adjacency_list<
+            boost::setS,
+            boost::vecS,
+            boost::bidirectionalS,
+            observer_ptr<Schedulable>
+        >;
+
         std::mutex scheduler_mutex;
-        SchedulingGraph<observer_ptr<Schedulable>, ReadyMarker> scheduler;
+        SchedulingGraph<ReadyMarker, Graph> scheduler;
         ThreadDispatcher<Executor, n_threads> dispatcher;
 
-        struct Updater
+        void finish(Schedulable* s)
         {
-            SchedulingContext* context;
-            void operator() (void)
-            {
-                std::lock_guard<std::mutex> lock(context->scheduler_mutex);
-                this->context->scheduler.update_schedule();
-            }
-        };
+            if(this->scheduler.finish(s))
+                delete s;
+        }
 
     public:
-        SchedulingContext()
-            : scheduler(ReadyMarker({*this}))
+        SchedulingContext(observer_ptr<RefinedGraph<Graph>> main_refinement)
+            : scheduler(
+                main_refinement,
+                ReadyMarker{*this}
+            )
         {}
 
         void write_graphviz(void)
@@ -138,25 +147,28 @@ class SchedulingContext
             std::string path = std::string("step_") + std::to_string(step) + std::string(".dot");
             std::cout << "write schedulinggraph to " << path << std::endl;
             std::ofstream file(path);
-            this->scheduler.write_graphviz(file,
-                                           boost::make_function_property_map<Schedulable*>([](Schedulable* const& s)
-            {
-                return s->label;
-            }),
-            boost::make_function_property_map<Schedulable*>([](Schedulable* const& s)
-            {
-                switch(s->state)
+            this->scheduler.write_graphviz(
+                file,
+                boost::make_function_property_map<Schedulable*>([](Schedulable* const& s)
                 {
-                    case Schedulable::done:
-                        return std::string("grey");
-                    case Schedulable::running:
-                        return std::string("green");
-                    case Schedulable::ready:
-                        return std::string("yellow");
-                    default:
-                        return std::string("red");
-                }
-            }), name);
+                    return s->label;
+                }),
+                boost::make_function_property_map<Schedulable*>([](Schedulable* const& s)
+                {
+                    switch(s->state)
+                    {
+                        case Schedulable::done:
+                            return std::string("grey");
+                        case Schedulable::running:
+                            return std::string("green");
+                        case Schedulable::ready:
+                            return std::string("yellow");
+                        default:
+                            return std::string("red");
+                    }
+                }),
+                name
+            );
 
             file.close();
         }
