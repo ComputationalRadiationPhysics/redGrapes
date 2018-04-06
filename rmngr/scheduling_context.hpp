@@ -137,6 +137,12 @@ class SchedulingContext
             )
         {}
 
+  template <typename Functor>
+  ProtoSchedulableFunctor<Functor> make_proto(Functor const& f, std::vector<std::shared_ptr<ResourceAccess>> access, std::string label)
+  {
+    return ProtoSchedulableFunctor<Functor>(f, access, label);
+  }
+
         void write_graphviz(void)
         {
             std::lock_guard<std::mutex> lock(this->scheduler_mutex);

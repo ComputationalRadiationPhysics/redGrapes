@@ -89,8 +89,8 @@ class SchedulingGraph
         {
             bool finished = this->main_refinement->finish(a);
 
-            if(! finished)
-                this->update_schedule();
+            //if(! finished)
+            this->update_schedule();
 
             return finished;
         }
