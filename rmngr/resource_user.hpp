@@ -13,7 +13,7 @@ class ResourceUser
     public:
         struct CheckDependency
         {
-            static inline bool check(ResourceUser const& a, ResourceUser const& b)
+            static inline bool is_sequential(ResourceUser const& a, ResourceUser const& b)
             {
                 for(auto ra : a.access_list)
                 {
