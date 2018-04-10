@@ -1,8 +1,11 @@
+
+/**
+ * @file rmngr/resource_user.hpp
+ */
+
 #pragma once
 
 #include <vector>
-#include <memory>
-
 #include <rmngr/resource.hpp>
 
 namespace rmngr
@@ -11,28 +14,25 @@ namespace rmngr
 class ResourceUser
 {
     public:
-        struct CheckDependency
-        {
-            static inline bool check(ResourceUser const& a, ResourceUser const& b)
-            {
-                for(auto ra : a.access_list)
-                {
-                    for(auto rb : b.access_list)
-                    {
-                        if(ra->check_dependency(*rb))
-                            return true;
-                    }
-                }
-                return false;
-            }
-        };
-
-        ResourceUser(std::vector<std::shared_ptr<ResourceAccess>> const& access_list_)
-            : access_list(access_list_)
+        ResourceUser(std::vector<ResourceAccess> const& access_list_)
+          : access_list(access_list_)
         {}
 
+        bool is_serial(ResourceUser const& r) const
+        {
+            for(auto const& ra : this->access_list)
+            {
+                for(auto const& rb : r.access_list)
+                {
+                    if(ra.is_serial(rb))
+                        return true;
+                }
+            }
+            return false;
+        }
+
         //protected:
-        std::vector<std::shared_ptr<ResourceAccess>> access_list;
+        std::vector<ResourceAccess> access_list;
 }; // class ResourceUser
 
 } // namespace rmngr

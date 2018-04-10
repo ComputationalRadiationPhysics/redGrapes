@@ -1,112 +1,100 @@
+
+/**
+ * @file rmngr/resource.hpp
+ */
+
 #pragma once
 
 #include <vector>
-#include <memory>
+#include <memory> // std::unique_ptr<>
 #include <boost/type_index.hpp>
-
-#include <rmngr/dependency_manager.hpp>
 
 namespace rmngr
 {
 
+template <typename AccessPolicy>
+class Resource;
+
 class ResourceAccess
 {
-    public:
-        virtual ~ResourceAccess() {}
+    template <typename AccessPolicy>
+    friend class Resource;
 
-        bool check_dependency(ResourceAccess const& r) const
+    private:
+        struct AccessBase
         {
-            if(r.type == this->type)
-                return this->_check_dependency(r);
+            AccessBase(boost::typeindex::type_index access_type_)
+              : access_type(access_type_) {}
+
+            virtual ~AccessBase() {};
+            virtual bool is_serial(AccessBase const& r) const = 0;
+            virtual AccessBase* clone(void) const = 0;
+            boost::typeindex::type_index access_type;
+        }; // AccessBase
+
+        std::unique_ptr<AccessBase> obj;
+
+    public:
+        ResourceAccess(AccessBase* obj_)
+          : obj( obj_ ) {}
+        ResourceAccess(ResourceAccess const & r)
+          : obj(r.obj->clone()) {}
+
+        bool is_serial(ResourceAccess const& a) const
+        {
+            if(this->obj->access_type == a.obj->access_type)
+                return this->obj->is_serial(*a.obj);
             else
                 return false;
         }
+}; // class ResourceAccess
+
+template <typename AccessPolicy>
+class Resource
+{
     protected:
-        boost::typeindex::type_index type;
-        virtual bool _check_dependency(ResourceAccess const& r) const = 0;
-};
-
-template <typename AccessProperty>
-class ResourceBase
-{
-    public:
-        ResourceBase()
-        {}
-
-        class ThisResourceAccess : public ResourceAccess
+        struct Access : public ResourceAccess::AccessBase
         {
-            public:
-                ThisResourceAccess(ResourceBase<AccessProperty> const* const& resource_, std::vector<AccessProperty> const& prop_)
-                    : resource(resource_), prop(prop_)
-                {}
+            Access(Resource<AccessPolicy> resource_, AccessPolicy policy_)
+              : ResourceAccess::AccessBase(boost::typeindex::type_id<AccessPolicy>()),
+                resource(resource_),
+                policy(policy_)
+            {}
 
-                ~ThisResourceAccess()
-                {}
+            ~Access() {}
 
-            private:
-                bool _check_dependency(ResourceAccess const& a_) const
-                {
-                    ThisResourceAccess const& a = *static_cast<ThisResourceAccess const*>(&a_); // no dynamic cast needed, type checked in ResourceAccess
-                    if(this->resource == a.resource)
-                    {
-                        for(auto p1 : this->prop)
-                        {
-                            for(auto p2 : a.prop)
-                            {
-                                if(this->resource->check_dependency(p1, p2))
-                                    return true;
-                            }
-                        }
-                    }
-
-                    return false;
-                }
-
-                ResourceBase<AccessProperty> const* resource;
-                std::vector<AccessProperty> prop;
-        }; // struct ResourceAccess
-
-        std::shared_ptr<ThisResourceAccess> make_access(std::vector<AccessProperty> const& prop) const
-        {
-            return std::make_shared<ThisResourceAccess>(this, prop);
-        }
-
-    private:
-        virtual bool check_dependency(AccessProperty const& a, AccessProperty const& b) const
-        {
-            return true;
-        }
-}; // class ResourceBase
-
-template <typename AccessType, typename Dependency=BoolDependency>
-class StaticResource : public ResourceBase<typename AccessType::Id>
-{
-    public:
-        using Id = typename AccessType::Id;
-
-        StaticResource()
-        {
-            if(! init)
+            bool is_serial(ResourceAccess::AccessBase const& a_) const
             {
-                AccessType::build_dependencies(access_dep);
-                init = true;
+                Access const& a = *static_cast<Access const*>(&a_); // no dynamic cast needed, type checked in ResourceAccess
+                return
+                    (this->resource.id == a.resource.id) &&
+                    (this->policy.is_serial(a.policy));
             }
-        }
 
-        static DependencyManager<Id, Dependency> access_dep;
-        static bool init;
+            AccessBase* clone(void) const
+            {
+                return new Access(this->resource, this->policy);
+            }
 
-    private:
-        bool check_dependency(Id const& a, Id const& b) const
+            Resource<AccessPolicy> resource;
+            AccessPolicy policy;
+        }; // struct ThisResourceAccess
+
+        unsigned int const id;
+        static unsigned int id_counter;
+
+    public:
+        Resource()
+          : id( id_counter++ ) {}
+
+        ResourceAccess make_access(AccessPolicy pol) const
         {
-            return access_dep.check_dependency(a, b);
+            return ResourceAccess(new Access(*this, pol));
         }
-}; // class StaticResource
+}; // class Resource
 
-template<typename AccessType, typename Dependency>
-DependencyManager<typename AccessType::Id, Dependency> StaticResource<AccessType, Dependency>::access_dep;
-template<typename AccessType, typename Dependency>
-bool StaticResource<AccessType, Dependency>::init = false;
+template <typename AccessPolicy>
+unsigned int Resource<AccessPolicy>::id_counter = 0;
 
 } // namespace rmngr
 
