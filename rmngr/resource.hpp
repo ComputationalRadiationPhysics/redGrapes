@@ -39,11 +39,17 @@ class ResourceAccess
           : obj( obj_ ) {}
         ResourceAccess(ResourceAccess const & r)
           : obj(r.obj->clone()) {}
+        ResourceAccess(ResourceAccess&& r)
+          : obj( std::move(r.obj) ) {}
 
-        bool is_serial(ResourceAccess const& a) const
+        static bool
+        is_serial(
+            ResourceAccess const & a,
+            ResourceAccess const & b
+        )
         {
-            if(this->obj->access_type == a.obj->access_type)
-                return this->obj->is_serial(*a.obj);
+            if(a.obj->access_type == b.obj->access_type)
+                return a.obj->is_serial(*b.obj);
             else
                 return false;
         }
@@ -68,7 +74,7 @@ class Resource
                 Access const& a = *static_cast<Access const*>(&a_); // no dynamic cast needed, type checked in ResourceAccess
                 return
                     (this->resource.id == a.resource.id) &&
-                    (this->policy.is_serial(a.policy));
+                    (AccessPolicy::is_serial(this->policy, a.policy));
             }
 
             AccessBase* clone(void) const
