@@ -18,13 +18,17 @@ class ResourceUser
           : access_list(access_list_)
         {}
 
-        bool is_serial(ResourceUser const& r) const
+        static bool
+        is_serial(
+            ResourceUser const & a,
+            ResourceUser const & b
+        )
         {
-            for(auto const& ra : this->access_list)
+            for(ResourceAccess const& ra : a.access_list)
             {
-                for(auto const& rb : r.access_list)
+                for(ResourceAccess const& rb : b.access_list)
                 {
-                    if(ra.is_serial(rb))
+                    if(ResourceAccess::is_serial(ra, rb))
                         return true;
                 }
             }
