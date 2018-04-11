@@ -1,16 +1,16 @@
 
 /**
- * @file rmngr/ioaccess.hpp
+ * @file rmngr/access/ioaccess.hpp
  */
 
 #pragma once
 
 #include <boost/graph/adjacency_matrix.hpp>
-
 #include <rmngr/dependency_manager.hpp>
-#include <rmngr/resource.hpp>
 
 namespace rmngr
+{
+namespace access
 {
 
 struct IOAccess
@@ -56,19 +56,7 @@ struct IOAccess
 
 }; // struct IOAccess
 
-struct IOResource : public Resource< IOAccess >
-{
-#define OP(name) \
-  inline ResourceAccess name (void) \
-  { return this->make_access(IOAccess{IOAccess::name}); }
-
-  OP(read)
-  OP(write)
-  OP(aadd)
-  OP(amul)
-
-#undef OP
-}; // struct IOResource
+} // namespace access
 
 } // namespace rmngr
 
