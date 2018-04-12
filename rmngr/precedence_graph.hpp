@@ -72,8 +72,7 @@ template<
     typename EnqueuePolicy
 >
 class QueuedPrecedenceGraph :
-    public PrecedenceGraph<Graph>,
-    private EnqueuePolicy
+    public PrecedenceGraph<Graph>
 {
     private:
         using ID = typename Graph::vertex_property_type;
@@ -85,7 +84,7 @@ class QueuedPrecedenceGraph :
 
             for(auto b : this->queue)
             {
-                if( this->EnqueuePolicy::is_sequential(b, a) )
+                if( EnqueuePolicy::is_serial(b, a) )
                     this->add_edge(b, a);
             }
 

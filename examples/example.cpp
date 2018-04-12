@@ -11,10 +11,10 @@ int main(void)
 {
     using Context = rmngr::SchedulingContext<1>;
     using Graph = typename Context::Graph;
-    rmngr::QueuedPrecedenceGraph<Graph, rmngr::ResourceUser::CheckDependency> main_refinement;
+    rmngr::QueuedPrecedenceGraph<Graph, rmngr::ResourceUser> main_refinement;
     Context context(main_refinement);
-    rmngr::IOResource<> a;
-    rmngr::IOResource<> b;
+    rmngr::IOResource a;
+    rmngr::IOResource b;
 
     auto main_queue = rmngr::make_functor_queue(main_refinement);
 
@@ -25,7 +25,7 @@ int main(void)
                 std::cout << "Read from A" << std::endl;
                 std::this_thread::sleep_for(std::chrono::seconds(1));
             },
-            {a.make_access({rmngr::IOAccess::read})},
+            {a.read()},
             "Ar"
       ));
 
@@ -36,7 +36,7 @@ int main(void)
                 std::cout << "Write to A" << std::endl;
                 std::this_thread::sleep_for(std::chrono::seconds(1));
             },
-            {a.make_access({rmngr::IOAccess::write})},
+            {a.write()},
             "Aw"
     ));
 
@@ -46,7 +46,7 @@ int main(void)
             {
                 std::cout << "Write to B" << std::endl;
             },
-            {b.make_access({rmngr::IOAccess::write})},
+            {b.write()},
             "Bw"
     ));
 
@@ -56,7 +56,7 @@ int main(void)
             {
                 std::cout << "Read from A & B" << std::endl;
             },
-            {a.make_access({rmngr::IOAccess::read}), b.make_access({rmngr::IOAccess::read})},
+            {a.read(), b.read()},
             "Ar, Br"
     ));
 

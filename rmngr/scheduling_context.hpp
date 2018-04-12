@@ -44,8 +44,8 @@ class SchedulingContext
          */
         {
             public:
-                Schedulable(std::vector<std::shared_ptr<ResourceAccess>> const& access_list_, std::string label_= {})
-                    : ResourceUser(access_list_), state(pending), label(label_)
+                Schedulable(ResourceUser const& resource_user, std::string label_= {})
+                    : ResourceUser(resource_user), state(pending), label(label_)
                 {}
 
                 enum { pending, ready, running, done, } state;
@@ -56,21 +56,21 @@ class SchedulingContext
         class SchedulableFunctor : public DelayedFunctor, public Schedulable
         {
             public:
-                SchedulableFunctor(DelayedFunctor&& f, std::vector<std::shared_ptr<ResourceAccess>> const& access_list_, std::string label_)
-                    : DelayedFunctor(std::forward<DelayedFunctor>(f)), Schedulable(access_list_, label_) {}
+                SchedulableFunctor(DelayedFunctor&& f, ResourceUser const& resource_user, std::string label_)
+                    : DelayedFunctor(std::forward<DelayedFunctor>(f)), Schedulable(resource_user, label_) {}
         }; // class SchedulableFunctor
 
         template <typename Functor>
         class ProtoSchedulableFunctor : public ResourceUser, public Functor
         {
             public:
-                ProtoSchedulableFunctor(Functor const& f, std::vector<std::shared_ptr<ResourceAccess>> const& resource_list= {}, std::string label_= {})
+                ProtoSchedulableFunctor(Functor const& f, std::vector<ResourceAccess> const& resource_list= {}, std::string label_= {})
                     : ResourceUser(resource_list), Functor(f), label(label_) {}
 
                 template <typename DelayedFunctor>
                 SchedulableFunctor<DelayedFunctor>* clone(DelayedFunctor&& f) const
                 {
-                    return new SchedulableFunctor<DelayedFunctor>(std::forward<DelayedFunctor>(f), this->access_list, this->label);
+                    return new SchedulableFunctor<DelayedFunctor>(std::forward<DelayedFunctor>(f), *this, this->label);
                 }
 
                 std::string label;
@@ -137,11 +137,11 @@ class SchedulingContext
             )
         {}
 
-  template <typename Functor>
-  ProtoSchedulableFunctor<Functor> make_proto(Functor const& f, std::vector<std::shared_ptr<ResourceAccess>> access, std::string label)
-  {
-    return ProtoSchedulableFunctor<Functor>(f, access, label);
-  }
+        template <typename Functor>
+        ProtoSchedulableFunctor<Functor> make_proto(Functor const& f, std::vector<ResourceAccess> access, std::string label)
+        {
+            return ProtoSchedulableFunctor<Functor>(f, access, label);
+        }
 
         void write_graphviz(void)
         {
