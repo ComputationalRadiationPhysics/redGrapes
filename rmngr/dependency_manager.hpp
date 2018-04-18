@@ -8,6 +8,8 @@
 #include <stack>
 #include <boost/graph/graph_traits.hpp>
 
+#include <iostream>
+
 namespace rmngr
 {
 

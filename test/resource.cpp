@@ -1,36 +1,54 @@
-#include <boost/test/unit_test.hpp>
+
+#include <catch/catch.hpp>
 
 #include <rmngr/resource.hpp>
-#include <rmngr/ioaccess.hpp>
+#include <rmngr/ioresource.hpp>
 
-BOOST_AUTO_TEST_SUITE(resource);
-
-BOOST_AUTO_TEST_CASE(access)
+TEST_CASE("Resource ID")
 {
-    rmngr::StaticResource<rmngr::IOAccess> a;
-    rmngr::StaticResource<rmngr::IOAccess> b;
+    struct Access
+    {
+        static bool is_serial(Access a, Access b)
+        { return true; }
+    };
 
-    auto read_a = *a.make_access({rmngr::IOAccess::read});
-    auto write_a = *a.make_access({rmngr::IOAccess::write});
-    auto read_b = *b.make_access({rmngr::IOAccess::read});
-    auto write_b = *b.make_access({rmngr::IOAccess::write});
+    rmngr::Resource< Access > a, b;
 
-    BOOST_CHECK( read_a.check_dependency(read_a) == false );
-    BOOST_CHECK( read_a.check_dependency(write_a) == true );
-    BOOST_CHECK( write_a.check_dependency(read_a) == true );
+    // same resource
+    REQUIRE( rmngr::ResourceAccess::is_serial( a.make_access(Access{}), a.make_access(Access{}) ) == true );
+    REQUIRE( rmngr::ResourceAccess::is_serial( b.make_access(Access{}), b.make_access(Access{}) ) == true );
 
-    BOOST_CHECK( read_b.check_dependency(read_b) == false );
-    BOOST_CHECK( read_b.check_dependency(write_b) == true );
-    BOOST_CHECK( write_b.check_dependency(read_b) == true );
+    // same resource, but copied
+    rmngr::Resource< Access > a2(a);
+    REQUIRE( rmngr::ResourceAccess::is_serial( a.make_access(Access{}), a2.make_access(Access{}) ) == true );
 
-    BOOST_CHECK( read_a.check_dependency(read_b) == false );
-    BOOST_CHECK( read_a.check_dependency(write_b) == false );
-    BOOST_CHECK( write_a.check_dependency(read_b) == false );
-
-    BOOST_CHECK( read_b.check_dependency(read_a) == false );
-    BOOST_CHECK( read_b.check_dependency(write_a) == false );
-    BOOST_CHECK( write_b.check_dependency(read_a) == false );
+    // different resource
+    REQUIRE( rmngr::ResourceAccess::is_serial( a.make_access(Access{}), b.make_access(Access{}) ) == false );
+    REQUIRE( rmngr::ResourceAccess::is_serial( b.make_access(Access{}), a.make_access(Access{}) ) == false );
 }
 
-BOOST_AUTO_TEST_SUITE_END();
+TEST_CASE("IOResource")
+{
+    rmngr::IOResource a,b;
+
+    REQUIRE( rmngr::ResourceAccess::is_serial(a.read(), a.read()) == false );
+    REQUIRE( rmngr::ResourceAccess::is_serial(a.read(), a.write()) == true );
+    REQUIRE( rmngr::ResourceAccess::is_serial(a.write(), a.read()) == true );
+    REQUIRE( rmngr::ResourceAccess::is_serial(a.write(), a.write()) == true );
+
+    REQUIRE( rmngr::ResourceAccess::is_serial(b.read(), b.read()) == false );
+    REQUIRE( rmngr::ResourceAccess::is_serial(b.read(), b.write()) == true );
+    REQUIRE( rmngr::ResourceAccess::is_serial(b.write(), b.read()) == true );
+    REQUIRE( rmngr::ResourceAccess::is_serial(b.write(), b.write()) == true );
+
+    REQUIRE( rmngr::ResourceAccess::is_serial(a.read(), b.read()) == false );
+    REQUIRE( rmngr::ResourceAccess::is_serial(a.read(), b.write()) == false );
+    REQUIRE( rmngr::ResourceAccess::is_serial(a.write(), b.read()) == false );
+    REQUIRE( rmngr::ResourceAccess::is_serial(a.write(), b.write()) == false );
+
+    REQUIRE( rmngr::ResourceAccess::is_serial(b.read(), a.read()) == false );
+    REQUIRE( rmngr::ResourceAccess::is_serial(b.read(), a.write()) == false );
+    REQUIRE( rmngr::ResourceAccess::is_serial(b.write(), a.read()) == false );
+    REQUIRE( rmngr::ResourceAccess::is_serial(b.write(), a.write()) == false );
+}
 
