@@ -1,8 +1,18 @@
 
+# CMake
+Makefile
+CMakeCache.txt
+CMakeFiles
+CMakeScripts
+cmake_install.cmake
+CTestTestfile.cmake
+install_manifest.txt
+compile_commands.json
+DartConfiguration.tcl
+Testing
+
 *.swp
 *.orig
-*.o
 *.png
 *.dot
-bin
 
