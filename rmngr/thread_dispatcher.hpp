@@ -1,60 +1,82 @@
+
+/**
+ * @file rmngr/thread_dispatcher.hpp
+ */
+
 #pragma once
 
 #include <atomic>
 #include <thread>
-#include <array>
-#include <boost/lockfree/queue.hpp>
+#include <vector>
 
 namespace rmngr
 {
 
-template <typename Item, int max_threads=1, typename Thread=std::thread>
-class ThreadDispatcher : private boost::lockfree::queue<Item>
+namespace thread
 {
-    public:
-        ThreadDispatcher()
-            : boost::lockfree::queue<Item>(max_threads), running(true)
+static thread_local size_t id;
+}
+
+/** Manages a thread pool.
+ * Worker-threads request jobs from scheduler and execute them,
+ * until the ThreadDispatcher gets destroyed and all workers finished.
+ *
+ * @tparam Scheduler needs lockfree Callable getJob(int id) and bool empty()
+ * @tparam Thread must create a thread on construction and have join().
+ */
+template <typename Scheduler, typename Thread = std::thread>
+class ThreadDispatcher
+{
+  private:
+    struct Worker
+    {
+        Worker( ThreadDispatcher * td, size_t id )
+            : thread( work, td, this, id )
         {
-            for(size_t i = 0; i < max_threads; ++i)
-            {
-                this->threads[i] = Thread(thread_main, this, i);
-                this->working[i] = false;
-            }
+        }
+        Worker( Worker && w ) : thread( std::move( w.thread ) ) {}
+
+        static void
+        work( ThreadDispatcher * td, Worker * worker, size_t id )
+        {
+            thread::id = id;
+            while ( td->running )
+                td->consume_job();
         }
 
-        ~ThreadDispatcher()
-        {
-wait:
-            for(size_t i = 0; i < max_threads; ++i)
-            {
-                if(this->working[i]) goto wait;
-            }
+        Thread thread;
+    }; // struct Worker
 
-            running = false;
-            for(size_t i = 0; i < max_threads; ++i)
-                this->threads[i].join();
-        }
+    Scheduler & scheduler;
+    std::vector<Worker> workers;
+    std::atomic_bool running;
 
-        using boost::lockfree::queue<Item>::push;
+  public:
+    ThreadDispatcher( Scheduler & scheduler_, size_t n_threads )
+        : scheduler( scheduler_ ), running( true )
+    {
+        thread::id = 0;
+        for ( size_t i = 1; i <= n_threads; ++i )
+            this->workers.emplace_back( this, i );
+    }
 
-    private:
-        std::atomic_bool running;
-        std::array<std::atomic_bool, max_threads> working;
-        std::array<Thread, max_threads> threads;
+    void
+    consume_job( void )
+    {
+        auto job = this->scheduler.getJob();
+        if ( job )
+            job();
+    }
 
-        static void thread_main(ThreadDispatcher* td, size_t id)
-        {
-            while(td->running)
-            {
-                td->consume_all([td, id](Item i)
-                {
-                    td->working[id] = true;
-                    i();
-                    td->working[id] = false;
-                });
-            }
-        }
+    ~ThreadDispatcher()
+    {
+        while ( !scheduler.empty() )
+            consume_job();
+
+        running = false;
+        for ( Worker & worker : this->workers )
+            worker.thread.join();
+    }
 }; // class ThreadDispatcher
 
 } // namespace rmngr
-
