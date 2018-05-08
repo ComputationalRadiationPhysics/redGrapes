@@ -22,7 +22,7 @@ using FieldAccess = CombineAccess<
     ArrayAccess<
         AreaAccess,
         dimension_t,
-        Or_t
+        And_t
     >,
     And_t
 >;
