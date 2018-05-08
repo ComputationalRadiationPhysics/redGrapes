@@ -20,8 +20,8 @@ namespace rmngr
 struct AllSequential
 {
     template <typename ID>
-    bool
-    is_sequential( ID, ID )
+    static bool
+    is_serial( ID, ID )
     {
         return true;
     }
@@ -30,8 +30,8 @@ struct AllSequential
 struct AllParallel
 {
     template <typename ID>
-    bool
-    is_sequential( ID, ID )
+    static bool
+    is_serial( ID, ID )
     {
         return false;
     }
