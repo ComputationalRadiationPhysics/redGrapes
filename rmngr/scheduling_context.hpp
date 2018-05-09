@@ -109,7 +109,7 @@ class SchedulingContext
         void
         operator()( void )
         {
-            context->write_graphviz();
+            //context->write_graphviz();
             {
                 std::lock_guard<std::mutex> lock( context->graph_mutex );
                 s->state = Schedulable::running;
@@ -119,7 +119,7 @@ class SchedulingContext
                 std::lock_guard<std::mutex> lock( context->graph_mutex );
                 s->state = Schedulable::done;
             }
-            context->write_graphviz();
+            //context->write_graphviz();
 
             {
                 std::lock_guard<std::mutex> lock( context->graph_mutex );
@@ -146,7 +146,8 @@ class SchedulingContext
         empty( void )
         {
             context->update();
-            return this->main_fifo.empty() && this->others_fifo.empty();
+            std::lock_guard<std::mutex> lock(context->graph_mutex);
+            return ( boost::num_vertices(context->graph.graph()) == 0 );
         }
 
         Executor
@@ -194,8 +195,10 @@ class SchedulingContext
     finish( observer_ptr<Schedulable> s )
     {
         if ( this->graph.finish( s ) )
+          {
             delete s;
-        this->graph.update();
+            this->graph.update();
+          }
     }
 
     using Graph = boost::adjacency_list<
@@ -246,6 +249,7 @@ class SchedulingContext
     observer_ptr<Refinement>
     get_current_refinement( void )
     {
+        std::lock_guard<std::mutex> lock(this->graph_mutex);
         return this->main_refinement.refinement<Refinement>(
             this->get_current_schedulable() );
     }
@@ -253,7 +257,7 @@ class SchedulingContext
     FunctorQueue<QueuedPrecedenceGraph<Graph, ResourceUser>>
     get_main_queue( void )
     {
-        return make_functor_queue( this->main_refinement );
+        return make_functor_queue( this->main_refinement, this->graph_mutex );
     }
 
     template <typename Refinement>
@@ -262,7 +266,7 @@ class SchedulingContext
     {
         auto refinement = this->get_current_refinement<
             QueuedPrecedenceGraph<Graph, Refinement>>();
-        return make_functor_queue( *refinement );
+        return make_functor_queue( *refinement, this->graph_mutex );
     }
 
     void
