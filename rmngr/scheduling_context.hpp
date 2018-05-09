@@ -71,15 +71,13 @@ class SchedulingContext
     }; // class SchedulableFunctor
 
     template <typename Functor>
-    class ProtoSchedulableFunctor
-        : public SchedulingInfo
-        , public Functor
+    class ProtoSchedulableFunctor : public SchedulingInfo
     {
       public:
         ProtoSchedulableFunctor(
             Functor const & f,
             SchedulingInfo const & info )
-            : SchedulingInfo( info ), Functor( f )
+            : SchedulingInfo( info ), functor( f )
         {
         }
 
@@ -90,6 +88,15 @@ class SchedulingContext
             return new SchedulableFunctor<DelayedFunctor>(
                 std::forward<DelayedFunctor>( f ), *this );
         }
+
+        template <typename... Args>
+        typename std::result_of<Functor(Args...)>::type operator() ( Args&&... args )
+        {
+          return this->functor( std::forward<Args>(args)... );
+        }
+
+      private:
+        Functor functor;
     }; // class ProtoSchedulableFunctor
 
     struct Executor
@@ -243,17 +250,19 @@ class SchedulingContext
             this->get_current_schedulable() );
     }
 
-    FunctorQueue< QueuedPrecedenceGraph<Graph, ResourceUser> >
+    FunctorQueue<QueuedPrecedenceGraph<Graph, ResourceUser>>
     get_main_queue( void )
     {
         return make_functor_queue( this->main_refinement );
     }
 
     template <typename Refinement>
-    FunctorQueue<Refinement>
+    FunctorQueue<QueuedPrecedenceGraph<Graph, Refinement>>
     get_current_queue( void )
     {
-        return make_functor_queue( this->get_current_refinement<Refinement>() );
+        auto refinement = this->get_current_refinement<
+            QueuedPrecedenceGraph<Graph, Refinement>>();
+        return make_functor_queue( *refinement );
     }
 
     void
