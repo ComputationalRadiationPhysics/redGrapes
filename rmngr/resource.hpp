@@ -42,6 +42,12 @@ class ResourceAccess
         ResourceAccess(ResourceAccess&& r)
           : obj( std::move(r.obj) ) {}
 
+        ResourceAccess& operator= (ResourceAccess const & r)
+        {
+            this->obj.reset( r.obj->clone() );
+            return *this;
+        }
+
         static bool
         is_serial(
             ResourceAccess const & a,

@@ -3,11 +3,13 @@
 
 #include <list>
 #include <unordered_map>
+#include <unordered_set>
 #include <memory> // std::unique_ptr<>
 
 #include <boost/graph/graph_traits.hpp>
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/labeled_graph.hpp>
+#include <boost/graph/depth_first_search.hpp>
 #include <boost/graph/copy.hpp>
 
 #include <rmngr/refined_graph.hpp>
@@ -82,10 +84,35 @@ class QueuedPrecedenceGraph :
         {
             this->add_vertex(a);
 
+            using VertexID = typename boost::graph_traits<Graph>::vertex_descriptor;
+            struct Visitor : boost::default_dfs_visitor
+            {
+                std::unordered_set<ID>& discovered;
+
+                Visitor(std::unordered_set<ID>& d)
+                    : discovered(d)
+                {}
+
+                void discover_vertex(VertexID v, Graph const& g)
+                {
+                    this->discovered.insert(graph_get(v, g));
+                }
+            };
+
+            std::unordered_set<ID> indirect_dependencies;
+            Visitor vis(indirect_dependencies);
+
+            std::unordered_map<VertexID, boost::default_color_type> vertex2color;
+            auto colormap = boost::make_assoc_property_map(vertex2color);
+
+            VertexID i = graph_find_vertex(a, this->graph()).first;
             for(auto b : this->queue)
             {
-                if( EnqueuePolicy::is_serial(b, a) )
+                if( EnqueuePolicy::is_serial(b, a) && indirect_dependencies.count(b) == 0 )
+                {
                     this->add_edge(b, a);
+                    boost::depth_first_visit(this->graph(), i, vis, colormap);
+                }
             }
 
             this->queue.insert(this->queue.begin(), a);
