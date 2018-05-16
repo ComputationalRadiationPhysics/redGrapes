@@ -259,7 +259,7 @@ class SchedulingContext
         return make_functor_queue( this->main_refinement, this->graph_mutex );
     }
 
-    template <typename Refinement>
+    template <typename Refinement=ResourceUser>
     FunctorQueue<QueuedPrecedenceGraph<Graph, Refinement>>
     get_current_queue( void )
     {

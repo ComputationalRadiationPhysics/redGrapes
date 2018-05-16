@@ -19,7 +19,10 @@ install(TARGETS rmngr)
 install(DIRECTORY rmngr DESTINATION include)
 
 set(EXAMPLE_NAMES
-    example
+    1_resources
+    2_functors
+    3_functors_with_resources
+    4_refinements
     game_of_life
 )
 
