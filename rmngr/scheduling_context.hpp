@@ -92,7 +92,7 @@ class SchedulingContext
         template <typename... Args>
         typename std::result_of<Functor(Args...)>::type operator() ( Args&&... args )
         {
-          return this->functor( std::forward<Args>(args)... );
+            return this->functor( std::forward<Args>(args)... );
         }
 
       private:
@@ -120,7 +120,6 @@ class SchedulingContext
                 s->state = Schedulable::done;
             }
             //context->write_graphviz();
-
             {
                 std::lock_guard<std::mutex> lock( context->graph_mutex );
                 context->finish( s );
