@@ -20,6 +20,7 @@ install(DIRECTORY rmngr DESTINATION include)
 
 set(EXAMPLE_NAMES
     example
+    game_of_life
 )
 
 foreach(examplename ${EXAMPLE_NAMES})
