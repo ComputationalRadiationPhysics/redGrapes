@@ -149,7 +149,7 @@ TEST_CASE("ArrayAccess")
 
 TEST_CASE("FieldAccess")
 {
-    using Arr = ArrayAccess<AreaAccess, 3, Or_t>;
+    using Arr = ArrayAccess<AreaAccess, 3, And_t>;
     REQUIRE(FieldAccess<3>::is_serial(
                 FieldAccess<3>(
                     IOAccess{IOAccess::read},
