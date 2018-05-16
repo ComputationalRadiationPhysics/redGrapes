@@ -25,7 +25,6 @@ namespace rmngr
  * @tparam ID type to identify nodes
  */
 template <
-    typename ReadyMarker,
     typename Graph,
     typename RefinementGraph = Graph
 >
@@ -34,16 +33,12 @@ class SchedulingGraph
     public:
         using ID = typename Graph::vertex_property_type;
         using VertexID = typename boost::graph_traits<Graph>::vertex_descriptor;
-        using EdgeID = typename boost::graph_traits<Graph>::edge_descriptor;
-        using VertexIterator = typename boost::graph_traits<Graph>::vertex_iterator;
-        using InEdgeIterator = typename boost::graph_traits<Graph>::in_edge_iterator;
+  using EdgeID = typename boost::graph_traits<Graph>::edge_descriptor;
 
         SchedulingGraph(
-            observer_ptr<RefinedGraph<RefinementGraph>> main_ref,
-            ReadyMarker ready_marker
+            observer_ptr<RefinedGraph<RefinementGraph>> main_ref
         )
-            : main_refinement(main_ref),
-              mark_ready(ready_marker)
+            : main_refinement(main_ref)
         {}
 
         /** Check if a node has no dependencies
@@ -63,20 +58,11 @@ class SchedulingGraph
         /**
          * Recreate the scheduling-graph from refinements
          */
-        void update_schedule(void)
+        void update(void)
         {
             // merge all refinements into one graph
             this->scheduling_graph.clear();
             this->main_refinement->copy(this->scheduling_graph);
-
-            // TODO: apply scheduling policy
-
-            // check which vertices are ready
-            VertexIterator it, end;
-            for(boost::tie(it, end) = boost::vertices(this->scheduling_graph);
-                it != end;
-                ++it)
-                this->update_ready(graph_get(*it, this->scheduling_graph));
         }
 
         /** Remove a node from the graphs and reschedule
@@ -88,9 +74,6 @@ class SchedulingGraph
         bool finish(ID a)
         {
             bool finished = this->main_refinement->finish(a);
-
-            //if(! finished)
-            this->update_schedule();
 
             return finished;
         }
@@ -155,15 +138,6 @@ class SchedulingGraph
     private:
         observer_ptr<RefinedGraph<RefinementGraph>> main_refinement;
         Graph scheduling_graph;
-        ReadyMarker mark_ready;
-
-        /// Mark ready if it is
-        void update_ready(ID a)
-        {
-            if(this->is_ready(a))
-                this->mark_ready(a);
-        }
-
 }; // class SchedulingGraph
 
 } // namespace rmngr

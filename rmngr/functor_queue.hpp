@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <mutex>
 #include <rmngr/functor.hpp>
 
 namespace rmngr
@@ -21,10 +22,12 @@ class FunctorQueue
         struct Pusher
         {
             Queue& queue;
+            std::mutex & queue_mutex;
 
             template <typename ProtoFunctor, typename DelayedFunctor>
             void operator() (ProtoFunctor const& proto, DelayedFunctor&& delayed)
             {
+                std::lock_guard<std::mutex> lock(queue_mutex);
                 queue.push(proto.clone(std::forward<DelayedFunctor>(delayed)));
             }
         }; // struct Pusher
@@ -32,8 +35,8 @@ class FunctorQueue
         Pusher pusher;
 
     public:
-        FunctorQueue(Queue& queue)
-            : pusher{queue}
+        FunctorQueue(Queue& queue, std::mutex & mutex)
+            : pusher{queue, mutex}
         {}
 
         /**
@@ -54,9 +57,9 @@ class FunctorQueue
 }; // class FunctorQueue
 
 template <typename Queue>
-FunctorQueue<Queue> make_functor_queue(Queue& queue)
+FunctorQueue<Queue> make_functor_queue(Queue& queue, std::mutex & mutex)
 {
-    return FunctorQueue<Queue>(queue);
+    return FunctorQueue<Queue>(queue, mutex);
 }
 
 }; // namespace rmngr
