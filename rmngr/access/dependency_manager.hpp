@@ -72,9 +72,23 @@ class DependencyManager
             }
         }
 
+        /// check if a precedes b
         bool is_serial(VertexID a, VertexID b) const
         {
             return boost::edge(a, b, this->graph()).second;
+        }
+
+        /// check if a is superset of b
+        bool is_superset(VertexID a, VertexID b) const
+        {
+            auto vs = boost::vertices( this->graph() );
+            for( auto x = vs.first; x != vs.second; ++x )
+            {
+                if((! is_serial(*x, a) && is_serial(*x, b)) ||
+                   (! is_serial(a, *x) && is_serial(b, *x)))
+                    return false;
+            }
+            return true;
         }
 
         void print(void) const
