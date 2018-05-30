@@ -57,8 +57,17 @@ struct ArrayAccess : std::array<Access, N>
 
         return true;
     }
-}; // struct ArrayAccess
 
+    bool
+    is_superset_of( ArrayAccess<Access, N, Op> const & a ) const
+    {
+        for(std::size_t i = 0; i < N; ++i)
+            if( ! (*this)[i].is_superset_of( a[i] ) )
+                return false;
+
+        return true;
+    }
+}; // struct ArrayAccess
 
 template <
     typename Acc1,
@@ -95,6 +104,15 @@ struct CombineAccess : std::pair<Acc1, Acc2>
         return (
             Acc1::is_serial(a.first, b.first) ||
             Acc2::is_serial(a.second, b.second)
+        );
+    }
+
+    bool
+    is_superset_of( CombineAccess<Acc1, Acc2, Op> const & a ) const
+    {
+        return (
+            this->first.is_superset_of(a.first) &&
+            this->second.is_superset_of(a.second)
         );
     }
 }; // struct CombineAccess
