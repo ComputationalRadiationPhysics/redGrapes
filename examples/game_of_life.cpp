@@ -14,7 +14,7 @@ rmngr::SchedulingContext * context;
 static constexpr size_t n_buffers = 4;
 struct Position { int x, y; };
 static constexpr Position chunk_size{1024, 1024};
-static constexpr Position field_size{chunk_size.x*8, chunk_size.y*8};
+static constexpr Position field_size{chunk_size.x*4, chunk_size.y*4};
 using Field = bool[field_size.y + 2][field_size.x + 2];
 
 bool
@@ -84,7 +84,7 @@ copy_borders_impl( Field * f )
 int
 main( int, char * [] )
 {
-    context = new rmngr::SchedulingContext( 1 );
+    context = new rmngr::SchedulingContext( 16 );
     auto queue = context->get_main_queue();
 
     rmngr::FieldResource<2> field[n_buffers];

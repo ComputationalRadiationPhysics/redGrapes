@@ -15,7 +15,7 @@ namespace rmngr
  *
  * @tparam Queue must have push()
  */
-template <typename Queue>
+template <typename Queue, typename Updater>
 class FunctorQueue
 {
     private:
@@ -23,20 +23,22 @@ class FunctorQueue
         {
             Queue& queue;
             std::mutex & queue_mutex;
+          Updater updater;
 
             template <typename ProtoFunctor, typename DelayedFunctor>
             void operator() (ProtoFunctor const& proto, DelayedFunctor&& delayed)
             {
                 std::lock_guard<std::mutex> lock(queue_mutex);
                 queue.push(proto.clone(std::forward<DelayedFunctor>(delayed)));
+                updater();
             }
         }; // struct Pusher
 
         Pusher pusher;
 
     public:
-        FunctorQueue(Queue& queue, std::mutex & mutex)
-            : pusher{queue, mutex}
+  FunctorQueue(Queue& queue, std::mutex & mutex, Updater const& updater)
+    : pusher{queue, mutex, updater}
         {}
 
         /**
@@ -56,10 +58,10 @@ class FunctorQueue
 
 }; // class FunctorQueue
 
-template <typename Queue>
-FunctorQueue<Queue> make_functor_queue(Queue& queue, std::mutex & mutex)
+  template <typename Queue, typename Updater>
+  FunctorQueue<Queue,Updater> make_functor_queue(Queue& queue, std::mutex & mutex, Updater const & up)
 {
-    return FunctorQueue<Queue>(queue, mutex);
+  return FunctorQueue<Queue,Updater>(queue, mutex, up);
 }
 
 }; // namespace rmngr
