@@ -43,5 +43,18 @@ TEST_CASE("Resource User")
     REQUIRE( rmngr::ResourceUser::is_serial(f5, f3) == true );
     REQUIRE( rmngr::ResourceUser::is_serial(f5, f4) == true );
     REQUIRE( rmngr::ResourceUser::is_serial(f5, f5) == true );
+
+
+    REQUIRE( f1.is_superset_of(f1) == true );
+    REQUIRE( f1.is_superset_of(f2) == false );
+    REQUIRE( f1.is_superset_of(f3) == false );
+    REQUIRE( f1.is_superset_of(f4) == false );
+    REQUIRE( f1.is_superset_of(f5) == false );
+
+    REQUIRE( f2.is_superset_of(f1) == true );
+    REQUIRE( f2.is_superset_of(f2) == true );
+    REQUIRE( f2.is_superset_of(f3) == false );
+    REQUIRE( f2.is_superset_of(f4) == false );
+    REQUIRE( f2.is_superset_of(f5) == false );
 }
 
