@@ -10,6 +10,9 @@ TEST_CASE("Resource ID")
     {
         static bool is_serial(Access a, Access b)
         { return true; }
+
+        bool is_superset_of(Access a) const
+        { return true; }
     };
 
     rmngr::Resource< Access > a, b;
