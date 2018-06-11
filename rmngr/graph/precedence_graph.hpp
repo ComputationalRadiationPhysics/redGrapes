@@ -65,6 +65,29 @@ class PrecedenceGraph : public RefinedGraph<Graph>
             );
             this->deprecate();
         }
+
+        /// remove edges which don't satisfy the precedence policy
+        template <typename PrecedencePolicy>
+        void update_vertex(ID id)
+        {
+            struct Predicate
+            {
+                ID id;
+                Graph const & graph;
+
+                bool operator() ( typename boost::graph_traits<Graph>::edge_descriptor edge ) const
+                {
+                    auto src = boost::source(edge, graph);
+                    return ( ! PrecedencePolicy::is_serial( *id, *graph_get(src, graph) ) );
+                }
+            };
+
+            Predicate pred{id, this->graph()};
+            auto v = graph_find_vertex(id, this->graph()).first;
+            boost::remove_in_edge_if(v, pred, this->graph());
+
+            this->deprecate();
+        }
 }; // class PrecedenceGraph
 
 /**
