@@ -7,6 +7,7 @@
 
 #include <map>
 #include <algorithm>
+#include <atomic>
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/graph_traits.hpp>
 #include <boost/graph/graphviz.hpp>
@@ -33,13 +34,15 @@ class SchedulingGraph
     public:
         using ID = typename Graph::vertex_property_type;
         using VertexID = typename boost::graph_traits<Graph>::vertex_descriptor;
-  using EdgeID = typename boost::graph_traits<Graph>::edge_descriptor;
+        using EdgeID = typename boost::graph_traits<Graph>::edge_descriptor;
 
         SchedulingGraph(
             observer_ptr<RefinedGraph<RefinementGraph>> main_ref
         )
             : main_refinement(main_ref)
-        {}
+        {
+            this->main_refinement->deprecated = &this->deprecated;
+        }
 
         /** Check if a node has no dependencies
          *
@@ -63,6 +66,7 @@ class SchedulingGraph
             // merge all refinements into one graph
             this->scheduling_graph.clear();
             this->main_refinement->copy(this->scheduling_graph);
+            this->deprecated = false;
         }
 
         /** Remove a node from the graphs and reschedule
@@ -74,8 +78,21 @@ class SchedulingGraph
         bool finish(ID a)
         {
             bool finished = this->main_refinement->finish(a);
+            if( finished )
+                this->deprecated = true;
 
             return finished;
+        }
+
+        /**
+         * Return if the current Graph is out of sync with
+         * the precedence graphs.
+         *
+         * @return true if needs to be updated
+         */
+        bool is_deprecated(void) const
+        {
+            return this->deprecated;
         }
 
         /** Write the current scheduling-graph as graphviz
@@ -138,6 +155,7 @@ class SchedulingGraph
     private:
         observer_ptr<RefinedGraph<RefinementGraph>> main_refinement;
         Graph scheduling_graph;
+        std::atomic_bool deprecated;
 }; // class SchedulingGraph
 
 } // namespace rmngr
