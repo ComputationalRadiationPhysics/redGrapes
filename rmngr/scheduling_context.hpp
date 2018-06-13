@@ -128,14 +128,6 @@ class SchedulingContext
         };
     }; // struct Executor
 
-    std::atomic_bool deprecated;
-
-    void
-    deprecate_scheduling_graph( void )
-    {
-        this->deprecated = true;
-    }
-
     struct Scheduler
     {
         SchedulingContext * context;
@@ -154,7 +146,7 @@ class SchedulingContext
         empty( void )
         {
             static std::atomic_bool e( false );
-            if ( context->deprecated )
+            if ( context->graph.is_deprecated() )
             {
                 context->update();
                 std::lock_guard<std::mutex> lock( context->graph_mutex );
@@ -181,7 +173,7 @@ class SchedulingContext
     void
     update( void )
     {
-        while ( this->deprecated )
+        while ( this->graph.is_deprecated() )
         {
             if ( this->graph_mutex.try_lock() )
             {
@@ -207,7 +199,6 @@ class SchedulingContext
                             this->finish( s );
                     }
                 }
-                this->deprecated = false;
                 this->graph_mutex.unlock();
             }
         }
@@ -217,10 +208,7 @@ class SchedulingContext
     finish( observer_ptr<Schedulable> s )
     {
         if ( this->graph.finish( s ) )
-        {
             delete s;
-            this->deprecate_scheduling_graph();
-        }
     }
 
     using Graph = boost::adjacency_list<
@@ -228,16 +216,6 @@ class SchedulingContext
         boost::vecS,
         boost::bidirectionalS,
         observer_ptr<Schedulable>>;
-
-    struct Updater
-    {
-        SchedulingContext * context;
-        void
-        operator()( void )
-        {
-            context->deprecate_scheduling_graph();
-        }
-    };
 
     Scheduler scheduler;
     QueuedPrecedenceGraph<Graph, ResourceUser> main_refinement;
@@ -286,21 +264,21 @@ class SchedulingContext
             this->get_current_schedulable() );
     }
 
-    FunctorQueue<QueuedPrecedenceGraph<Graph, ResourceUser>, Updater>
+    FunctorQueue<QueuedPrecedenceGraph<Graph, ResourceUser>>
     get_main_queue( void )
     {
         return make_functor_queue(
-            this->main_refinement, this->graph_mutex, Updater{this} );
+            this->main_refinement, this->graph_mutex );
     }
 
     template <typename Refinement = ResourceUser>
-    FunctorQueue<QueuedPrecedenceGraph<Graph, Refinement>, Updater>
+    FunctorQueue<QueuedPrecedenceGraph<Graph, Refinement>>
     get_current_queue( void )
     {
         auto refinement = this->get_current_refinement<
             QueuedPrecedenceGraph<Graph, Refinement>>();
         return make_functor_queue(
-            *refinement, this->graph_mutex, Updater{this} );
+            *refinement, this->graph_mutex );
     }
 
     void
