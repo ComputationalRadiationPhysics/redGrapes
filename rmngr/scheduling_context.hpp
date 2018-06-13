@@ -90,9 +90,10 @@ class SchedulingContext
         }
 
         template <typename... Args>
-        typename std::result_of<Functor(Args...)>::type operator() ( Args&&... args )
+        typename std::result_of<Functor( Args... )>::type
+        operator()( Args &&... args )
         {
-            return this->functor( std::forward<Args>(args)... );
+            return this->functor( std::forward<Args>( args )... );
         }
 
       private:
@@ -109,7 +110,7 @@ class SchedulingContext
         void
         operator()( void )
         {
-            //context->write_graphviz();
+            // context->write_graphviz();
             {
                 std::lock_guard<std::mutex> lock( context->graph_mutex );
                 s->state = Schedulable::running;
@@ -119,7 +120,7 @@ class SchedulingContext
                 std::lock_guard<std::mutex> lock( context->graph_mutex );
                 s->state = Schedulable::done;
             }
-            //context->write_graphviz();
+            // context->write_graphviz();
             {
                 std::lock_guard<std::mutex> lock( context->graph_mutex );
                 context->finish( s );
@@ -144,9 +145,14 @@ class SchedulingContext
         bool
         empty( void )
         {
-            context->update();
-            std::lock_guard<std::mutex> lock(context->graph_mutex);
-            return ( boost::num_vertices(context->graph.graph()) == 0 );
+            static std::atomic_bool e( false );
+            if ( context->graph.is_deprecated() )
+            {
+                context->update();
+                std::lock_guard<std::mutex> lock( context->graph_mutex );
+                e = ( boost::num_vertices( context->graph.graph() ) == 0 );
+            }
+            return e;
         }
 
         Executor
@@ -167,25 +173,33 @@ class SchedulingContext
     void
     update( void )
     {
-        std::lock_guard<std::mutex> lock( this->graph_mutex );
-        this->graph.update();
-
-        boost::graph_traits<Graph>::vertex_iterator it, end;
-        for ( boost::tie( it, end ) = boost::vertices( this->graph.graph() );
-              it != end;
-              ++it )
+        while ( this->graph.is_deprecated() )
         {
-            observer_ptr<Schedulable> s = graph_get( *it, this->graph.graph() );
-
-            if ( this->graph.is_ready( s ) )
+            if ( this->graph_mutex.try_lock() )
             {
-                if ( s->state == Schedulable::pending )
+                this->graph.update();
+
+                boost::graph_traits<Graph>::vertex_iterator it, end;
+                for ( boost::tie( it, end ) =
+                          boost::vertices( this->graph.graph() );
+                      it != end;
+                      ++it )
                 {
-                    s->state = Schedulable::ready;
-                    this->scheduler.push( s );
+                    observer_ptr<Schedulable> s =
+                        graph_get( *it, this->graph.graph() );
+
+                    if ( this->graph.is_ready( s ) )
+                    {
+                        if ( s->state == Schedulable::pending )
+                        {
+                            s->state = Schedulable::ready;
+                            this->scheduler.push( s );
+                        }
+                        else if ( s->state == Schedulable::done )
+                            this->finish( s );
+                    }
                 }
-                else if ( s->state == Schedulable::done )
-                    this->finish( s );
+                this->graph_mutex.unlock();
             }
         }
     }
@@ -194,10 +208,7 @@ class SchedulingContext
     finish( observer_ptr<Schedulable> s )
     {
         if ( this->graph.finish( s ) )
-          {
             delete s;
-            this->graph.update();
-          }
     }
 
     using Graph = boost::adjacency_list<
@@ -248,7 +259,7 @@ class SchedulingContext
     observer_ptr<Refinement>
     get_current_refinement( void )
     {
-        std::lock_guard<std::mutex> lock(this->graph_mutex);
+        std::lock_guard<std::mutex> lock( this->graph_mutex );
         return this->main_refinement.refinement<Refinement>(
             this->get_current_schedulable() );
     }
@@ -256,16 +267,18 @@ class SchedulingContext
     FunctorQueue<QueuedPrecedenceGraph<Graph, ResourceUser>>
     get_main_queue( void )
     {
-        return make_functor_queue( this->main_refinement, this->graph_mutex );
+        return make_functor_queue(
+            this->main_refinement, this->graph_mutex );
     }
 
-    template <typename Refinement=ResourceUser>
+    template <typename Refinement = ResourceUser>
     FunctorQueue<QueuedPrecedenceGraph<Graph, Refinement>>
     get_current_queue( void )
     {
         auto refinement = this->get_current_refinement<
             QueuedPrecedenceGraph<Graph, Refinement>>();
-        return make_functor_queue( *refinement, this->graph_mutex );
+        return make_functor_queue(
+            *refinement, this->graph_mutex );
     }
 
     void
