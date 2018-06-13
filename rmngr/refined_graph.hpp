@@ -30,6 +30,9 @@ class RefinedGraph
         using VertexID = typename boost::graph_traits<Graph>::vertex_descriptor;
 
     public:
+        RefinedGraph()
+            : deprecated(nullptr) {}
+
         /// get graph object
         Graph & graph(void)
         {
@@ -87,6 +90,7 @@ class RefinedGraph
         {
             Refinement* ptr = new Refinement();
             this->refinements[parent] = std::unique_ptr<RefinedGraph>(ptr);
+            this->refinements[parent]->deprecated = this->deprecated;
             return observer_ptr<Refinement>(ptr);
         }
 
@@ -119,6 +123,8 @@ class RefinedGraph
                 {
                     boost::clear_vertex(v.first, this->graph());
                     boost::remove_vertex(v.first, this->graph());
+
+                    this->deprecate();
                     return true;
                 }
                 else
@@ -130,6 +136,7 @@ class RefinedGraph
                             if (boost::num_vertices(r.second->graph()) == 0)
                                 this->refinements.erase(r.first);
 
+                            this->deprecate();
                             return true;
                         }
                     }
@@ -137,6 +144,13 @@ class RefinedGraph
             }
 
             return false;
+        }
+
+        std::atomic_bool * deprecated;
+        void deprecate(void)
+        {
+            if( this->deprecated != nullptr )
+                *this->deprecated = true;
         }
 
     private:

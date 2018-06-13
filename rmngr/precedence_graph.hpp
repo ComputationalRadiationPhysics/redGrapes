@@ -52,6 +52,7 @@ class PrecedenceGraph : public RefinedGraph<Graph>
         void add_vertex(ID a)
         {
             boost::add_vertex(a, this->graph());
+            this->deprecate();
         }
 
         /// a precedes b
@@ -62,6 +63,7 @@ class PrecedenceGraph : public RefinedGraph<Graph>
                 graph_find_vertex(a, this->graph()).first,
                 this->graph()
             );
+            this->deprecate();
         }
 }; // class PrecedenceGraph
 
