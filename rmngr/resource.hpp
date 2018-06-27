@@ -61,7 +61,15 @@ class ResourceAccess
         }
 }; // class ResourceAccess
 
-template <typename AccessPolicy>
+struct DefaultAccessPolicy
+{
+    static bool is_serial(DefaultAccessPolicy, DefaultAccessPolicy)
+    {
+        return true;
+    }
+};
+
+template <typename AccessPolicy = DefaultAccessPolicy>
 class Resource
 {
     protected:
@@ -99,7 +107,7 @@ class Resource
         Resource()
           : id( id_counter++ ) {}
 
-        ResourceAccess make_access(AccessPolicy pol) const
+        ResourceAccess make_access(AccessPolicy pol = AccessPolicy()) const
         {
             return ResourceAccess(new Access(*this, pol));
         }

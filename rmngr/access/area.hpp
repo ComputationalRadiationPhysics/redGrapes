@@ -14,6 +14,14 @@ namespace access
 
 struct AreaAccess : std::array<int, 2>
 {
+    AreaAccess()
+      : std::array<int, 2>
+        {
+          std::numeric_limits<int>::min(),
+          std::numeric_limits<int>::max()
+        }
+    {}
+
     AreaAccess(std::array<int, 2> a)
       : std::array<int, 2>(a) {}
 
