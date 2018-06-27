@@ -109,41 +109,23 @@ main( int, char * [] )
     for ( int generation = 0; generation < 10; ++generation )
     {
         // copy borders
-        copy_borders_proto.access_list = {
-            field[current_buffer].write(
-                {std::array<int, 2>{0, field_size.x + 1},
-                 std::array<int, 2>{0, 0}} ),
-            field[current_buffer].write(
-                {std::array<int, 2>{0, field_size.x + 1},
-                 std::array<int, 2>{field_size.y + 1, field_size.y + 1}} ),
-            field[current_buffer].write(
-                {std::array<int, 2>{0, 0},
-                 std::array<int, 2>{0, field_size.y + 1}} ),
-            field[current_buffer].write(
-                {std::array<int, 2>{field_size.x + 1, field_size.x + 1},
-                 std::array<int, 2>{0, field_size.y + 1}} ),
-
-            field[current_buffer].read(
-                {std::array<int, 2>{0, field_size.x + 1},
-                 std::array<int, 2>{0, 1}} ),
-            field[current_buffer].read(
-                {std::array<int, 2>{0, field_size.x + 1},
-                 std::array<int, 2>{field_size.y, field_size.y + 1}} ),
-            field[current_buffer].read(
-                {std::array<int, 2>{0, 1},
-                 std::array<int, 2>{0, field_size.y + 1}} ),
-            field[current_buffer].read(
-                {std::array<int, 2>{field_size.x, field_size.x + 1},
-                 std::array<int, 2>{0, field_size.y + 1}} ) };
+        copy_borders_proto.access_list =
+        {
+            field[current_buffer].write({{0, field_size.x + 1}, {0, 0}}),
+            field[current_buffer].write({{0, field_size.x + 1}, {field_size.y + 1, field_size.y + 1}}),
+            field[current_buffer].write({{0, 0}, {0, field_size.y + 1}}),
+            field[current_buffer].write({{field_size.x + 1, field_size.x + 1}, {0, field_size.y + 1}}),
+            field[current_buffer].read({{0, field_size.x + 1}, {0, 1}}),
+            field[current_buffer].read({{0, field_size.x + 1}, {field_size.y, field_size.y + 1}}),
+            field[current_buffer].read({{0, 1}, {0, field_size.y + 1}}),
+            field[current_buffer].read({{field_size.x, field_size.x + 1}, {0, field_size.y + 1}}),
+        };
 
         copy_borders_proto.label = "Borders " + std::to_string( current_buffer );
         auto copy_borders = queue.make_functor( copy_borders_proto );
         copy_borders( buffers[current_buffer] );
 
-        print_buffer_proto.access_list = {
-            field[current_buffer].read(
-                {std::array<int, 2>{0, field_size.x+1},
-                 std::array<int, 2>{0, field_size.y+1}})};
+        print_buffer_proto.access_list = { field[current_buffer].read() };
         print_buffer_proto.label = "Print " + std::to_string( current_buffer );
         auto print_buffer = queue.make_functor( print_buffer_proto );
         print_buffer( buffers[current_buffer] );
@@ -154,13 +136,11 @@ main( int, char * [] )
         {
             for ( int y = 1; y <= field_size.y; )
             {
-                update_chunk_proto.access_list = {
-                    field[next_buffer].write(
-                        {std::array<int, 2>{x, x + chunk_size.x - 1},
-                         std::array<int, 2>{y, y + chunk_size.y - 1}} ),
-                    field[current_buffer].read(
-                        {std::array<int, 2>{x - 1, x + chunk_size.x},
-                         std::array<int, 2>{y - 1, y + chunk_size.y}} )};
+                update_chunk_proto.access_list =
+                {
+                    field[next_buffer].write( {{x, x + chunk_size.x - 1}, {y, y + chunk_size.y - 1}} ),
+                    field[current_buffer].read( {{x - 1, x + chunk_size.x}, {y - 1, y + chunk_size.y}} )
+                };
                 update_chunk_proto.label = "Chunk " + std::to_string( x ) +
                                            "," + std::to_string( y ) + " (" +
                                            std::to_string( next_buffer ) + ")";
@@ -180,10 +160,7 @@ main( int, char * [] )
         current_buffer = next_buffer;
     }
 
-    print_buffer_proto.access_list = {
-        field[current_buffer].read(
-            {std::array<int, 2>{0, field_size.x + 1},
-             std::array<int, 2>{0, field_size.y + 1}} )};
+    print_buffer_proto.access_list = {field[current_buffer].read( {{0, field_size.x + 1}, {0, field_size.y + 1}} ) };
     print_buffer_proto.label = "Print " + std::to_string( current_buffer );
     auto print_buffer = queue.make_functor( print_buffer_proto );
 

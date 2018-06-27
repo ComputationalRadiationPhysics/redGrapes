@@ -10,7 +10,8 @@ int main(int, char*[])
     rmngr::IOResource c;
 
     rmngr::ResourceUser user1({
-        a.read({{
+        a.read(), // complete resource
+        a.write({{
             {0, 20}, // area of 1st dimension
             {0, 10}  // area of 2nd dimension
         }}),
