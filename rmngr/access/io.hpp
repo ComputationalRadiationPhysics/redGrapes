@@ -15,7 +15,7 @@ namespace access
 
 struct IOAccess
 {
-    enum
+    enum Mode
     {
         root,
         read,
@@ -23,6 +23,12 @@ struct IOAccess
         aadd,
         amul,
     } mode;
+
+    IOAccess()
+      : mode(root) {}
+
+    IOAccess( enum Mode mode_ )
+      : mode(mode_) {}
 
     static bool
     is_serial(

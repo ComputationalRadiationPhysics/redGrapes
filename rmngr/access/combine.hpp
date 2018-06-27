@@ -23,6 +23,12 @@ template <
 >
 struct ArrayAccess : std::array<Access, N>
 {
+    ArrayAccess()
+    {
+        for( Access & a : *this )
+            a = Access();
+    }
+
     ArrayAccess(std::array<Access, N> const & a)
       : std::array<Access, N>(a) {}
 
@@ -61,6 +67,10 @@ template <
 >
 struct CombineAccess : std::pair<Acc1, Acc2>
 {
+    CombineAccess()
+      : std::pair<Acc1, Acc2>( Acc1(), Acc2() )
+    {}
+
     CombineAccess(Acc1 a, Acc2 b)
       : std::pair<Acc1, Acc2>(a,b) {}
 
