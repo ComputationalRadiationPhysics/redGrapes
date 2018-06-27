@@ -52,6 +52,7 @@ class DelayingFunctor
                 static void set_promise (std::promise<void>& p, F& func)
                 {
                     func();
+                    p.set_value();
                 }
 
         }; // class DelayedFunctor
