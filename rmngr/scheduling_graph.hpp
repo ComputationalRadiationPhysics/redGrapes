@@ -39,7 +39,7 @@ class SchedulingGraph
         SchedulingGraph(
             observer_ptr<RefinedGraph<RefinementGraph>> main_ref
         )
-            : main_refinement(main_ref)
+            : main_refinement(main_ref), deprecated(true)
         {
             this->main_refinement->deprecated = &this->deprecated;
         }
