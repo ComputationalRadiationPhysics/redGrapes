@@ -14,6 +14,9 @@ namespace rmngr
 class ResourceUser
 {
     public:
+        ResourceUser()
+        {}
+
         ResourceUser(std::vector<ResourceAccess> const& access_list_)
           : access_list(access_list_)
         {}
