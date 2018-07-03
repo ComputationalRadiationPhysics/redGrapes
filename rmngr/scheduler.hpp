@@ -133,6 +133,12 @@ public:
         }
     }
 
+    template <typename Policy>
+    Policy & policy( void )
+    {
+        return this->policies;
+    }
+
 private:
     std::mutex graph_mutex;
     SchedulingGraph< Graph<observer_ptr<Schedulable>> > graph;
@@ -152,7 +158,7 @@ private:
     typename boost::mpl::inherit_linearly<
         SchedulingPolicies,
         boost::mpl::inherit< boost::mpl::_1, boost::mpl::_2 >
-    >
+    >::type
     policies;
 
 }; // class Scheduler
