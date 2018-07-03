@@ -36,6 +36,14 @@ QueuedPrecedenceGraph<
     ResourceUser
 >;
 
+struct DefaultSchedulingPolicy
+{
+    struct Property {};
+
+    template <typename Graph>
+    void update( Graph & graph ) {}
+};
+
 /**
  * Compose the Scheduler from multiple Scheduling-Policies.
  *
@@ -92,12 +100,8 @@ public:
         : public SchedulingProperties
     {
       public:
-        ProtoSchedulableFunctor(
-            Functor const & f,
-            SchedulingProperties const & props
-        )
-            : SchedulingProperties( props )
-            , functor( f )
+        ProtoSchedulableFunctor( Functor const & f )
+            : functor( f )
         {}
 
         template <typename DelayedFunctor>
@@ -119,6 +123,13 @@ public:
         Functor functor;
     }; // class ProtoSchedulableFunctor
 
+    template <typename Functor>
+    ProtoSchedulableFunctor<Functor>
+    make_proto( Functor const & f )
+    {
+        return ProtoSchedulableFunctor<Functor>( f );
+    }
+
     void update(void)
     {
         while ( this->graph.is_deprecated() )
@@ -129,6 +140,8 @@ public:
 
                 Updater updater{ *this };
                 boost::mpl::for_each< SchedulingPolicies >( updater );
+
+                this->graph_mutex.unlock();
             }
         }
     }
@@ -137,6 +150,12 @@ public:
     Policy & policy( void )
     {
         return this->policies;
+    }
+
+    template <typename Policy>
+    static typename Policy::Property & property( SchedulingProperty<Policy> & s )
+    {
+        return s.prop;
     }
 
 private:
