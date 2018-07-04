@@ -1,6 +1,6 @@
 
 /**
- * @file rmngr/scheduler.hpp
+ * @file rmngr/scheduler/scheduler.hpp
  */
 
 #pragma once
@@ -10,12 +10,12 @@
 #include <boost/mpl/for_each.hpp>
 
 #include <rmngr/functor.hpp>
-#include <rmngr/scheduling_graph.hpp>
+#include <rmngr/scheduler/scheduling_graph.hpp>
 
-
+// defaults
 #include <boost/graph/adjacency_list.hpp>
-#include <rmngr/precedence_graph.hpp>
-#include <rmngr/resource_user.hpp>
+#include <rmngr/graph/precedence_graph.hpp>
+#include <rmngr/resource/resource_user.hpp>
 
 namespace rmngr
 {

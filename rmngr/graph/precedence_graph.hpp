@@ -12,7 +12,7 @@
 #include <boost/graph/depth_first_search.hpp>
 #include <boost/graph/copy.hpp>
 
-#include <rmngr/refined_graph.hpp>
+#include <rmngr/graph/refined_graph.hpp>
 #include <rmngr/observer_ptr.hpp>
 #include <iostream>
 

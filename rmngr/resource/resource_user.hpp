@@ -1,12 +1,12 @@
 
 /**
- * @file rmngr/resource_user.hpp
+ * @file rmngr/resource/resource_user.hpp
  */
 
 #pragma once
 
 #include <vector>
-#include <rmngr/resource.hpp>
+#include <rmngr/resource/resource.hpp>
 
 namespace rmngr
 {

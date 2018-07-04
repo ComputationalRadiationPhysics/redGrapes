@@ -11,7 +11,7 @@
 #include <boost/graph/copy.hpp>
 
 #include <rmngr/observer_ptr.hpp>
-#include <rmngr/graph_util.hpp>
+#include <rmngr/graph/util.hpp>
 
 namespace rmngr
 {
