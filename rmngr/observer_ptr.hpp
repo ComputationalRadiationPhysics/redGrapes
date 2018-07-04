@@ -39,14 +39,15 @@ class observer_ptr
             return *this;
         }
 
+        template <typename T1>
+        operator T1& ()
+        {
+            return static_cast<T1&>(*this->ptr);
+        }
+
         operator bool () const
         {
             return (this->ptr != nullptr);
-        }
-
-        operator T& () const
-        {
-            return *this->ptr;
         }
 
         operator T* const () const
@@ -55,6 +56,11 @@ class observer_ptr
         }
 
         T* operator-> (void) const
+        {
+            return ptr;
+        }
+
+        T* operator& (void) const
         {
             return ptr;
         }

@@ -10,6 +10,7 @@
 #include <boost/mpl/for_each.hpp>
 
 #include <rmngr/functor.hpp>
+#include <rmngr/functor_queue.hpp>
 #include <rmngr/scheduler/scheduling_graph.hpp>
 
 // defaults
@@ -19,6 +20,53 @@
 
 namespace rmngr
 {
+
+struct SchedulerInterface
+{
+    struct SchedulableInterface
+        : virtual public DelayedFunctorInterface
+    {
+        virtual void finish(void) = 0;
+    };
+
+    virtual void update(void) = 0;
+    virtual bool empty(void) = 0;
+
+    std::unique_lock< std::mutex >
+    lock(void)
+    {
+        return std::unique_lock<std::mutex>(this->mutex);
+    };
+
+    template < typename Policy >
+    struct ProtoProperty
+    {
+        typename Policy::ProtoProperty prop;
+        operator typename Policy::ProtoProperty& ()
+        { return this->prop; }
+    };
+
+    template < typename Policy >
+    struct RuntimeProperty
+    {
+        typename Policy::RuntimeProperty prop;
+        operator typename Policy::RuntimeProperty& ()
+        { return this->prop; }
+    };
+
+    template < typename Policy >
+    static typename Policy::ProtoProperty &
+    proto_property( ProtoProperty<Policy> & s )
+    { return s.prop; }
+
+    template < typename Policy >
+    static typename Policy::RuntimeProperty &
+    runtime_property( RuntimeProperty<Policy> & s )
+    { return s.prop; }
+
+protected:
+    std::mutex mutex;
+};
 
 template <typename T>
 using DefaultGraph =
@@ -38,10 +86,11 @@ QueuedPrecedenceGraph<
 
 struct DefaultSchedulingPolicy
 {
-    struct Property {};
+    struct ProtoProperty {};
+    struct RuntimeProperty {};
 
     template <typename Graph>
-    void update( Graph & graph ) {}
+    void update( Graph & graph, SchedulerInterface & scheduler ) {}
 };
 
 /**
@@ -52,23 +101,24 @@ struct DefaultSchedulingPolicy
  * @tparam Graph Graph<T> is a complete boost::graph type
  */
 template <
-    typename SchedulingPolicies,
+    typename SchedulingPolicies = boost::mpl::vector<>,
     template <typename Graph> class Refinement = DefaultRefinement,
     template <typename T> class Graph = DefaultGraph
 >
 class Scheduler
+  : public SchedulerInterface
 {
 private:
-    template < typename Policy >
-    struct SchedulingProperty
-    {
-        typename Policy::Property prop;
-    };
-
-    using SchedulingProperties =
+    using ProtoProperties =
         typename boost::mpl::inherit_linearly<
             SchedulingPolicies,
-            boost::mpl::inherit< boost::mpl::_1, SchedulingProperty<boost::mpl::_2> >
+            boost::mpl::inherit< boost::mpl::_1, ProtoProperty<boost::mpl::_2> >
+        >::type;
+
+    using RuntimeProperties =
+        typename boost::mpl::inherit_linearly<
+            SchedulingPolicies,
+            boost::mpl::inherit< boost::mpl::_1, RuntimeProperty<boost::mpl::_2> >
         >::type;
 
 public:
@@ -80,28 +130,51 @@ public:
      * Base class storing all scheduling info and the functor
      */
     struct Schedulable
-        : public SchedulingProperties
-        , virtual public DelayedFunctorInterface
-    {};
+        : public virtual SchedulerInterface::SchedulableInterface
+        , public ProtoProperties
+        , public RuntimeProperties
+    {
+        Schedulable( Scheduler & scheduler_ )
+            : scheduler(scheduler_) {}
+
+        void finish(void)
+        {
+            this->scheduler.finish( this );
+        }
+
+    private:
+        Scheduler & scheduler;
+    };
 
     template <typename DelayedFunctor>
     struct SchedulableFunctor
         : public DelayedFunctor
         , public Schedulable
     {
-        SchedulableFunctor( DelayedFunctor && f, SchedulingProperties const & props )
+        SchedulableFunctor(
+            DelayedFunctor && f,
+            ProtoProperties const & props,
+            Scheduler & scheduler
+        )
             : DelayedFunctor( std::forward<DelayedFunctor>( f ) )
-            , SchedulingProperties( props )
-        {}
+            , Schedulable( scheduler )
+        {
+            ProtoProperties& p = *this;
+            p = props;
+        }
     }; // struct SchedulableFunctor
 
     template <typename Functor>
     class ProtoSchedulableFunctor
-        : public SchedulingProperties
+        : public ProtoProperties
     {
-      public:
-        ProtoSchedulableFunctor( Functor const & f )
+    public:
+        ProtoSchedulableFunctor(
+            Functor const & f,
+            Scheduler & scheduler_
+        )
             : functor( f )
+            , scheduler(scheduler_)
         {}
 
         template <typename DelayedFunctor>
@@ -109,7 +182,10 @@ public:
         clone( DelayedFunctor && f ) const
         {
             return new SchedulableFunctor<DelayedFunctor>(
-                std::forward<DelayedFunctor>( f ), *this );
+                std::forward<DelayedFunctor>( f ),
+                *this,
+                this->scheduler
+            );
         }
 
         template <typename... Args>
@@ -119,29 +195,39 @@ public:
             return this->functor( std::forward<Args>( args )... );
         }
 
-      private:
+    private:
         Functor functor;
+        Scheduler & scheduler;
     }; // class ProtoSchedulableFunctor
 
     template <typename Functor>
     ProtoSchedulableFunctor<Functor>
     make_proto( Functor const & f )
     {
-        return ProtoSchedulableFunctor<Functor>( f );
+        return ProtoSchedulableFunctor<Functor>( f, *this );
+    }
+
+    void finish( observer_ptr< Schedulable > s )
+    {
+        if( this->graph.finish(s) )
+            delete &s;
     }
 
     void update(void)
     {
         while ( this->graph.is_deprecated() )
         {
-            if ( this->graph_mutex.try_lock() )
+            if ( this->mutex.try_lock() )
             {
                 this->graph.update();
 
                 Updater updater{ *this };
-                boost::mpl::for_each< SchedulingPolicies >( updater );
+                boost::mpl::for_each<
+                    SchedulingPolicies,
+                    boost::type<boost::mpl::_>
+                >( updater );
 
-                this->graph_mutex.unlock();
+                this->mutex.unlock();
             }
         }
     }
@@ -152,33 +238,40 @@ public:
         return this->policies;
     }
 
-    template <typename Policy>
-    static typename Policy::Property & property( SchedulingProperty<Policy> & s )
+    bool empty(void)
     {
-        return s.prop;
+        this->update();
+        auto lock = this->lock();
+        return this->graph.empty();
+    }
+
+    FunctorQueue< Refinement< Graph< observer_ptr<Schedulable> > > >
+    get_main_queue( void )
+    {
+        return make_functor_queue(
+            this->main_refinement, this->mutex
+        );
     }
 
 private:
-    std::mutex graph_mutex;
     SchedulingGraph< Graph<observer_ptr<Schedulable>> > graph;
     Refinement< Graph<observer_ptr<Schedulable>> > main_refinement;
+
+    typename boost::mpl::inherit_linearly<
+        SchedulingPolicies,
+        boost::mpl::inherit< boost::mpl::_1, boost::mpl::_2 >
+    >::type policies;
 
     struct Updater
     {
         Scheduler & scheduler;
 
         template <typename Policy>
-        void operator() (Policy & policy)
+        void operator() ( boost::type<Policy> )
         {
-            policy.update( scheduler.graph );
+            scheduler.policy<Policy>().update( scheduler.graph, scheduler );
         }
     };
-
-    typename boost::mpl::inherit_linearly<
-        SchedulingPolicies,
-        boost::mpl::inherit< boost::mpl::_1, boost::mpl::_2 >
-    >::type
-    policies;
 
 }; // class Scheduler
 

@@ -44,6 +44,11 @@ class SchedulingGraph
             this->main_refinement->deprecated = &this->deprecated;
         }
 
+        bool empty(void) const
+        {
+            return (boost::num_vertices(this->scheduling_graph) == 0);
+        }
+
         /** Check if a node has no dependencies
          *
          * @param a node to check
