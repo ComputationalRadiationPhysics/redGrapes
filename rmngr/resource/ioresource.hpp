@@ -1,12 +1,12 @@
 
 /**
- * @file rmngr/ioresource.hpp
+ * @file rmngr/resource/ioresource.hpp
  */
 
 #pragma once
 
 #include <rmngr/access/io.hpp>
-#include <rmngr/resource.hpp>
+#include <rmngr/resource/resource.hpp>
 
 namespace rmngr
 {

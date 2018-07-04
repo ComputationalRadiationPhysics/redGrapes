@@ -1,6 +1,6 @@
 
 /**
- * @file rmngr/scheduling_graph.hpp
+ * @file rmngr/graph/scheduling_graph.hpp
  */
 
 #pragma once
@@ -14,9 +14,9 @@
 #include <boost/property_map/property_map.hpp>
 #include <boost/property_map/function_property_map.hpp>
 
-#include <rmngr/graph_util.hpp>
-#include <rmngr/refined_graph.hpp>
-#include <rmngr/precedence_graph.hpp>
+#include <rmngr/graph/util.hpp>
+#include <rmngr/graph/refined_graph.hpp>
+#include <rmngr/graph/precedence_graph.hpp>
 
 namespace rmngr
 {

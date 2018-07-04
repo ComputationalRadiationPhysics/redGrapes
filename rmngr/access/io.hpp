@@ -6,7 +6,7 @@
 #pragma once
 
 #include <boost/graph/adjacency_matrix.hpp>
-#include <rmngr/dependency_manager.hpp>
+#include <rmngr/access/dependency_manager.hpp>
 
 namespace rmngr
 {
