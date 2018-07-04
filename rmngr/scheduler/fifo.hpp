@@ -1,25 +1,24 @@
 
 /**
- * @file rmngr/scheduler.hpp
+ * @file rmngr/scheduler/fifo.hpp
  */
 
 #pragma once
 
 #include <queue>
-//#include <rmngr/observer_ptr.hpp>
 
 namespace rmngr
 {
 
-template <typename Executable>
+template <typename Job>
 class FIFO
 {
   public:
     void
-    push( Executable s )
+    push( Job const & job )
     {
         std::lock_guard<std::mutex> lock( queue_mutex );
-        this->queue.push( s );
+        this->queue.push( job );
     }
 
     bool
@@ -29,24 +28,23 @@ class FIFO
         return this->queue.empty();
     }
 
-    Executable
+    Job
     getJob( void )
     {
-        Executable i;
         std::lock_guard<std::mutex> lock( queue_mutex );
         if ( this->queue.empty() )
-            i = nullptr;
+            return Job(); // empty job
         else
         {
-            i = this->queue.front();
+            auto job = this->queue.front();
             this->queue.pop();
+            return job;
         }
-        return i;
     }
 
   private:
     std::mutex queue_mutex;
-    std::queue<Executable> queue;
+    std::queue<Job> queue;
 }; // struct FIFO
 
 } // namespace rmngr
