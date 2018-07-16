@@ -54,7 +54,7 @@ if(BUILD_TESTING)
                 execute_process(COMMAND mkdir -p "${Catch2_DIR}/include/catch")
                 execute_process(
                   WORKING_DIRECTORY "${Catch2_DIR}/include/catch"
-                  COMMAND curl -O "https://raw.githubusercontent.com/catchorg/Catch2/master/single_include/catch.hpp")
+                  COMMAND curl -O "https://raw.githubusercontent.com/catchorg/Catch2/master/single_include/catch2/catch.hpp")
             else()
                 message(WARNING "Catch2: not found and download is disabled")
             endif()
