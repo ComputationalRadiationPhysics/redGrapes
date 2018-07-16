@@ -17,6 +17,17 @@ struct DispatchPolicy : DefaultSchedulingPolicy
         RuntimeProperty() : state(pending) {}
 
         enum { pending, ready, running, done } state;
+
+        std::string color() const
+        {
+            switch( state )
+            {
+            case pending: return "yellow";
+            case ready: return "green";
+            case running: return "white";
+            default: return "gray";
+            }
+        }
     };
 
     struct Job
