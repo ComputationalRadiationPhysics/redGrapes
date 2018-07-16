@@ -118,7 +118,7 @@ class SchedulingGraph
             auto ids = boost::make_function_property_map<VertexID>(
                 [this](VertexID const & id)
                 {
-                    return size_t((void*)graph_get(id, this->scheduling_graph));
+                    return size_t(id);
                 }
             );
             auto names = boost::make_function_property_map<VertexID>(
