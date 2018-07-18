@@ -1,20 +1,20 @@
 
 #pragma once
 
-#include <rmngr/scheduler/fifo.hpp>
+#include <rmngr/scheduler/dispatch.hpp> /* DefaultJobSelector */
 
 namespace rmngr
 {
 
 template <
-    typename Executable,
-    template <typename> class JobSelector = FIFO
+    typename Job,
+    template <typename> class JobSelector
 >
-struct MainThreadDispatcher
+struct MainThreadSelector : DefaultJobSelector<Job>
 {
-    JobSelector<Executable> main_sel, others_sel;
+    JobSelector<Job> main_sel, others_sel;
 
-    struct Property : JobSelector<Executable>::Property
+    struct Property : JobSelector<Job>::Property
     {
         Property() : main_thread(false) {}
         bool main_thread;
@@ -25,15 +25,15 @@ struct MainThreadDispatcher
         return main_sel.empty() && others_sel.empty();
     }
 
-    void push( Executable e, Property & prop )
+    void push( Job const & j, Property const & prop = Property() )
     {
         if( prop.main_thread )
-            this->main_sel.push( e, prop );
+            this->main_sel.push( j, prop );
         else
-            this->others_sel.push( e, prop );
+            this->others_sel.push( j, prop );
     }
 
-    Executable getJob( void )
+    Job getJob( void )
     {
         if( rmngr::thread::id == 0 )
             return main_sel.getJob();

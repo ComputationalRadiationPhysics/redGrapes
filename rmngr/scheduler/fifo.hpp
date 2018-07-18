@@ -7,15 +7,18 @@
 
 #include <queue>
 
+
 namespace rmngr
 {
 
 template <typename Job>
 class FIFO
 {
-  public:
+public:
+    struct Property {};
+
     void
-    push( Job const & job )
+    push( Job const & job, Property const & prop = Property() )
     {
         std::lock_guard<std::mutex> lock( queue_mutex );
         this->queue.push( job );
@@ -42,7 +45,7 @@ class FIFO
         }
     }
 
-  private:
+private:
     std::mutex queue_mutex;
     std::queue<Job> queue;
 }; // struct FIFO

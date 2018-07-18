@@ -6,11 +6,22 @@
 namespace rmngr
 {
 
+template <typename Job>
+struct DefaultJobSelector
+{
+    struct Property {};
+
+    void push( Job const&, Property const& ) {}
+    bool empty( void ) { return true; }
+    Job getJob( void ) { return Job(); }
+};
+
 template <
     template <typename>
-    class T_JobSelector
+    class T_JobSelector = DefaultJobSelector
 >
-struct DispatchPolicy : DefaultSchedulingPolicy
+struct DispatchPolicy
+  : DefaultSchedulingPolicy
 {
     struct RuntimeProperty
     {
@@ -22,10 +33,10 @@ struct DispatchPolicy : DefaultSchedulingPolicy
         {
             switch( state )
             {
-            case pending: return "yellow";
-            case ready: return "green";
-            case running: return "white";
-            default: return "gray";
+                case pending: return "yellow";
+                case ready: return "green";
+                case running: return "white";
+                default: return "gray";
             }
         }
     };
@@ -65,6 +76,10 @@ struct DispatchPolicy : DefaultSchedulingPolicy
         observer_ptr<SchedulerInterface> scheduler;
     };
 
+    struct ProtoProperty
+        : T_JobSelector<Job>::Property
+    {};
+
     JobSelector selector;
     ThreadDispatcher<JobSelector> * dispatcher;
 
@@ -101,14 +116,15 @@ struct DispatchPolicy : DefaultSchedulingPolicy
             auto schedulable = graph_get( *(it.first), graph.graph() );
             if ( graph.is_ready( schedulable ) )
             {
-                RuntimeProperty & prop = schedulable;
+                ProtoProperty & proto_prop = schedulable;
+                RuntimeProperty & runtime_prop = schedulable;
 
-                if ( prop.state == RuntimeProperty::pending )
+                if ( runtime_prop.state == RuntimeProperty::pending )
                 {
-                    prop.state = RuntimeProperty::ready;
-                    selector.push( Job{ &schedulable, prop, scheduler } );
+                    runtime_prop.state = RuntimeProperty::ready;
+                    selector.push( Job{ &schedulable, runtime_prop, scheduler }, proto_prop );
                 }
-                else if ( prop.state == RuntimeProperty::done )
+                else if ( runtime_prop.state == RuntimeProperty::done )
                     schedulable->finish();
             }
         }
