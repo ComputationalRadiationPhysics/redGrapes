@@ -11,6 +11,7 @@
 
 #include <rmngr/functor.hpp>
 #include <rmngr/functor_queue.hpp>
+#include <rmngr/thread_dispatcher.hpp>
 #include <rmngr/scheduler/scheduling_graph.hpp>
 
 // defaults
@@ -26,6 +27,7 @@ struct SchedulerInterface
     struct SchedulableInterface
         : virtual public DelayedFunctorInterface
     {
+        virtual void start(void) = 0;
         virtual void finish(void) = 0;
     };
 
@@ -122,8 +124,9 @@ private:
         >::type;
 
 public:
-    Scheduler()
-       : graph( main_refinement )
+    Scheduler( int nthreads )
+      : graph( main_refinement ),
+        currently_scheduled( nthreads+1 )
     {}
 
     /**
@@ -136,6 +139,11 @@ public:
     {
         Schedulable( Scheduler & scheduler_ )
             : scheduler(scheduler_) {}
+
+        void start(void)
+        {
+            this->scheduler.currently_scheduled[ thread::id ] = this;
+        }
 
         void finish(void)
         {
@@ -248,14 +256,39 @@ public:
     FunctorQueue< Refinement< Graph< observer_ptr<Schedulable> > > >
     get_main_queue( void )
     {
-        return make_functor_queue(
-            this->main_refinement, this->mutex
-        );
+        return make_functor_queue( this->main_refinement, this->mutex );
+    }
+
+    observer_ptr<Schedulable>
+    get_current_schedulable( void )
+    {
+        return this->currently_scheduled[thread::id];
+    }
+
+    template <typename SRefinement>
+    observer_ptr<SRefinement>
+    get_current_refinement( void )
+    {
+        std::lock_guard<std::mutex> lock( this->mutex );
+        return this->main_refinement.template refinement<SRefinement>(
+                   this->get_current_schedulable()
+               );
+    }
+
+    template <
+        typename SRefinement = Refinement< Graph<observer_ptr<Schedulable>> >
+    >
+    FunctorQueue< SRefinement >
+    get_current_queue( void )
+    {
+        auto refinement = this->get_current_refinement< SRefinement >();
+        return make_functor_queue( *refinement, this->mutex );
     }
 
 private:
-    SchedulingGraph< Graph<observer_ptr<Schedulable>> > graph;
     Refinement< Graph<observer_ptr<Schedulable>> > main_refinement;
+    SchedulingGraph< Graph<observer_ptr<Schedulable>> > graph;
+    std::vector< observer_ptr<Schedulable> > currently_scheduled;
 
     typename boost::mpl::inherit_linearly<
         SchedulingPolicies,

@@ -89,8 +89,8 @@ class RefinedGraph
         make_refinement(ID parent)
         {
             Refinement* ptr = new Refinement();
+            ptr->deprecated = this->deprecated;
             this->refinements[parent] = std::unique_ptr<RefinedGraph>(ptr);
-            this->refinements[parent]->deprecated = this->deprecated;
             return observer_ptr<Refinement>(ptr);
         }
 
