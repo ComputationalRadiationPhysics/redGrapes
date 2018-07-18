@@ -56,6 +56,7 @@ struct DispatchPolicy
         {
             auto lock = scheduler->lock();
             prop->state = RuntimeProperty::running;
+            schedulable->start();
 
             lock.unlock();
             schedulable->run();
@@ -116,8 +117,8 @@ struct DispatchPolicy
             auto schedulable = graph_get( *(it.first), graph.graph() );
             if ( graph.is_ready( schedulable ) )
             {
-                ProtoProperty & proto_prop = schedulable;
-                RuntimeProperty & runtime_prop = schedulable;
+                ProtoProperty & proto_prop = *schedulable;
+                RuntimeProperty & runtime_prop = *schedulable;
 
                 if ( runtime_prop.state == RuntimeProperty::pending )
                 {

@@ -110,7 +110,7 @@ class QueuedPrecedenceGraph :
             VertexID i = graph_find_vertex(a, this->graph()).first;
             for(auto b : this->queue)
             {
-                if( EnqueuePolicy::is_serial(b, a) && indirect_dependencies.count(b) == 0 )
+                if( EnqueuePolicy::is_serial(*b, *a) && indirect_dependencies.count(b) == 0 )
                 {
                     this->add_edge(b, a);
                     boost::depth_first_visit(this->graph(), i, vis, colormap);
