@@ -99,7 +99,7 @@ main( int, char * [] )
             ( field_size.x + 2 ) * ( field_size.y + 2 ), sizeof( bool ) );
 
     std::default_random_engine generator;
-    std::discrete_distribution<bool> distribution{65, 35};
+    std::bernoulli_distribution distribution{0.35};
     for ( int x = 0; x <= field_size.x; ++x )
         for ( int y = 0; y <= field_size.y; ++y )
             ( *buffers[0] )[y][x] = distribution( generator );
