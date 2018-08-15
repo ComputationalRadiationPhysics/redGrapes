@@ -1,7 +1,7 @@
 
-#include <rmngr/ioresource.hpp>
-#include <rmngr/fieldresource.hpp>
-#include <rmngr/resource_user.hpp>
+#include <rmngr/resource/ioresource.hpp>
+#include <rmngr/resource/fieldresource.hpp>
+#include <rmngr/resource/resource_user.hpp>
 
 int main(int, char*[])
 {
