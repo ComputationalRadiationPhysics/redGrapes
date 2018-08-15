@@ -2,7 +2,7 @@
 #include <catch/catch.hpp>
 
 #include <boost/graph/adjacency_matrix.hpp>
-#include <rmngr/dependency_manager.hpp>
+#include <rmngr/access/dependency_manager.hpp>
 
 TEST_CASE("dependency_manager")
 {
