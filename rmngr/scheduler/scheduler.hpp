@@ -33,6 +33,7 @@ struct SchedulerInterface
 
     virtual void update(void) = 0;
     virtual bool empty(void) = 0;
+    virtual size_t num_threads(void) const = 0;
 
     std::unique_lock< std::mutex >
     lock(void)
@@ -91,6 +92,8 @@ struct DefaultSchedulingPolicy
     struct ProtoProperty {};
     struct RuntimeProperty {};
 
+    void init( SchedulerInterface & ) {}
+
     template <typename Graph>
     void update( Graph & graph, SchedulerInterface & scheduler ) {}
 };
@@ -123,11 +126,33 @@ private:
             boost::mpl::inherit< boost::mpl::_1, RuntimeProperty<boost::mpl::_2> >
         >::type;
 
+    struct Initializer
+    {
+        Scheduler & scheduler;
+
+        template <typename Policy>
+        void operator() ( boost::type<Policy> )
+        {
+            scheduler.policy<Policy>().init( scheduler );
+        }
+    };
+
 public:
-    Scheduler( int nthreads )
+    Scheduler( size_t nthreads = 1 )
       : graph( main_refinement ),
         currently_scheduled( nthreads+1 )
-    {}
+    {
+        Initializer initializer{ *this };
+        boost::mpl::for_each<
+            SchedulingPolicies,
+            boost::type<boost::mpl::_>
+        >( initializer );
+    }
+
+    size_t num_threads(void) const
+    {
+        return this->currently_scheduled.size();
+    }
 
     /**
      * Base class storing all scheduling info and the functor
