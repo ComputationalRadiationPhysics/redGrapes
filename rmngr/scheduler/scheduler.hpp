@@ -151,7 +151,7 @@ public:
 
     size_t num_threads(void) const
     {
-        return this->currently_scheduled.size();
+        return this->currently_scheduled.size()-1;
     }
 
     /**
