@@ -63,9 +63,11 @@ class ThreadDispatcher
     void
     consume_job( void )
     {
-        auto job = this->selector.getJob();
-        if ( job )
+        if(! this->selector.empty() )
+        {
+            auto job = this->selector.getJob();
             job();
+        }
     }
 
     ~ThreadDispatcher()

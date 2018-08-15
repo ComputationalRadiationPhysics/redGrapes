@@ -47,13 +47,11 @@ struct DispatchPolicy
         observer_ptr<RuntimeProperty> prop;
         observer_ptr<SchedulerInterface> scheduler;
 
-        operator bool() const
-        {
-            return bool(schedulable);
-        }
-
         void operator() (void)
         {
+            if(! schedulable )
+              return;
+
             auto lock = scheduler->lock();
             prop->state = RuntimeProperty::running;
             schedulable->start();
