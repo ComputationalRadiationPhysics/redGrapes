@@ -49,7 +49,7 @@ struct DispatchPolicy
 
         operator bool() const
         {
-            return bool(prop);
+            return bool(schedulable);
         }
 
         void operator() (void)
@@ -89,13 +89,13 @@ struct DispatchPolicy
         this->dispatcher = nullptr;
     }
 
-    void init( observer_ptr<SchedulerInterface> s, int nthreads = 1 )
+    void init( SchedulerInterface & s )
     {
         this->selector.scheduler = s;
         this->dispatcher =
           new ThreadDispatcher< JobSelector >(
             this->selector,
-            nthreads
+            s.num_threads()
           );
     }
 
