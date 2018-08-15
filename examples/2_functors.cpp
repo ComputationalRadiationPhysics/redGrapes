@@ -1,6 +1,8 @@
 
-
-#include <rmngr/scheduling_context.hpp>
+#include <rmngr/scheduler/scheduler.hpp>
+#include <rmngr/scheduler/resource.hpp>
+#include <rmngr/scheduler/dispatch.hpp>
+#include <rmngr/scheduler/fifo.hpp>
 
 int fun1_impl (int x)
 {
@@ -9,18 +11,18 @@ int fun1_impl (int x)
 
 int main()
 {
-    rmngr::SchedulingContext context( 1 /* number of threads */ );
-    auto queue = context.get_main_queue();
+    rmngr::Scheduler<
+        boost::mpl::vector<
+            rmngr::ResourceUserPolicy,
+            rmngr::DispatchPolicy< rmngr::FIFO >
+        >
+    > scheduler( 1 /* number of threads */ );
 
-    auto fun1_proto = context.make_proto( &fun1_impl );
-
-    // set flags (optional, they all have defaults)
-    fun1_proto.label = "Functor 1";
-    fun1_proto.main_thread = false;
+    auto queue = scheduler.get_main_queue();
+    auto fun1_proto = scheduler.make_proto( &fun1_impl );
 
     // create object which pushes a clone of proto into the queue
     auto fun1 = queue.make_functor( fun1_proto );
-
 
     // call fun1 like fun1_impl
     int i = 4;
