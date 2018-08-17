@@ -12,7 +12,7 @@
 #include <boost/graph/depth_first_search.hpp>
 #include <boost/graph/copy.hpp>
 
-#include <rmngr/refined_graph.hpp>
+#include <rmngr/graph/refined_graph.hpp>
 #include <rmngr/observer_ptr.hpp>
 #include <iostream>
 
@@ -110,7 +110,7 @@ class QueuedPrecedenceGraph :
             VertexID i = graph_find_vertex(a, this->graph()).first;
             for(auto b : this->queue)
             {
-                if( EnqueuePolicy::is_serial(b, a) && indirect_dependencies.count(b) == 0 )
+                if( EnqueuePolicy::is_serial(*b, *a) && indirect_dependencies.count(b) == 0 )
                 {
                     this->add_edge(b, a);
                     boost::depth_first_visit(this->graph(), i, vis, colormap);

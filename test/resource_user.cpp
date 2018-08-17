@@ -1,8 +1,8 @@
 
 #include <catch/catch.hpp>
 
-#include <rmngr/ioresource.hpp>
-#include <rmngr/resource_user.hpp>
+#include <rmngr/resource/ioresource.hpp>
+#include <rmngr/resource/resource_user.hpp>
 
 TEST_CASE("Resource User")
 {

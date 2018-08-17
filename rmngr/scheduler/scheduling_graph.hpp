@@ -1,6 +1,6 @@
 
 /**
- * @file rmngr/scheduling_graph.hpp
+ * @file rmngr/graph/scheduling_graph.hpp
  */
 
 #pragma once
@@ -14,9 +14,9 @@
 #include <boost/property_map/property_map.hpp>
 #include <boost/property_map/function_property_map.hpp>
 
-#include <rmngr/graph_util.hpp>
-#include <rmngr/refined_graph.hpp>
-#include <rmngr/precedence_graph.hpp>
+#include <rmngr/graph/util.hpp>
+#include <rmngr/graph/refined_graph.hpp>
+#include <rmngr/graph/precedence_graph.hpp>
 
 namespace rmngr
 {
@@ -39,9 +39,14 @@ class SchedulingGraph
         SchedulingGraph(
             observer_ptr<RefinedGraph<RefinementGraph>> main_ref
         )
-            : main_refinement(main_ref)
+            : main_refinement(main_ref), deprecated(true)
         {
             this->main_refinement->deprecated = &this->deprecated;
+        }
+
+        bool empty(void) const
+        {
+            return (boost::num_vertices(this->scheduling_graph) == 0);
         }
 
         /** Check if a node has no dependencies
@@ -113,7 +118,7 @@ class SchedulingGraph
             auto ids = boost::make_function_property_map<VertexID>(
                 [this](VertexID const & id)
                 {
-                    return size_t((void*)graph_get(id, this->scheduling_graph));
+                    return size_t(id);
                 }
             );
             auto names = boost::make_function_property_map<VertexID>(

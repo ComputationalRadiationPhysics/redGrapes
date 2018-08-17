@@ -1,6 +1,6 @@
 
 /**
- * @file rmngr/fieldresource.hpp
+ * @file rmngr/resource/fieldresource.hpp
  */
 
 #pragma once
@@ -8,7 +8,7 @@
 #include <limits>
 
 #include <rmngr/access/field.hpp>
-#include <rmngr/resource.hpp>
+#include <rmngr/resource/resource.hpp>
 
 namespace rmngr
 {
