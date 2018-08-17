@@ -1,8 +1,8 @@
 
 #include <catch/catch.hpp>
 
-#include <rmngr/resource.hpp>
-#include <rmngr/ioresource.hpp>
+#include <rmngr/resource/resource.hpp>
+#include <rmngr/resource/ioresource.hpp>
 
 TEST_CASE("Resource ID")
 {

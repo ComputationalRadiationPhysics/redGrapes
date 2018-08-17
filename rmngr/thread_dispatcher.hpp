@@ -24,7 +24,7 @@ static thread_local size_t id;
  * @tparam Scheduler needs lockfree Callable getJob(int id) and bool empty()
  * @tparam Thread must create a thread on construction and have join().
  */
-template <typename Scheduler, typename Thread = std::thread>
+template <typename Selector, typename Thread = std::thread>
 class ThreadDispatcher
 {
   private:
@@ -47,13 +47,13 @@ class ThreadDispatcher
         Thread thread;
     }; // struct Worker
 
-    Scheduler & scheduler;
+    Selector & selector;
     std::vector<Worker> workers;
     std::atomic_bool running;
 
   public:
-    ThreadDispatcher( Scheduler & scheduler_, size_t n_threads )
-        : scheduler( scheduler_ ), running( true )
+    ThreadDispatcher( Selector & selector_, size_t n_threads )
+        : selector( selector_ ), running( true )
     {
         thread::id = 0;
         for ( size_t i = 1; i <= n_threads; ++i )
@@ -63,14 +63,16 @@ class ThreadDispatcher
     void
     consume_job( void )
     {
-        auto job = this->scheduler.getJob();
-        if ( job )
+        if(! this->selector.empty() )
+        {
+            auto job = this->selector.getJob();
             job();
+        }
     }
 
     ~ThreadDispatcher()
     {
-        while ( !scheduler.empty() )
+        while ( !selector.empty() )
             consume_job();
 
         running = false;

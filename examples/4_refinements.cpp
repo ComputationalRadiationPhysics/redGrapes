@@ -3,10 +3,22 @@
 #include <chrono>
 
 #include <iostream>
-#include <rmngr/ioresource.hpp>
-#include <rmngr/scheduling_context.hpp>
+#include <rmngr/scheduler/scheduler.hpp>
+#include <rmngr/scheduler/resource.hpp>
+#include <rmngr/scheduler/dispatch.hpp>
+#include <rmngr/scheduler/fifo.hpp>
+#include <rmngr/scheduler/graphviz.hpp>
 
-rmngr::SchedulingContext* context;
+using Scheduler =
+    rmngr::Scheduler<
+        boost::mpl::vector<
+            rmngr::ResourceUserPolicy,
+          //rmngr::GraphvizWriter< rmngr::DispatchPolicy<rmngr::FIFO>::RuntimeProperty>,
+            rmngr::DispatchPolicy< rmngr::FIFO >
+        >
+    >;
+
+Scheduler * scheduler;
 
 void r1_impl(void)
 {
@@ -25,11 +37,11 @@ void f1_impl(void)
     std::cout << "f1 on thread " << rmngr::thread::id << "..." << std::endl;
 
     // get queue for currently running functor
-    auto queue = context->get_current_queue();
+    auto queue = scheduler->get_current_queue();
 
     // functors as children of current
-    auto r1 = queue.make_functor( context->make_proto( &r1_impl ) );
-    auto r2 = queue.make_functor( context->make_proto( &r2_impl ) );
+    auto r1 = queue.make_functor( scheduler->make_proto( &r1_impl ) );
+    auto r2 = queue.make_functor( scheduler->make_proto( &r2_impl ) );
 
     r1();
     r2();
@@ -37,18 +49,17 @@ void f1_impl(void)
 
 int main( int, char*[] )
 {
-    context = new rmngr::SchedulingContext(8);
-    auto queue = context->get_main_queue();
+    scheduler = new Scheduler( 16 );
 
-    rmngr::IOResource a, b;
+    auto queue = scheduler->get_main_queue();
 
-    auto fun1_proto = context->make_proto( &f1_impl, {a.read()} );
+    auto fun1_proto = scheduler->make_proto( &f1_impl );
     auto fun1 = queue.make_functor(fun1_proto);
 
     fun1();
     fun1();
 
-    delete context;
+    delete scheduler;
     return 0;
 }
 

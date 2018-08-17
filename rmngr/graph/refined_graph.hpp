@@ -11,7 +11,7 @@
 #include <boost/graph/copy.hpp>
 
 #include <rmngr/observer_ptr.hpp>
-#include <rmngr/graph_util.hpp>
+#include <rmngr/graph/util.hpp>
 
 namespace rmngr
 {
@@ -89,8 +89,8 @@ class RefinedGraph
         make_refinement(ID parent)
         {
             Refinement* ptr = new Refinement();
+            ptr->deprecated = this->deprecated;
             this->refinements[parent] = std::unique_ptr<RefinedGraph>(ptr);
-            this->refinements[parent]->deprecated = this->deprecated;
             return observer_ptr<Refinement>(ptr);
         }
 

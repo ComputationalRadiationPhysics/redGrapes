@@ -6,10 +6,22 @@
 #include <cstdlib>
 #include <iostream>
 #include <random>
-#include <rmngr/fieldresource.hpp>
-#include <rmngr/scheduling_context.hpp>
+#include <rmngr/resource/fieldresource.hpp>
+#include <rmngr/scheduler/scheduler.hpp>
+#include <rmngr/scheduler/resource.hpp>
+#include <rmngr/scheduler/dispatch.hpp>
+#include <rmngr/scheduler/fifo.hpp>
 
-rmngr::SchedulingContext * context;
+using Scheduler =
+    rmngr::Scheduler<
+        boost::mpl::vector<
+            rmngr::ResourceUserPolicy,
+          //rmngr::GraphvizWriter< rmngr::Dispatch<rmngr::FIFO> >
+            rmngr::DispatchPolicy< rmngr::FIFO >
+        >
+    >;
+
+Scheduler * scheduler;
 
 static constexpr size_t n_buffers = 4;
 struct Position { int x, y; };
@@ -84,14 +96,14 @@ copy_borders_impl( Field * f )
 int
 main( int, char * [] )
 {
-    context = new rmngr::SchedulingContext( 16 );
-    auto queue = context->get_main_queue();
+    scheduler = new Scheduler( 16 );
+    auto queue = scheduler->get_main_queue();
 
     rmngr::FieldResource<2> field[n_buffers];
 
-    auto copy_borders_proto = context->make_proto( &copy_borders_impl );
-    auto update_chunk_proto = context->make_proto( &update_chunk_impl );
-    auto print_buffer_proto = context->make_proto( &print_buffer_impl );
+    auto copy_borders_proto = scheduler->make_proto( &copy_borders_impl );
+    auto update_chunk_proto = scheduler->make_proto( &update_chunk_impl );
+    auto print_buffer_proto = scheduler->make_proto( &print_buffer_impl );
 
     Field * buffers[n_buffers];
     for ( int i = 0; i < n_buffers; ++i )
@@ -109,7 +121,7 @@ main( int, char * [] )
     for ( int generation = 0; generation < 10; ++generation )
     {
         // copy borders
-        copy_borders_proto.access_list =
+        scheduler->proto_property< rmngr::ResourceUserPolicy >( copy_borders_proto ).access_list =
         {
             field[current_buffer].write({{0, field_size.x + 1}, {0, 0}}),
             field[current_buffer].write({{0, field_size.x + 1}, {field_size.y + 1, field_size.y + 1}}),
@@ -120,31 +132,34 @@ main( int, char * [] )
             field[current_buffer].read({{0, 1}, {0, field_size.y + 1}}),
             field[current_buffer].read({{field_size.x, field_size.x + 1}, {0, field_size.y + 1}}),
         };
-
-        copy_borders_proto.label = "Borders " + std::to_string( current_buffer );
+        /*
+        scheduler->proto_policy< rmngr::GraphvizWriter >( copy_borders_proto ).label =
+            "Borders " + std::to_string( current_buffer );
+        */
         auto copy_borders = queue.make_functor( copy_borders_proto );
         copy_borders( buffers[current_buffer] );
-
+        /*
         print_buffer_proto.access_list = { field[current_buffer].read() };
         print_buffer_proto.label = "Print " + std::to_string( current_buffer );
         auto print_buffer = queue.make_functor( print_buffer_proto );
         print_buffer( buffers[current_buffer] );
-
+        */
         int next_buffer = ( current_buffer + 1 ) % n_buffers;
 
         for ( int x = 1; x <= field_size.x; )
         {
             for ( int y = 1; y <= field_size.y; )
             {
-                update_chunk_proto.access_list =
+                scheduler->proto_property<rmngr::ResourceUserPolicy>(update_chunk_proto).access_list =
                 {
                     field[next_buffer].write( {{x, x + chunk_size.x - 1}, {y, y + chunk_size.y - 1}} ),
                     field[current_buffer].read( {{x - 1, x + chunk_size.x}, {y - 1, y + chunk_size.y}} )
                 };
+                /*
                 update_chunk_proto.label = "Chunk " + std::to_string( x ) +
                                            "," + std::to_string( y ) + " (" +
                                            std::to_string( next_buffer ) + ")";
-
+                */
                 auto update_chunk = queue.make_functor( update_chunk_proto );
                 update_chunk(
                     buffers[next_buffer],
@@ -160,8 +175,11 @@ main( int, char * [] )
         current_buffer = next_buffer;
     }
 
-    print_buffer_proto.access_list = {field[current_buffer].read( {{0, field_size.x + 1}, {0, field_size.y + 1}} ) };
+    scheduler->proto_property<rmngr::ResourceUserPolicy>(print_buffer_proto).access_list =
+         {field[current_buffer].read( {{0, field_size.x + 1}, {0, field_size.y + 1}} ) };
+    /*
     print_buffer_proto.label = "Print " + std::to_string( current_buffer );
+    */
     auto print_buffer = queue.make_functor( print_buffer_proto );
 
     auto res = print_buffer( buffers[current_buffer] );
@@ -170,6 +188,8 @@ main( int, char * [] )
     for ( int i = 0; i < n_buffers; ++i )
         free( buffers[i] );
 
+
+    delete scheduler;
     return 0;
 }
 

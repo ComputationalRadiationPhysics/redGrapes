@@ -1,12 +1,12 @@
 
 /**
- * @file rmngr/resource_user.hpp
+ * @file rmngr/resource/resource_user.hpp
  */
 
 #pragma once
 
 #include <vector>
-#include <rmngr/resource.hpp>
+#include <rmngr/resource/resource.hpp>
 
 namespace rmngr
 {
@@ -14,6 +14,9 @@ namespace rmngr
 class ResourceUser
 {
     public:
+        ResourceUser()
+        {}
+
         ResourceUser(std::vector<ResourceAccess> const& access_list_)
           : access_list(access_list_)
         {}
