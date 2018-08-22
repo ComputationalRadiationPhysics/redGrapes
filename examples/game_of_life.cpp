@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <random>
+#include <thread>
 #include <rmngr/resource/fieldresource.hpp>
 #include <rmngr/scheduler/scheduler.hpp>
 #include <rmngr/scheduler/resource.hpp>
@@ -25,9 +26,15 @@ Scheduler * scheduler;
 
 static constexpr size_t n_buffers = 4;
 struct Position { int x, y; };
-static constexpr Position chunk_size{1024, 1024};
-static constexpr Position field_size{chunk_size.x*4, chunk_size.y*4};
-using Field = bool[field_size.y + 2][field_size.x + 2];
+static constexpr Position chunk_size{8, 8};
+static constexpr Position field_size{chunk_size.x*2, chunk_size.y*2};
+using Field = bool[field_size.y+2][field_size.x+2];
+
+// real data
+Field * buffers[n_buffers];
+
+// resource representation
+rmngr::FieldResource<2> field[n_buffers];
 
 bool
 next_state( Field const & neighbours )
@@ -52,35 +59,49 @@ update_cell( Field * dest, Field const * src, Position pos )
 
 void
 update_chunk_impl(
-    Field * dest,
-    Field const * src,
+    int dst_index,
+    int src_index,
     Position pos,
-    Position size )
+    Position size
+)
 {
+    std::cout << "Buffer " << dst_index << ": calculate chunk " << pos.x << ", " << pos.y << std::endl;
+    Field * dest = buffers[dst_index];
+    Field const * src = buffers[src_index];
     for ( int x = 0; x < size.x; ++x )
         for ( int y = 0; y < size.y; ++y )
             update_cell( dest, src, Position{pos.x + x, pos.y + y} );
-}
 
-int
-print_buffer_impl( Field const * field )
-{
-  /*
-    for ( auto const & row : ( *field ) )
-    {
-        for ( bool cell : row )
-            std::cout << ( cell ? "\x1b[47m" : "\x1b[100m" ) << "  ";
-        std::cout << "\x1b[0m" << std::endl;
-    }
-    std::cout << std::endl;
-
-  */
-    return 0;
+    //std::this_thread::sleep_for(std::chrono::seconds(1));
 }
 
 void
-copy_borders_impl( Field * f )
+update_chunk_prop(
+    rmngr::observer_ptr<Scheduler::Schedulable> s,
+    int dst_index,
+    int src_index,
+    Position pos,
+    Position size
+)
 {
+    Position end
+    {
+        pos.x + chunk_size.x - 1,
+        pos.y + chunk_size.y - 1,
+    };
+
+    scheduler->proto_property< rmngr::ResourceUserPolicy >( s ).access_list =
+    {
+        field[dst_index].write( {{pos.x, end.x}, {pos.y, end.y}} ),
+        field[src_index].read( {{pos.x - 1, end.x + 1}, {pos.y - 1, end.y + 1}} )
+    };
+}
+
+void
+copy_borders_impl(int i)
+{
+    std::cout << "Buffer " << i << ": copy borders" << std::endl;
+    Field * f = buffers[i];
     for ( int x = 0; x < field_size.x + 1; ++x )
     {
         ( *f )[0][x] = ( *f )[field_size.y][x];
@@ -93,101 +114,113 @@ copy_borders_impl( Field * f )
     }
 }
 
+void
+copy_borders_prop(
+    rmngr::observer_ptr<Scheduler::Schedulable> s,
+    int i
+)
+{
+    scheduler->proto_property< rmngr::ResourceUserPolicy >( s ).access_list =
+    {
+        field[i].write({{0, field_size.x + 1}, {0, 0}}),
+        field[i].write({{0, field_size.x + 1}, {field_size.y + 1, field_size.y + 1}}),
+        field[i].write({{0, 0}, {0, field_size.y + 1}}),
+        field[i].write({{field_size.x + 1, field_size.x + 1}, {0, field_size.y + 1}}),
+        field[i].read({{0, field_size.x + 1}, {0, 1}}),
+        field[i].read({{0, field_size.x + 1}, {field_size.y, field_size.y + 1}}),
+        field[i].read({{0, 1}, {0, field_size.y + 1}}),
+        field[i].read({{field_size.x, field_size.x + 1}, {0, field_size.y + 1}}),
+    };
+}
+
+void
+print_buffer_impl( int i )
+{
+    std::cout << "Print buffer " << i << std::endl;
+    Field * const field = buffers[i];
+
+    for ( auto const & row : ( *field ) )
+    {
+        for ( bool cell : row )
+            std::cout << ( cell ? "\x1b[47m" : "\x1b[100m" ) << "  ";
+        std::cout << "\x1b[0m" << std::endl;
+    }
+    std::cout << std::endl;
+}
+
+void
+print_buffer_prop(
+    rmngr::observer_ptr<Scheduler::Schedulable> s,
+    int i
+)
+{
+    scheduler->proto_property< rmngr::ResourceUserPolicy >( s ).access_list =
+    {
+        field[i].read( {{0, field_size.x-1}, {0, field_size.y-1}} )
+    };
+}
+
 int
 main( int, char * [] )
 {
-    scheduler = new Scheduler( 16 );
+    size_t n_threads = std::thread::hardware_concurrency();
+    std::cout << "using " << n_threads << " threads." << std::endl;
+    scheduler = new Scheduler( n_threads );
     auto queue = scheduler->get_main_queue();
 
-    rmngr::FieldResource<2> field[n_buffers];
+    auto copy_borders =
+        queue.make_functor(
+            scheduler->make_proto( &copy_borders_impl, &copy_borders_prop )
+        );
+    auto update_chunk =
+        queue.make_functor(
+            scheduler->make_proto( &update_chunk_impl, &update_chunk_prop )
+        );
+    auto print_buffer =
+        queue.make_functor(
+            scheduler->make_proto( &print_buffer_impl, &print_buffer_prop )
+        );
 
-    auto copy_borders_proto = scheduler->make_proto( &copy_borders_impl );
-    auto update_chunk_proto = scheduler->make_proto( &update_chunk_impl );
-    auto print_buffer_proto = scheduler->make_proto( &print_buffer_impl );
-
-    Field * buffers[n_buffers];
     for ( int i = 0; i < n_buffers; ++i )
         buffers[i] = (Field *)calloc(
-            ( field_size.x + 2 ) * ( field_size.y + 2 ), sizeof( bool ) );
+                         (field_size.x+2) * (field_size.y+2),
+                         sizeof( bool )
+                     );
 
     std::default_random_engine generator;
     std::bernoulli_distribution distribution{0.35};
-    for ( int x = 0; x <= field_size.x; ++x )
-        for ( int y = 0; y <= field_size.y; ++y )
+    for ( int x = 1; x <= field_size.x; ++x )
+        for ( int y = 1; y <= field_size.y; ++y )
             ( *buffers[0] )[y][x] = distribution( generator );
 
     int current_buffer = 0;
-
     for ( int generation = 0; generation < 10; ++generation )
     {
-        // copy borders
-        scheduler->proto_property< rmngr::ResourceUserPolicy >( copy_borders_proto ).access_list =
-        {
-            field[current_buffer].write({{0, field_size.x + 1}, {0, 0}}),
-            field[current_buffer].write({{0, field_size.x + 1}, {field_size.y + 1, field_size.y + 1}}),
-            field[current_buffer].write({{0, 0}, {0, field_size.y + 1}}),
-            field[current_buffer].write({{field_size.x + 1, field_size.x + 1}, {0, field_size.y + 1}}),
-            field[current_buffer].read({{0, field_size.x + 1}, {0, 1}}),
-            field[current_buffer].read({{0, field_size.x + 1}, {field_size.y, field_size.y + 1}}),
-            field[current_buffer].read({{0, 1}, {0, field_size.y + 1}}),
-            field[current_buffer].read({{field_size.x, field_size.x + 1}, {0, field_size.y + 1}}),
-        };
-        /*
-        scheduler->proto_policy< rmngr::GraphvizWriter >( copy_borders_proto ).label =
-            "Borders " + std::to_string( current_buffer );
-        */
-        auto copy_borders = queue.make_functor( copy_borders_proto );
-        copy_borders( buffers[current_buffer] );
-        /*
-        print_buffer_proto.access_list = { field[current_buffer].read() };
-        print_buffer_proto.label = "Print " + std::to_string( current_buffer );
-        auto print_buffer = queue.make_functor( print_buffer_proto );
-        print_buffer( buffers[current_buffer] );
-        */
+        copy_borders( current_buffer );
+        //print_buffer( current_buffer );
         int next_buffer = ( current_buffer + 1 ) % n_buffers;
 
-        for ( int x = 1; x <= field_size.x; )
+        for ( int x = 1; x <= field_size.x; x += chunk_size.x )
         {
-            for ( int y = 1; y <= field_size.y; )
+            for ( int y = 1; y <= field_size.y; y += chunk_size.y )
             {
-                scheduler->proto_property<rmngr::ResourceUserPolicy>(update_chunk_proto).access_list =
-                {
-                    field[next_buffer].write( {{x, x + chunk_size.x - 1}, {y, y + chunk_size.y - 1}} ),
-                    field[current_buffer].read( {{x - 1, x + chunk_size.x}, {y - 1, y + chunk_size.y}} )
-                };
-                /*
-                update_chunk_proto.label = "Chunk " + std::to_string( x ) +
-                                           "," + std::to_string( y ) + " (" +
-                                           std::to_string( next_buffer ) + ")";
-                */
-                auto update_chunk = queue.make_functor( update_chunk_proto );
                 update_chunk(
-                    buffers[next_buffer],
-                    buffers[current_buffer],
+                    next_buffer,
+                    current_buffer,
                     Position{x, y},
-                    chunk_size );
-
-                y += chunk_size.y;
+                    chunk_size
+                );
             }
-            x += chunk_size.x;
         }
 
         current_buffer = next_buffer;
     }
 
-    scheduler->proto_property<rmngr::ResourceUserPolicy>(print_buffer_proto).access_list =
-         {field[current_buffer].read( {{0, field_size.x + 1}, {0, field_size.y + 1}} ) };
-    /*
-    print_buffer_proto.label = "Print " + std::to_string( current_buffer );
-    */
-    auto print_buffer = queue.make_functor( print_buffer_proto );
-
-    auto res = print_buffer( buffers[current_buffer] );
+    std::future<void> res = print_buffer( current_buffer );
     res.get();
 
     for ( int i = 0; i < n_buffers; ++i )
         free( buffers[i] );
-
 
     delete scheduler;
     return 0;

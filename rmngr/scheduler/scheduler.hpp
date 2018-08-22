@@ -210,9 +210,15 @@ public:
             , scheduler(scheduler_)
         {}
 
-        template <typename DelayedFunctor>
+        template <
+            typename DelayedFunctor,
+            typename... Args
+        >
         SchedulableFunctor<DelayedFunctor> *
-        clone( DelayedFunctor && f ) const
+        clone(
+            DelayedFunctor && f,
+            Args&&... args
+        ) const
         {
             return new SchedulableFunctor<DelayedFunctor>(
                 std::forward<DelayedFunctor>( f ),
@@ -238,6 +244,72 @@ public:
     make_proto( Functor const & f )
     {
         return ProtoSchedulableFunctor<Functor>( f, *this );
+    }
+
+    template <
+        typename Functor,
+        typename PropertyFun
+    >
+    class PreparingProtoSchedulableFunctor
+        : public ProtoSchedulableFunctor<Functor>
+    {
+    public:
+        PreparingProtoSchedulableFunctor(
+            Functor const & f,
+            Scheduler & scheduler,
+            PropertyFun const & prepare_properties_
+        )
+          : ProtoSchedulableFunctor<Functor>(f, scheduler)
+          , prepare_properties(prepare_properties_)
+        {}
+
+        template <
+            typename DelayedFunctor,
+            typename... Args
+        >
+        SchedulableFunctor<DelayedFunctor> *
+        clone(
+            DelayedFunctor && f,
+            Args&&... args
+        ) const
+        {
+          SchedulableFunctor<DelayedFunctor> * schedulable =
+                this->ProtoSchedulableFunctor<Functor>::clone(
+                    std::forward<DelayedFunctor>(f),
+                    std::forward<Args>(args)...
+                );
+
+            this->prepare_properties(
+                schedulable,
+                std::forward<Args>(args)...
+            );
+
+            return schedulable;
+        }
+
+    private:
+        PropertyFun prepare_properties;
+    };
+
+    template <
+        typename Functor,
+        typename PropertyFun
+    >
+    PreparingProtoSchedulableFunctor<Functor, PropertyFun>
+    make_proto(
+        Functor const & f,
+        PropertyFun const & prepare_properties
+    )
+    {
+        return
+        PreparingProtoSchedulableFunctor<
+            Functor,
+            PropertyFun
+        >(
+            f,
+            *this,
+            prepare_properties
+        );
     }
 
     void finish( observer_ptr< Schedulable > s )
