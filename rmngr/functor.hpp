@@ -78,7 +78,7 @@ class DelayingFunctor
             auto applied = std::bind(this->functor, std::forward<Args>(args)...);
             auto delayed = make_delayed_functor<Result>(applied);
             std::future<Result> result = delayed.get_future();
-            this->pusher(this->functor, std::move(delayed));
+            this->pusher(this->functor, std::move(delayed), std::forward<Args>(args)...);
             return result;
         }
 }; // class DelayingFunctor
