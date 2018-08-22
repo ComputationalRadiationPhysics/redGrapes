@@ -7,9 +7,23 @@
 namespace rmngr
 {
 
-struct ResourceUserPolicy : rmngr::DefaultSchedulingPolicy
+struct ResourceUserPolicy : DefaultSchedulingPolicy
 {
-    using ProtoProperty = rmngr::ResourceUser;
+    using ProtoProperty = ResourceUser;
+
+    void update_property(
+        ProtoProperty& s,
+        RuntimeProperty&,
+        std::vector< ResourceAccess > const & access_list
+    )
+    {
+        ResourceUser n( access_list );
+
+        if( s.is_superset_of( n ) )
+            s.access_list = access_list;
+        else
+            std::cerr << "Error: updated access is no superset" << std::endl;
+    }
 };
 
 } // namespace rmngr

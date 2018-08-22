@@ -310,6 +310,24 @@ public:
         return make_functor_queue( *refinement, this->mutex );
     }
 
+    template<
+        typename Policy,
+        typename... Args
+    >
+    void update_property( Args&&... args )
+    {
+        this->lock();
+        auto s = this->get_current_schedulable();
+        this->policy< Policy >().update_property(*s, *s, std::forward<Args>(args)...);
+
+        auto ref = dynamic_cast< Refinement<Graph<observer_ptr<Schedulable>>>* >(
+                       & this->main_refinement.find_refinement_containing( s )
+                   );
+
+        // fixme: precedence policy
+        ref->template update_vertex< ResourceUser >( s );
+    }
+
 private:
     Refinement< Graph<observer_ptr<Schedulable>> > main_refinement;
     SchedulingGraph< Graph<observer_ptr<Schedulable>> > graph;

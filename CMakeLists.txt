@@ -26,6 +26,7 @@ set(EXAMPLE_NAMES
     2_functors
     3_functors_with_resources
     4_refinements
+    5_access_demotion
     game_of_life
 )
 
