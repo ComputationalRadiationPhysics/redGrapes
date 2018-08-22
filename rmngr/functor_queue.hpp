@@ -24,11 +24,23 @@ class FunctorQueue
             Queue& queue;
             std::mutex & queue_mutex;
 
-            template <typename ProtoFunctor, typename DelayedFunctor>
-            void operator() (ProtoFunctor const& proto, DelayedFunctor&& delayed)
+            template <
+                typename ProtoFunctor,
+                typename DelayedFunctor,
+                typename... Args
+            >
+            void operator() (
+                ProtoFunctor const& proto,
+                DelayedFunctor&& delayed,
+                Args&&... args
+            )
             {
                 std::lock_guard<std::mutex> lock(queue_mutex);
-                queue.push(proto.clone(std::forward<DelayedFunctor>(delayed)));
+                queue.push(
+                    proto.clone(
+                        std::forward<DelayedFunctor>(delayed),
+                        std::forward<Args>(args)...
+                ));
             }
         }; // struct Pusher
 
