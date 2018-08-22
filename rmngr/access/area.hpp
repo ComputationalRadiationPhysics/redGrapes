@@ -36,6 +36,15 @@ struct AreaAccess : std::array<int, 2>
             (a[0] > b[1])
         );
     }
+
+    bool
+    is_superset_of(AreaAccess const & a) const
+    {
+        return (
+            ((*this)[0] <= a[0]) &&
+            ((*this)[1] >= a[1])
+        );
+    }
 }; // struct AreaAccess
 
 } // namespace access

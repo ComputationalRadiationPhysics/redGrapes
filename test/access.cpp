@@ -29,24 +29,51 @@ TEST_CASE("IOAccess")
     REQUIRE( IOAccess::is_serial( IOAccess{IOAccess::amul}, IOAccess{IOAccess::write} ) == true );
     REQUIRE( IOAccess::is_serial( IOAccess{IOAccess::amul}, IOAccess{IOAccess::aadd} ) == true );
     REQUIRE( IOAccess::is_serial( IOAccess{IOAccess::amul}, IOAccess{IOAccess::amul} ) == false );
+
+    // subsets
+    REQUIRE( IOAccess{IOAccess::read}.is_superset_of( IOAccess{IOAccess::read} ) == true );
+    REQUIRE( IOAccess{IOAccess::read}.is_superset_of( IOAccess{IOAccess::write} ) == false );
+    REQUIRE( IOAccess{IOAccess::read}.is_superset_of( IOAccess{IOAccess::aadd} ) == false );
+    REQUIRE( IOAccess{IOAccess::read}.is_superset_of( IOAccess{IOAccess::amul} ) == false );
+
+    REQUIRE( IOAccess{IOAccess::write}.is_superset_of( IOAccess{IOAccess::read} ) == true );
+    REQUIRE( IOAccess{IOAccess::write}.is_superset_of( IOAccess{IOAccess::write} ) == true );
+    REQUIRE( IOAccess{IOAccess::write}.is_superset_of( IOAccess{IOAccess::aadd} ) == true );
+    REQUIRE( IOAccess{IOAccess::write}.is_superset_of( IOAccess{IOAccess::amul} ) == true );
+
+    REQUIRE( IOAccess{IOAccess::aadd}.is_superset_of( IOAccess{IOAccess::read} ) == false );
+    REQUIRE( IOAccess{IOAccess::aadd}.is_superset_of( IOAccess{IOAccess::write} ) == false );
+    REQUIRE( IOAccess{IOAccess::aadd}.is_superset_of( IOAccess{IOAccess::aadd} ) == true );
+    REQUIRE( IOAccess{IOAccess::aadd}.is_superset_of( IOAccess{IOAccess::amul} ) == false );
+
+    REQUIRE( IOAccess{IOAccess::amul}.is_superset_of( IOAccess{IOAccess::read} ) == false );
+    REQUIRE( IOAccess{IOAccess::amul}.is_superset_of( IOAccess{IOAccess::write} ) == false );
+    REQUIRE( IOAccess{IOAccess::amul}.is_superset_of( IOAccess{IOAccess::aadd} ) == false );
+    REQUIRE( IOAccess{IOAccess::amul}.is_superset_of( IOAccess{IOAccess::amul} ) == true );
 }
 
 TEST_CASE("AreaAccess")
 {
     // --[-----]--(-----)--
     REQUIRE( AreaAccess::is_serial( AreaAccess({10, 20}), AreaAccess({30, 40}) ) == false );
+    REQUIRE( AreaAccess({10, 20}).is_superset_of( AreaAccess({30, 40}) ) == false );
     // --(-----)--[-----]--
     REQUIRE( AreaAccess::is_serial( AreaAccess({30, 40}), AreaAccess({10, 20}) ) == false );
+    REQUIRE( AreaAccess({30, 40}).is_superset_of( AreaAccess({10, 20}) ) == false );
 
     // --[--(--]--)--
     REQUIRE( AreaAccess::is_serial( AreaAccess({10, 20}), AreaAccess({15, 25}) ) == true );
+    REQUIRE( AreaAccess({10, 20}).is_superset_of( AreaAccess({15, 25}) ) == false );
     // --(--[--)--]--
     REQUIRE( AreaAccess::is_serial( AreaAccess({15, 25}), AreaAccess({10, 20}) ) == true );
+    REQUIRE( AreaAccess({15, 15}).is_superset_of( AreaAccess({10, 20}) ) == false );
 
     // --[--(--)--]--
     REQUIRE( AreaAccess::is_serial( AreaAccess({10, 30}), AreaAccess({15, 25}) ) == true );
+    REQUIRE( AreaAccess({10, 30}).is_superset_of( AreaAccess({15, 25}) ) == true );
     // --(--[--]--)--
     REQUIRE( AreaAccess::is_serial( AreaAccess({15, 25}), AreaAccess({10, 30}) ) == true );
+    REQUIRE( AreaAccess({15, 25}).is_superset_of( AreaAccess({10, 30}) ) == false );
 }
 
 TEST_CASE("CombineAccess")
@@ -71,6 +98,16 @@ TEST_CASE("CombineAccess")
                 A(IOAccess{IOAccess::read}, AreaAccess({10, 20})),
                 A(IOAccess{IOAccess::write}, AreaAccess({30, 40})))
             == false);
+
+    REQUIRE(A(IOAccess{IOAccess::read}, AreaAccess({10, 20}))
+            .is_superset_of(
+            A(IOAccess{IOAccess::read}, AreaAccess({15, 25})))
+            == false );
+
+    REQUIRE(A(IOAccess{IOAccess::write}, AreaAccess({10, 30}))
+            .is_superset_of(
+            A(IOAccess{IOAccess::read}, AreaAccess({15, 25})))
+            == true );
 
     using B = CombineAccess<
         IOAccess,
@@ -123,6 +160,15 @@ TEST_CASE("ArrayAccess")
                 A({ IOAccess{IOAccess::read}, IOAccess{IOAccess::read} }))
             == true);
 
+    REQUIRE(A({ IOAccess{IOAccess::read}, IOAccess{IOAccess::write} })
+            .is_superset_of(
+            A({ IOAccess{IOAccess::read}, IOAccess{IOAccess::read} }))
+            == true );
+
+    REQUIRE(A({ IOAccess{IOAccess::read}, IOAccess{IOAccess::write} })
+            .is_superset_of(
+            A({ IOAccess{IOAccess::write}, IOAccess{IOAccess::read} }))
+            == false );
 
     using B = ArrayAccess<
         IOAccess,
