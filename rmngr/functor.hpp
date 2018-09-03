@@ -5,6 +5,8 @@
 #include <utility>
 #include <type_traits>
 
+#include <rmngr/working_future.hpp>
+
 namespace rmngr
 {
 
@@ -14,7 +16,7 @@ struct DelayedFunctorInterface
     virtual void run (void) = 0;
 }; // class DelayedFunctorInterface
 
-template <typename Pusher, typename Functor>
+template <typename Pusher, typename Functor, typename Worker>
 class DelayingFunctor
 {
     private:
@@ -65,28 +67,39 @@ class DelayingFunctor
 
         Pusher pusher;
         Functor functor;
+        Worker & worker;
 
     public:
-        DelayingFunctor(Pusher const& pusher_, Functor const& functor_)
-            :  pusher(pusher_), functor(functor_) {}
+        DelayingFunctor(Pusher const& pusher_, Functor const& functor_, Worker & worker_)
+          :  pusher(pusher_), functor(functor_), worker(worker_) {}
 
         template <typename... Args>
-        std::future<typename std::result_of<Functor(Args...)>::type> operator() (Args&&... args)
+        WorkingFuture<typename std::result_of<Functor(Args...)>::type, Worker>
+        operator() (Args&&... args)
         {
             using Result = typename std::result_of<Functor(Args...)>::type;
 
             auto applied = std::bind(this->functor, std::forward<Args>(args)...);
             auto delayed = make_delayed_functor<Result>(applied);
-            std::future<Result> result = delayed.get_future();
+            auto result = make_working_future(delayed.get_future(), this->worker);
             this->pusher(this->functor, std::move(delayed), std::forward<Args>(args)...);
             return result;
         }
 }; // class DelayingFunctor
 
-template <typename Pusher, typename Functor>
-DelayingFunctor<Pusher, Functor> make_delaying(Pusher const& p, Functor const& f)
+template <
+    typename Pusher,
+    typename Functor,
+    typename Worker
+>
+DelayingFunctor<Pusher, Functor, Worker>
+make_delaying(
+    Pusher const& p,
+    Functor const& f,
+    Worker& w
+)
 {
-    return DelayingFunctor<Pusher, Functor>(p, f);
+    return DelayingFunctor<Pusher, Functor, Worker>(p, f, w);
 }
 
 } // namespace rmngr
