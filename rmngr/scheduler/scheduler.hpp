@@ -31,6 +31,18 @@ struct SchedulerInterface
         virtual void finish(void) = 0;
     };
 
+    class WorkerInterface
+    {
+    protected:
+        virtual void work(void) = 0;
+
+    public:
+        void operator() (void)
+        {
+            this->work();
+        }
+    };
+
     virtual void update(void) = 0;
     virtual bool empty(void) = 0;
     virtual size_t num_threads(void) const = 0;
@@ -40,6 +52,11 @@ struct SchedulerInterface
     {
         return std::unique_lock<std::mutex>(this->mutex);
     };
+
+    void set_worker( WorkerInterface & worker_ )
+    {
+        this->worker = worker_;
+    }
 
     template < typename Policy >
     struct ProtoProperty
@@ -69,6 +86,7 @@ struct SchedulerInterface
 
 protected:
     std::mutex mutex;
+    observer_ptr<WorkerInterface> worker;
 };
 
 template <typename T>
@@ -350,10 +368,10 @@ public:
         return this->graph.empty();
     }
 
-    FunctorQueue< Refinement< Graph< observer_ptr<Schedulable> > > >
+    FunctorQueue< Refinement< Graph< observer_ptr<Schedulable> > >, WorkerInterface >
     get_main_queue( void )
     {
-        return make_functor_queue( this->main_refinement, this->mutex );
+        return make_functor_queue( this->main_refinement, *this->worker, this->mutex );
     }
 
     observer_ptr<Schedulable>
@@ -375,11 +393,11 @@ public:
     template <
         typename SRefinement = Refinement< Graph<observer_ptr<Schedulable>> >
     >
-    FunctorQueue< SRefinement >
+    FunctorQueue< SRefinement, WorkerInterface >
     get_current_queue( void )
     {
         auto refinement = this->get_current_refinement< SRefinement >();
-        return make_functor_queue( *refinement, this->mutex );
+        return make_functor_queue( *refinement, *this->worker, this->mutex );
     }
 
     template<
