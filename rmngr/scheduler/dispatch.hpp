@@ -79,8 +79,18 @@ struct DispatchPolicy
         : T_JobSelector<Job>::Property
     {};
 
+    struct Worker : public SchedulerInterface::WorkerInterface
+    {
+        observer_ptr<ThreadDispatcher<JobSelector>> dispatcher;
+        void work(void)
+        {
+            dispatcher->consume_job();
+        }
+    };
+
     JobSelector selector;
     ThreadDispatcher<JobSelector> * dispatcher;
+    Worker worker;
 
     DispatchPolicy()
     {
@@ -95,6 +105,8 @@ struct DispatchPolicy
             this->selector,
             s.num_threads()
           );
+        this->worker.dispatcher = this->dispatcher;
+        s.set_worker( this->worker );
     }
 
     ~DispatchPolicy()
