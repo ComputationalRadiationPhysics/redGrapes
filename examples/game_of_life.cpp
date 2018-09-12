@@ -3,6 +3,7 @@
  * @file examples/game_of_life.cpp
  */
 
+#include <array>
 #include <cstdlib>
 #include <iostream>
 #include <random>
@@ -24,125 +25,122 @@ using Scheduler =
 
 Scheduler * scheduler;
 
-static constexpr size_t n_buffers = 4;
-struct Position { int x, y; };
-static constexpr Position chunk_size{8, 8};
-static constexpr Position field_size{chunk_size.x*2, chunk_size.y*2};
-using Field = bool[field_size.y+2][field_size.x+2];
+struct Vec2 { int x, y; };
+static constexpr size_t size_x = 16;
+static constexpr size_t size_y = 16;
 
-// real data
-Field * buffers[n_buffers];
+enum Cell { DEAD, ALIVE };
+struct Buffer : rmngr::FieldResource<2>
+{
+    Cell (&data)[size_y+2][size_x+2];
 
-// resource representation
-rmngr::FieldResource<2> field[n_buffers];
+    Buffer()
+      : data( * ((Cell (*)[size_y+2][size_x+2])malloc(sizeof(Cell)*(size_y+2)*(size_x+2))) )
+    {}
 
-bool
-next_state( Field const & neighbours )
+    ~Buffer()
+    {
+        free( &data );
+    }
+};
+
+Cell
+next_state( Cell const neighbours [][size_x+2] )
 {
     int count = neighbours[-1][-1] + neighbours[-1][0] + neighbours[-1][1] +
                 neighbours[0][-1] + neighbours[0][1] + neighbours[1][-1] +
                 neighbours[1][0] + neighbours[1][1];
     if ( count < 2 || count > 3 )
-        return false;
+        return DEAD;
     else if ( count == 3 )
-        return true;
+        return ALIVE;
     else
         return neighbours[0][0];
 }
 
 void
-update_cell( Field * dest, Field const * src, Position pos )
+update_cell( Cell dst[][size_x+2], Cell const src[][size_x+2], Vec2 pos )
 {
-    Field const & neighbours = *( (Field const *)&( *src )[pos.y][pos.x] );
-    ( *dest )[pos.y][pos.x] = next_state( neighbours );
+    auto neighbours = (Cell const (*)[size_x+2]) &(src[pos.y][pos.x]);
+    dst[pos.y][pos.x] = next_state( neighbours );
 }
 
 void
 update_chunk_impl(
-    int dst_index,
-    int src_index,
-    Position pos,
-    Position size
+    Buffer & dst,
+    Buffer const & src,
+    Vec2 pos,
+    Vec2 size
 )
 {
-    std::cout << "Buffer " << dst_index << ": calculate chunk " << pos.x << ", " << pos.y << std::endl;
-    Field * dest = buffers[dst_index];
-    Field const * src = buffers[src_index];
     for ( int x = 0; x < size.x; ++x )
         for ( int y = 0; y < size.y; ++y )
-            update_cell( dest, src, Position{pos.x + x, pos.y + y} );
-
-    //std::this_thread::sleep_for(std::chrono::seconds(1));
+            update_cell( dst.data, src.data, Vec2{ pos.x + x, pos.y + y } );
 }
 
 void
 update_chunk_prop(
     rmngr::observer_ptr<Scheduler::Schedulable> s,
-    int dst_index,
-    int src_index,
-    Position pos,
-    Position size
+    Buffer & dst,
+    Buffer const & src,
+    Vec2 pos,
+    Vec2 size
 )
 {
-    Position end
+    Vec2 end
     {
-        pos.x + chunk_size.x - 1,
-        pos.y + chunk_size.y - 1,
+        pos.x + size.x - 1,
+        pos.y + size.y - 1,
     };
 
     scheduler->proto_property< rmngr::ResourceUserPolicy >( s ).access_list =
     {
-        field[dst_index].write( {{pos.x, end.x}, {pos.y, end.y}} ),
-        field[src_index].read( {{pos.x - 1, end.x + 1}, {pos.y - 1, end.y + 1}} )
+        dst.write( {{pos.x, end.x}, {pos.y, end.y}} ),
+        src.read( {{pos.x - 1, end.x + 1}, {pos.y - 1, end.y + 1}} )
     };
 }
 
 void
-copy_borders_impl(int i)
+copy_borders_impl( Buffer & buf )
 {
-    std::cout << "Buffer " << i << ": copy borders" << std::endl;
-    Field * f = buffers[i];
-    for ( int x = 0; x < field_size.x + 1; ++x )
+    for ( int x = 0; x < size_x+2; ++x )
     {
-        ( *f )[0][x] = ( *f )[field_size.y][x];
-        ( *f )[field_size.y + 1][x] = ( *f )[1][x];
+        buf.data[0][x] = buf.data[size_y][x];
+        buf.data[size_y+1][x] = buf.data[1][x];
     }
-    for ( int y = 0; y < field_size.y + 1; ++y )
+    for ( int y = 0; y < size_y+2; ++y )
     {
-        ( *f )[y][0] = ( *f )[y][field_size.x];
-        ( *f )[y][field_size.x + 1] = ( *f )[y][1];
+        buf.data[y][0] = buf.data[y][size_x];
+        buf.data[y][size_x+1] = buf.data[y][1];
     }
 }
 
 void
 copy_borders_prop(
     rmngr::observer_ptr<Scheduler::Schedulable> s,
-    int i
+    Buffer & buf
 )
 {
     scheduler->proto_property< rmngr::ResourceUserPolicy >( s ).access_list =
     {
-        field[i].write({{0, field_size.x + 1}, {0, 0}}),
-        field[i].write({{0, field_size.x + 1}, {field_size.y + 1, field_size.y + 1}}),
-        field[i].write({{0, 0}, {0, field_size.y + 1}}),
-        field[i].write({{field_size.x + 1, field_size.x + 1}, {0, field_size.y + 1}}),
-        field[i].read({{0, field_size.x + 1}, {0, 1}}),
-        field[i].read({{0, field_size.x + 1}, {field_size.y, field_size.y + 1}}),
-        field[i].read({{0, 1}, {0, field_size.y + 1}}),
-        field[i].read({{field_size.x, field_size.x + 1}, {0, field_size.y + 1}}),
+        buf.write({{0, size_x + 1}, {0, 0}}),
+        buf.write({{0, size_x + 1}, {size_y + 1, size_y + 1}}),
+        buf.write({{0, 0}, {0, size_y + 1}}),
+        buf.write({{size_x + 1, size_x + 1}, {0, size_y + 1}}),
+        buf.read({{0, size_x + 1}, {0, 1}}),
+        buf.read({{0, size_x + 1}, {size_y, size_y + 1}}),
+        buf.read({{0, 1}, {0, size_y + 1}}),
+        buf.read({{size_x, size_x + 1}, {0, size_y + 1}}),
     };
 }
 
 void
-print_buffer_impl( int i )
+print_buffer_impl( Buffer const & buf )
 {
-    std::cout << "Print buffer " << i << std::endl;
-    Field * const field = buffers[i];
-
-    for ( auto const & row : ( *field ) )
+    for ( auto const & row : buf.data )
     {
-        for ( bool cell : row )
-            std::cout << ( cell ? "\x1b[47m" : "\x1b[100m" ) << "  ";
+        for ( Cell cell : row )
+            std::cout << ( ( cell == ALIVE ) ? "\x1b[47m" : "\x1b[100m" ) << "  ";
         std::cout << "\x1b[0m" << std::endl;
     }
     std::cout << std::endl;
@@ -151,13 +149,11 @@ print_buffer_impl( int i )
 void
 print_buffer_prop(
     rmngr::observer_ptr<Scheduler::Schedulable> s,
-    int i
+    Buffer const & buf
 )
 {
     scheduler->proto_property< rmngr::ResourceUserPolicy >( s ).access_list =
-    {
-        field[i].read( {{0, field_size.x-1}, {0, field_size.y-1}} )
-    };
+    { buf.read() };
 }
 
 int
@@ -168,61 +164,49 @@ main( int, char * [] )
     scheduler = new Scheduler( n_threads );
     auto queue = scheduler->get_main_queue();
 
-    auto copy_borders =
-        queue.make_functor(
-            scheduler->make_proto( &copy_borders_impl, &copy_borders_prop )
-        );
-    auto update_chunk =
-        queue.make_functor(
-            scheduler->make_proto( &update_chunk_impl, &update_chunk_prop )
-        );
-    auto print_buffer =
-        queue.make_functor(
-            scheduler->make_proto( &print_buffer_impl, &print_buffer_prop )
-        );
+    Vec2 const chunk_size { 8, 8 };
+    std::array< Buffer, 4 > buffers;
 
-    for ( int i = 0; i < n_buffers; ++i )
-        buffers[i] = (Field *)calloc(
-                         (field_size.x+2) * (field_size.y+2),
-                         sizeof( bool )
-                     );
+    int current = 0;
+
+    auto copy_borders = queue.make_functor(
+        scheduler->make_proto( &copy_borders_impl, &copy_borders_prop ));
+    auto update_chunk = queue.make_functor(
+        scheduler->make_proto( &update_chunk_impl, &update_chunk_prop ));
+    auto print_buffer = queue.make_functor(
+        scheduler->make_proto( &print_buffer_impl, &print_buffer_prop ));
 
     std::default_random_engine generator;
     std::bernoulli_distribution distribution{0.35};
-    for ( int x = 1; x <= field_size.x; ++x )
-        for ( int y = 1; y <= field_size.y; ++y )
-            ( *buffers[0] )[y][x] = distribution( generator );
+    for ( int x = 1; x <= size_x; ++x )
+        for ( int y = 1; y <= size_y; ++y )
+            buffers[current].data[y][x] = distribution( generator ) ? ALIVE : DEAD;
 
-    int current_buffer = 0;
     for ( int generation = 0; generation < 10; ++generation )
     {
-        copy_borders( current_buffer );
-        //print_buffer( current_buffer );
-        int next_buffer = ( current_buffer + 1 ) % n_buffers;
+        int next = ( current + 1 ) % buffers.size();
 
-        for ( int x = 1; x <= field_size.x; x += chunk_size.x )
+        copy_borders( std::ref(buffers[current]) );
+        print_buffer( std::ref(buffers[current]) );
+
+        for ( int x = 1; x <= size_x; x += chunk_size.x )
         {
-            for ( int y = 1; y <= field_size.y; y += chunk_size.y )
+            for ( int y = 1; y <= size_y; y += chunk_size.y )
             {
                 update_chunk(
-                    next_buffer,
-                    current_buffer,
-                    Position{x, y},
+                    std::ref(buffers[next]),
+                    std::ref(buffers[current]),
+                    Vec2{x, y},
                     chunk_size
                 );
             }
         }
 
-        current_buffer = next_buffer;
+        current = next;
     }
 
-    std::future<void> res = print_buffer( current_buffer );
-    res.get();
-
-    for ( int i = 0; i < n_buffers; ++i )
-        free( buffers[i] );
-
     delete scheduler;
+
     return 0;
 }
 
