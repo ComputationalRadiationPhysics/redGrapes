@@ -396,8 +396,13 @@ public:
     FunctorQueue< SRefinement, WorkerInterface >
     get_current_queue( void )
     {
-        auto refinement = this->get_current_refinement< SRefinement >();
-        return make_functor_queue( *refinement, *this->worker, this->mutex );
+        if( this->get_current_schedulable() )
+        {
+            auto refinement = this->get_current_refinement< SRefinement >();
+            return make_functor_queue( *refinement, *this->worker, this->mutex );
+        }
+        else
+            return this->get_main_queue();
     }
 
     template<
