@@ -193,6 +193,14 @@ public:
             this->scheduler.finish( this );
         }
 
+        template < typename Policy >
+        typename Policy::ProtoProperty & proto_property( void )
+        { return scheduler.proto_property< Policy >( *this ); }
+
+        template < typename Policy >
+        typename Policy::RuntimeProperty & runtime_property( void )
+        { return scheduler.runtime_property< Policy >( *this ); }
+
     private:
         Scheduler & scheduler;
     };
