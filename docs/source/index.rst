@@ -6,9 +6,16 @@
 Welcome to rmngr's documentation!
 =================================
 
+rmngr is just the placeholder name.
+
 .. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+        :caption: Table Of Contents
+        :numbered:
+
+        overview
+        tutorial/index
+        components
+        license
 
 Indices and tables
 ==================
