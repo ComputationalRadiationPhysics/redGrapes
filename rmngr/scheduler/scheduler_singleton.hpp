@@ -34,6 +34,7 @@ private:
 
 public:
     using Schedulable = typename SchedulerType::Schedulable;
+    using SchedulablePtr = observer_ptr< Schedulable >;
 
     static void init( int nthreads )
     {
