@@ -107,6 +107,15 @@ class QueuedPrecedenceGraph :
     public:
         void push(ID a)
         {
+            if( this->parent )
+            {
+                if( ! EnqueuePolicy::is_superset( *this->parent, *a ) )
+                {
+                    std::cerr << "Error: queued element is not allowed" << std::endl;
+                    return;
+                }
+            }
+
             this->add_vertex(a);
 
             using VertexID = typename boost::graph_traits<Graph>::vertex_descriptor;

@@ -90,6 +90,7 @@ class RefinedGraph
         {
             Refinement* ptr = new Refinement();
             ptr->deprecated = this->deprecated;
+            ptr->parent = parent;
             this->refinements[parent] = std::unique_ptr<RefinedGraph>(ptr);
             return observer_ptr<Refinement>(ptr);
         }
@@ -152,6 +153,9 @@ class RefinedGraph
             if( this->deprecated != nullptr )
                 *this->deprecated = true;
         }
+
+    protected:
+        ID parent;
 
     private:
         std::unordered_map<ID, std::unique_ptr<RefinedGraph>> refinements;
