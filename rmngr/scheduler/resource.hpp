@@ -1,6 +1,7 @@
 
 #pragma once
 
+#include <stdexcept>
 #include <rmngr/resource/resource_user.hpp>
 #include <rmngr/scheduler/scheduler.hpp>
 
@@ -22,7 +23,7 @@ struct ResourceUserPolicy : DefaultSchedulingPolicy
         if( s.is_superset_of( n ) )
             s.access_list = access_list;
         else
-            std::cerr << "Error: updated access is no superset" << std::endl;
+            throw std::runtime_error("rmngr: updated access is no superset");
     }
 };
 
