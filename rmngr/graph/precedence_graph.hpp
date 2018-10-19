@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <memory> // std::unique_ptr<>
+#include <stdexcept> // std::runtime_error
 
 #include <boost/graph/graph_traits.hpp>
 #include <boost/graph/adjacency_list.hpp>
@@ -107,6 +108,10 @@ class QueuedPrecedenceGraph :
     public:
         void push(ID a)
         {
+            if( this->parent )
+                if( ! EnqueuePolicy::is_superset( *this->parent, *a ) )
+                    throw std::runtime_error("rmngr: not allowed in this refinement");
+
             this->add_vertex(a);
 
             using VertexID = typename boost::graph_traits<Graph>::vertex_descriptor;
