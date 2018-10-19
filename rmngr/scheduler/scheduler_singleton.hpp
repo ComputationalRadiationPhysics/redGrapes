@@ -73,7 +73,7 @@ public:
         typename Functor,
         typename PropertyFun
     >
-    static void enqueue_functor(
+    static auto enqueue_functor(
         Functor const & impl,
         PropertyFun const & property_fun
     )
@@ -83,7 +83,7 @@ public:
             make_proto( impl, property_fun )
         );
 
-        functor();
+        return functor();
     }
 }; // class SchedulerSingleton
 
