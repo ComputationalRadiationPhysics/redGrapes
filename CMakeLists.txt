@@ -7,7 +7,7 @@ find_package(Boost 1.62.0 REQUIRED COMPONENTS graph)
 
 add_library(rmngr INTERFACE)
 target_compile_features(rmngr INTERFACE
-    cxx_std_11
+    cxx_std_14
 )
 target_include_directories(rmngr INTERFACE
     $<BUILD_INTERFACE:${rmngr_SOURCE_DIR}>
