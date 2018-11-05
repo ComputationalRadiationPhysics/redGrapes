@@ -299,7 +299,7 @@ public:
             Args&&... args
         ) const
         {
-          SchedulableFunctor<DelayedFunctor> * schedulable =
+            SchedulableFunctor<DelayedFunctor> * schedulable =
                 this->ProtoSchedulableFunctor<Functor>::clone(
                     std::forward<DelayedFunctor>(f),
                     std::forward<Args>(args)...
@@ -388,14 +388,21 @@ public:
         return this->currently_scheduled[thread::id];
     }
 
-    template <typename SRefinement>
+    template <
+        typename SRefinement = Refinement< Graph<observer_ptr<Schedulable>> >
+    >
     observer_ptr<SRefinement>
     get_current_refinement( void )
     {
         std::lock_guard<std::mutex> lock( this->mutex );
-        return this->main_refinement.template refinement<SRefinement>(
-                   this->get_current_schedulable()
-               );
+        if( this->get_current_schedulable() )
+        {
+            return this->main_refinement.template refinement<SRefinement>(
+                       this->get_current_schedulable()
+                   );
+        }
+        else
+            return this->main_refinement;
     }
 
     template <
@@ -404,13 +411,51 @@ public:
     FunctorQueue< SRefinement, WorkerInterface >
     get_current_queue( void )
     {
-        if( this->get_current_schedulable() )
+        return make_functor_queue(
+                   *this->get_current_refinement< SRefinement >(),
+                   *this->worker,
+                   this->mutex
+               );
+    }
+
+    struct CurrentQueuePusher
+    {
+        Scheduler & scheduler;
+
+        template <
+            typename ProtoFunctor,
+            typename DelayedFunctor,
+            typename... Args
+        >
+        void operator() (
+            ProtoFunctor const& proto,
+            DelayedFunctor&& delayed,
+            Args&&... args
+        )
         {
-            auto refinement = this->get_current_refinement< SRefinement >();
-            return make_functor_queue( *refinement, *this->worker, this->mutex );
+            auto queue = scheduler.get_current_refinement();
+            std::lock_guard< std::mutex > lock( scheduler.mutex );
+            queue->push(
+                   proto.clone(
+                       std::forward<DelayedFunctor>(delayed),
+                       std::forward<Args>(args)...
+            ));
         }
-        else
-            return this->get_main_queue();
+    };
+
+    template < typename Functor >
+    using CurrentQueueFunctor = DelayingFunctor< CurrentQueuePusher, Functor, WorkerInterface >;
+
+    template <typename ProtoFunctor>
+    auto make_functor( ProtoFunctor const & proto )
+    {
+        return make_delaying( CurrentQueuePusher{ *this }, proto, *this->worker );
+    }
+
+    template <typename Functor, typename PropertyFun>
+    auto make_functor( Functor const& f, PropertyFun const & prop )
+    {
+        return make_functor( this->make_proto( f, prop ) );
     }
 
     template<
