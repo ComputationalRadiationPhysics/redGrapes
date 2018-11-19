@@ -3,6 +3,9 @@
 
 #include <rmngr/scheduler/scheduler.hpp>
 
+#include <boost/property_map/property_map.hpp>
+#include <boost/property_map/function_property_map.hpp>
+
 namespace rmngr
 {
 
@@ -32,11 +35,17 @@ struct GraphvizWriter : DefaultSchedulingPolicy
 
         graph.write_graphviz(
             file,
-            boost::make_function_property_map< ProtoProperty >(
-                []( ProtoProperty const & s ) { return s.label; }
+            boost::make_function_property_map< typename Graph::ID >(
+                []( typename Graph::ID s ) {
+                    ProtoProperty const & prop = *s;
+                    return prop.label;
+                }
             ),
-            boost::make_function_property_map< ColorProperty >(
-                []( ColorProperty const & s ) { return s.color(); }
+            boost::make_function_property_map< typename Graph::ID >(
+                []( typename Graph::ID s ) {
+                    ColorProperty const & prop = *s;
+                    return prop.color();
+                }
             ),
             name
         );
