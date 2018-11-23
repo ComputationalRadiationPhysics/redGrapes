@@ -63,11 +63,12 @@ public:
     } \
 
     WRAP_INSTANCE( make_proto )
+    WRAP_INSTANCE( make_functor )
     WRAP_INSTANCE( get_current_queue )
 
     /**
-     * Create a functor in the current refinement
-     * and enqueue it immediately
+     * Create a functor and enqueue it immediately
+     * in the current refinement
      */
     template <
         typename Functor,
@@ -78,11 +79,7 @@ public:
         PropertyFun const & property_fun
     )
     {
-        auto queue = get_current_queue();
-        auto functor = queue.make_functor(
-            make_proto( impl, property_fun )
-        );
-
+        auto functor = make_functor( impl, property_fun );
         return functor();
     }
 }; // class SchedulerSingleton
