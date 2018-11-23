@@ -111,6 +111,7 @@ struct DefaultSchedulingPolicy
     struct RuntimeProperty {};
 
     void init( SchedulerInterface & ) {}
+    void finish() {};
 
     template <typename Graph>
     void update( Graph & graph, SchedulerInterface & scheduler ) {}
@@ -144,17 +145,6 @@ private:
             boost::mpl::inherit< boost::mpl::_1, RuntimeProperty<boost::mpl::_2> >
         >::type;
 
-    struct Initializer
-    {
-        Scheduler & scheduler;
-
-        template <typename Policy>
-        void operator() ( boost::type<Policy> )
-        {
-            scheduler.policy<Policy>().init( scheduler );
-        }
-    };
-
 public:
     Scheduler( size_t nthreads = 1 )
       : graph( main_refinement ),
@@ -165,6 +155,15 @@ public:
             SchedulingPolicies,
             boost::type<boost::mpl::_>
         >( initializer );
+    }
+
+    ~Scheduler()
+    {
+        Finisher finisher{ *this };
+        boost::mpl::for_each<
+            SchedulingPolicies,
+            boost::type<boost::mpl::_>
+        >( finisher );
     }
 
     size_t num_threads(void) const
@@ -397,12 +396,14 @@ public:
         std::lock_guard<std::mutex> lock( this->mutex );
         if( this->get_current_schedulable() )
         {
-            return this->main_refinement.template refinement<SRefinement>(
+            auto r = this->main_refinement.template refinement<SRefinement>(
                        this->get_current_schedulable()
                    );
+
+            if(r)
+              return r;
         }
-        else
-            return this->main_refinement;
+        return this->main_refinement;
     }
 
     template <
@@ -486,6 +487,17 @@ private:
         boost::mpl::inherit< boost::mpl::_1, boost::mpl::_2 >
     >::type policies;
 
+    struct Initializer
+    {
+        Scheduler & scheduler;
+
+        template <typename Policy>
+        void operator() ( boost::type<Policy> )
+        {
+            scheduler.policy<Policy>().init( scheduler );
+        }
+    };
+
     struct Updater
     {
         Scheduler & scheduler;
@@ -494,6 +506,17 @@ private:
         void operator() ( boost::type<Policy> )
         {
             scheduler.policy<Policy>().update( scheduler.graph, scheduler );
+        }
+    };
+
+    struct Finisher
+    {
+        Scheduler & scheduler;
+
+        template <typename Policy>
+        void operator() ( boost::type<Policy> )
+        {
+            scheduler.policy<Policy>().finish();
         }
     };
 
