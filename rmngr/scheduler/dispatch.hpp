@@ -109,7 +109,7 @@ struct DispatchPolicy
         s.set_worker( this->worker );
     }
 
-    ~DispatchPolicy()
+    void finish()
     {
         if( this->dispatcher )
             delete this->dispatcher;
