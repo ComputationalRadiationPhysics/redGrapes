@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <condition_variable>
 #include <boost/mpl/inherit.hpp>
 #include <boost/mpl/inherit_linearly.hpp>
 #include <boost/mpl/for_each.hpp>
@@ -343,12 +344,25 @@ public:
             delete &s;
     }
 
+private:
+    std::condition_variable cv;
+    std::mutex cv_mutex;
+    std::atomic_flag currently_updating = ATOMIC_FLAG_INIT;
+
+public:
     void update(void)
     {
-        while ( this->graph.is_deprecated() )
+        if( this->graph.is_deprecated() )
         {
-            if ( this->mutex.try_lock() )
+            if( this->currently_updating.test_and_set() )
             {
+                std::unique_lock<std::mutex> lock( this->cv_mutex );
+                this->cv.wait( lock, [this]{ return !this->graph.is_deprecated(); } );
+            }
+            else
+            {
+                std::lock_guard< std::mutex > lock( this->mutex );
+
                 this->graph.update();
 
                 Updater updater{ *this };
@@ -357,7 +371,8 @@ public:
                     boost::type<boost::mpl::_>
                 >( updater );
 
-                this->mutex.unlock();
+                currently_updating.clear();
+                this->cv.notify_all();
             }
         }
     }
