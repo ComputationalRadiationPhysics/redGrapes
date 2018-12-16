@@ -28,6 +28,7 @@ struct SchedulerInterface
     struct SchedulableInterface
         : virtual public DelayedFunctorInterface
     {
+        virtual ~SchedulableInterface() {}
         virtual void start(void) = 0;
         virtual void finish(void) = 0;
     };
@@ -183,6 +184,8 @@ public:
         Schedulable( Scheduler & scheduler_ )
             : scheduler(scheduler_) {}
 
+        virtual ~Schedulable() {}
+
         void start(void)
         {
             this->scheduler.currently_scheduled[ thread::id ] = this;
@@ -190,7 +193,8 @@ public:
 
         void finish(void)
         {
-            this->scheduler.finish( this );
+            if( this->scheduler.graph.finish(this) )
+                delete this;
         }
 
         template < typename Policy >
@@ -338,12 +342,6 @@ public:
         );
     }
 
-    void finish( observer_ptr< Schedulable > s )
-    {
-        if( this->graph.finish(s) )
-            delete &s;
-    }
-
 private:
     std::condition_variable cv;
     std::mutex cv_mutex;
@@ -385,7 +383,6 @@ public:
 
     bool empty(void)
     {
-        this->update();
         auto lock = this->lock();
         return this->graph.empty();
     }
@@ -490,6 +487,8 @@ public:
 
         // fixme: precedence policy
         ref->template update_vertex< ResourceUser >( s );
+
+        this->update();
     }
 
 private:

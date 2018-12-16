@@ -40,8 +40,7 @@ class ThreadDispatcher
         work( ThreadDispatcher * td, Worker * worker, size_t id )
         {
             thread::id = id;
-            while ( td->running )
-                td->consume_job();
+            td->work();
         }
 
         Thread thread;
@@ -63,19 +62,22 @@ class ThreadDispatcher
     void
     consume_job( void )
     {
-        if(! this->selector.empty() )
-        {
-            auto job = this->selector.getJob();
-            job();
-        }
+        (this->selector.getJob())();
+    }
+
+    void
+    work( void )
+    {
+        while( ! this->selector.empty() )
+            this->consume_job();
+
+        this->selector.finish();
     }
 
     ~ThreadDispatcher()
     {
-        while ( !selector.empty() )
-            consume_job();
+        this->work();
 
-        running = false;
         for ( Worker & worker : this->workers )
             worker.thread.join();
     }
