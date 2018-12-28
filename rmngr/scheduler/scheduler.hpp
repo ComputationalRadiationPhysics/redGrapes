@@ -27,6 +27,7 @@ struct SchedulerInterface
     struct SchedulableInterface
         : virtual public DelayedFunctorInterface
     {
+        virtual ~SchedulableInterface() {};
         virtual void start(void) = 0;
         virtual void finish(void) = 0;
     };
@@ -182,8 +183,15 @@ public:
         Schedulable( Scheduler & scheduler_ )
             : scheduler(scheduler_) {}
 
+        virtual ~Schedulable()
+        {
+            this->scheduler.currently_scheduled[ thread::id ] = this->last;
+        }
+
+        observer_ptr<Schedulable> last;
         void start(void)
         {
+            last = this->scheduler.currently_scheduled[ thread::id ];
             this->scheduler.currently_scheduled[ thread::id ] = this;
         }
 
