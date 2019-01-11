@@ -2,6 +2,7 @@
 #pragma once
 
 #include <rmngr/thread_dispatcher.hpp>
+#include <rmngr/graph/util.hpp>
 
 namespace rmngr
 {
@@ -11,8 +12,11 @@ struct DefaultJobSelector
 {
     struct Property {};
 
-    void push( Job const&, Property const& ) {}
+    virtual void update() = 0;
+
+    void finish() {};
     bool empty( void ) { return true; }
+    void push( Job const&, Property const& ) {}
     Job getJob( void ) { return Job(); }
 };
 
@@ -49,8 +53,8 @@ struct DispatchPolicy
 
         void operator() (void)
         {
-            if(! schedulable )
-              return;
+            if(! schedulable)
+                return;
 
             auto lock = scheduler->lock();
             prop->state = RuntimeProperty::running;
@@ -67,11 +71,29 @@ struct DispatchPolicy
 
     struct JobSelector : T_JobSelector< Job >
     {
+        JobSelector()
+            : finished(false)
+        {}
+
         bool empty()
         {
-            return T_JobSelector<Job>::empty() && scheduler->empty();
+            return this->finished && T_JobSelector<Job>::empty() && scheduler->empty();
         }
 
+        Job getJob()
+        {
+            if ( this->empty() )
+                return Job();
+            else
+                return T_JobSelector<Job>::getJob();
+        }
+
+        void update()
+        {
+            this->scheduler->update();
+        }
+
+        volatile bool finished;
         observer_ptr<SchedulerInterface> scheduler;
     };
 
@@ -111,6 +133,7 @@ struct DispatchPolicy
 
     void finish()
     {
+        this->selector.finished = true;
         if( this->dispatcher )
             delete this->dispatcher;
     }
