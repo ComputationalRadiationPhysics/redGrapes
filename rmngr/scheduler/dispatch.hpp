@@ -14,6 +14,7 @@ struct DefaultJobSelector
 
     virtual void update() = 0;
 
+    void finish() {}
     bool empty( void ) { return true; }
     void push( Job const&, Property const& ) {}
     Job getJob( void ) { return Job(); }
@@ -30,7 +31,7 @@ struct DispatchPolicy
     {
         RuntimeProperty() : state(pending) {}
 
-        enum { pending, ready, running, done } state;
+        enum State { pending, ready, running, done } state;
 
         std::string color() const
         {
