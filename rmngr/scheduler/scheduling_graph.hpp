@@ -37,11 +37,12 @@ class SchedulingGraph
         using EdgeID = typename boost::graph_traits<Graph>::edge_descriptor;
 
         SchedulingGraph(
+            std::atomic_flag volatile * uptodate_,
             observer_ptr<RefinedGraph<RefinementGraph>> main_ref
         )
-            : main_refinement(main_ref), deprecated(true)
+            : uptodate(uptodate_), main_refinement(main_ref)
         {
-            this->main_refinement->deprecated = &this->deprecated;
+            this->main_refinement->uptodate = this->uptodate;
         }
 
         bool empty(void) const
@@ -71,7 +72,6 @@ class SchedulingGraph
             // merge all refinements into one graph
             this->scheduling_graph.clear();
             this->main_refinement->copy(this->scheduling_graph);
-            this->deprecated = false;
         }
 
         /** Remove a node from the graphs and reschedule
@@ -84,20 +84,9 @@ class SchedulingGraph
         {
             bool finished = this->main_refinement->finish(a);
             if( finished )
-                this->deprecated = true;
+                this->uptodate->clear();
 
             return finished;
-        }
-
-        /**
-         * Return if the current Graph is out of sync with
-         * the precedence graphs.
-         *
-         * @return true if needs to be updated
-         */
-        bool is_deprecated(void) const
-        {
-            return this->deprecated;
         }
 
         /** Write the current scheduling-graph as graphviz
@@ -158,9 +147,9 @@ class SchedulingGraph
         }
 
     private:
+        std::atomic_flag volatile * uptodate;
         observer_ptr<RefinedGraph<RefinementGraph>> main_refinement;
         Graph scheduling_graph;
-        std::atomic_bool deprecated;
 }; // class SchedulingGraph
 
 } // namespace rmngr

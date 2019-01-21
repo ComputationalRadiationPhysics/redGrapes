@@ -150,7 +150,7 @@ private:
 
 public:
     Scheduler( size_t nthreads = 1 )
-      : graph( main_refinement ),
+      : graph( &uptodate, main_refinement ),
         currently_scheduled( nthreads+1 )
     {
         Initializer initializer{ *this };
@@ -355,30 +355,29 @@ private:
     std::atomic_flag currently_updating = ATOMIC_FLAG_INIT;
 
 public:
+    std::atomic_flag volatile uptodate = ATOMIC_FLAG_INIT;
     void update(void)
     {
-        if( this->graph.is_deprecated() )
+        if( ! this->uptodate.test_and_set() )
         {
             if( this->currently_updating.test_and_set() )
             {
                 std::unique_lock<std::mutex> lock( this->cv_mutex );
-                this->cv.wait( lock, [this]{ return !this->graph.is_deprecated(); } );
+                this->cv.wait( lock, [this]{ return !this->currently_updating.test_and_set(); } );
             }
-            else
-            {
-                std::lock_guard< std::mutex > lock( this->mutex );
 
-                this->graph.update();
+            std::lock_guard< std::mutex > lock( this->mutex );
 
-                Updater updater{ *this };
-                boost::mpl::for_each<
-                    SchedulingPolicies,
-                    boost::type<boost::mpl::_>
-                >( updater );
+            this->graph.update();
 
-                currently_updating.clear();
-                this->cv.notify_all();
-            }
+            Updater updater{ *this };
+            boost::mpl::for_each<
+                SchedulingPolicies,
+                boost::type<boost::mpl::_>
+            >( updater );
+
+            this->currently_updating.clear();
+            this->cv.notify_all();
         }
     }
 

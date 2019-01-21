@@ -71,6 +71,8 @@ public:
     {
         if( !this->finished && this->empty() )
         {
+            if( this->empty() )
+                return Job();
             std::unique_lock<std::mutex> cv_lock( this->cv_mutex );
             this->cv.wait( cv_lock );
         }

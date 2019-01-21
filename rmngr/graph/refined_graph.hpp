@@ -31,7 +31,7 @@ class RefinedGraph
 
     public:
         RefinedGraph()
-            : deprecated(nullptr) {}
+            : uptodate(nullptr) {}
 
         /// get graph object
         Graph & graph(void)
@@ -89,7 +89,7 @@ class RefinedGraph
         make_refinement(ID parent)
         {
             Refinement* ptr = new Refinement();
-            ptr->deprecated = this->deprecated;
+            ptr->uptodate = this->uptodate;
             ptr->parent = parent;
             this->refinements[parent] = std::unique_ptr<RefinedGraph>(ptr);
             return observer_ptr<Refinement>(ptr);
@@ -106,6 +106,7 @@ class RefinedGraph
                 observer_ptr<RefinedGraph> base(this->find_refinement_containing(parent));
                 if (base)
                     return base->template make_refinement<Refinement>(parent);
+
                 // else: parent doesnt exist, return nullptr
             }
 
@@ -147,11 +148,11 @@ class RefinedGraph
             return false;
         }
 
-        std::atomic_bool * deprecated;
+        volatile std::atomic_flag * uptodate;
         void deprecate(void)
         {
-            if( this->deprecated != nullptr )
-                *this->deprecated = true;
+            if( this->uptodate != nullptr )
+                this->uptodate->clear();
         }
 
     protected:
