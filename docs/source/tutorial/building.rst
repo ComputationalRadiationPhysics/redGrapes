@@ -8,6 +8,7 @@ Requirements
 
 - C++14
 - Boost Graph
+- Boost MPL
 
 Build a Project using rmngr
 ===========================
