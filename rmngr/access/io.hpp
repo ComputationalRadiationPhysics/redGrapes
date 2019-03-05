@@ -13,6 +13,9 @@ namespace rmngr
 namespace access
 {
 
+/**
+ * Implements the concept @ref AccessPolicy
+ */
 struct IOAccess
 {
     enum Mode
