@@ -11,6 +11,10 @@ compile_commands.json
 DartConfiguration.tcl
 Testing
 
+
+docs/build
+docs/doxyxml
+
 *.swp
 *.orig
 *.png

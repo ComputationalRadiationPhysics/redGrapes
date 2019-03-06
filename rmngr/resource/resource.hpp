@@ -68,6 +68,12 @@ class ResourceAccess
             return false;
     }
 
+    /**
+     * Check if the associated resource is the same
+     *
+     * @param a another ResourceAccess
+     * @return true if `a` is associated with the same resource as `this`
+     */
     bool
     is_same_resource( ResourceAccess const & a ) const
     {
@@ -85,6 +91,33 @@ struct DefaultAccessPolicy
     }
 };
 
+/**
+ * @defgroup AccessPolicy
+ *
+ * @{
+ *
+ * @par Description
+ * An implementation of the concept AccessPolicy creates a new resource-type (`Resource<AccessPolicy>`)
+ * and should define the possible access modes / configurations for this resource-type (e.g. read/write)
+ *
+ * @par Required public member functions
+ * - `static bool is_serial(AccessPolicy, AccessPolicy)`
+ * check if the two accesses have to be **in order**. (e.g. two reads return false, an occuring write always true)
+ *
+ * - `static bool is_superset(AccessPolicy a, AccessPolicy b)`
+ * check if access `a` is a superset of access `b` (e.g. accessing [0,3] is a superset of accessing [1,2])
+ *
+ * @}
+ */
+
+/**
+ * @class Resource
+ * @tparam AccessPolicy Defines the access-modes (e.g. read/write) that are possible
+ *                      with this resource. Required to implement the concept @ref AccessPolicy
+ *                      
+ * Represents a concrete resource.
+ * Copied objects represent the same resource.
+ */
 template <typename AccessPolicy = DefaultAccessPolicy>
 class Resource
 {
@@ -141,8 +174,18 @@ class Resource
     static unsigned int id_counter;
 
   public:
+    /**
+     * Create a new resource with an unused ID.
+     */
     Resource() : id( id_counter++ ) {}
 
+    /**
+     * Create an ResourceAccess, which represents an concrete
+     * access configuration associated with this resource.
+     *
+     * @param pol AccessPolicy object, containing all access information
+     * @return ResourceAccess on this resource
+     */
     ResourceAccess
     make_access( AccessPolicy pol ) const
     {
