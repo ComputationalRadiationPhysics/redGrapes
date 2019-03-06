@@ -9,7 +9,6 @@ This Section shows exemplary how to use the Resource-Manager.
   building
   resources
   functors
+  dynamic_properties
   refinements
   access_demotion
-  dynamic_properties
-
