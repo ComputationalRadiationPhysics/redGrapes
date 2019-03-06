@@ -39,6 +39,9 @@ Delaying & Delayed Functors
 FunctorQueue
 ************
 
+.. _class_FunctorQueue:
+.. doxygenclass:: rmngr::FunctorQueue
+    :members:
 
 Scheduler
 =========
