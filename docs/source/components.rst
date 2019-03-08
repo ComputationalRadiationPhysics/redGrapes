@@ -61,3 +61,15 @@ Refined Graph
 Building the Graph with Policies
 ********************************
 
+Thread Pool
+***********
+
+.. _concept_Thread:
+.. doxygengroup:: Thread
+
+.. _concept_Selector:
+.. doxygengroup:: Selector
+
+.. _class_ThreadDispatcher:
+.. doxygenclass:: rmngr::ThreadDispatcher
+    :members:

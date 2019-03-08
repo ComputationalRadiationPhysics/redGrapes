@@ -6,6 +6,8 @@ project(rmngrTest)
 find_package(rmngr REQUIRED CONFIG PATHS "${CMAKE_CURRENT_LIST_DIR}/..")
 include_directories(SYSTEM ${rmngr_INCLUDE_DIRS})
 
+find_package(Threads REQUIRED)
+
 find_package(Catch2 2.2.1 CONFIG)
 
 option(rmngr_USE_INTERNAL_CATCH "Use internally stored Catch2" ON)
@@ -44,11 +46,13 @@ set(TEST_SOURCES
     dependency_manager.cpp
     access.cpp
     resource.cpp
-    resource_user.cpp)
+    resource_user.cpp
+    thread_dispatcher.cpp)
 
 set(TEST_TARGET rmngr_test)
 
 add_executable(${TEST_TARGET} ${TEST_SOURCES})
 target_link_libraries(${TEST_TARGET} PRIVATE rmngr)
+target_link_libraries(${TEST_TARGET} PRIVATE Threads::Threads)
 add_test(NAME unittest COMMAND ${TEST_TARGET})
 
