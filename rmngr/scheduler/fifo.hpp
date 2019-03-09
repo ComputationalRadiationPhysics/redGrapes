@@ -13,6 +13,9 @@
 namespace rmngr
 {
 
+/**
+ * JobSelector implementation for use with DispatchPolicy.
+ */
 template <
     typename Job
 >
@@ -23,10 +26,13 @@ public:
     struct Property {};
 
     FIFO()
+        : finished(false)
     {}
 
-    void finish(void)
+    // call this when no more jobs will come
+    void finish()
     {
+        this->finished = true;
         this->cv.notify_all();
     }
 
@@ -63,7 +69,7 @@ public:
     Job
     getJob( void )
     {
-        if( this->empty() )
+        if( !this->finished && this->empty() )
         {
             std::unique_lock<std::mutex> cv_lock( this->cv_mutex );
             this->cv.wait( cv_lock );
@@ -87,6 +93,8 @@ private:
 
     std::mutex cv_mutex;
     std::condition_variable cv;
+
+    bool finished;
 }; // struct FIFO
 
 } // namespace rmngr

@@ -14,7 +14,6 @@ struct DefaultJobSelector
 
     virtual void update() = 0;
 
-    void finish() {};
     bool empty( void ) { return true; }
     void push( Job const&, Property const& ) {}
     Job getJob( void ) { return Job(); }
@@ -71,21 +70,22 @@ struct DispatchPolicy
 
     struct JobSelector : T_JobSelector< Job >
     {
-        JobSelector()
-            : finished(false)
-        {}
+        JobSelector() {}
 
         bool empty()
         {
-            return this->finished && T_JobSelector<Job>::empty() && scheduler->empty();
+	    if( T_JobSelector<Job>::empty() && scheduler->empty() )
+	    {
+	        this->finish();
+		return true;
+	    }
+	    else
+	        return false;
         }
 
         Job getJob()
         {
-            if ( this->empty() )
-                return Job();
-            else
-                return T_JobSelector<Job>::getJob();
+	    return T_JobSelector<Job>::getJob();
         }
 
         void update()
@@ -93,7 +93,6 @@ struct DispatchPolicy
             this->scheduler->update();
         }
 
-        volatile bool finished;
         observer_ptr<SchedulerInterface> scheduler;
     };
 
@@ -133,7 +132,6 @@ struct DispatchPolicy
 
     void finish()
     {
-        this->selector.finished = true;
         if( this->dispatcher )
             delete this->dispatcher;
     }
