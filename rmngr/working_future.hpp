@@ -14,6 +14,7 @@ namespace rmngr
  * instead of waiting in get()
  *
  * @tparam T delayed type
+ * @tparam Worker nullary Callable
  */
 template <typename T, typename Worker>
 struct WorkingFuture : std::future<T>

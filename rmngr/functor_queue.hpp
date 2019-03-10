@@ -11,10 +11,18 @@
 namespace rmngr
 {
 
+/**
+ * @defgroup Queue
+ * @{
+ * @par Required public member functions
+ * - `void push( T )`
+ * @}
+ */
+
 /** Decorates a queue with factory-method to create self-pushing functors.
  *
- * @tparam Queue must have push()
- * @tparam Worker functor to call when returned futures wait
+ * @tparam Queue must implement @ref Queue for T = rmngr::observer_ptr< @ref DelayedFunctorInterface >
+ * @tparam Worker nullary functor to call when returned futures wait
  */
 template <typename Queue, typename Worker>
 class FunctorQueue

@@ -1,3 +1,8 @@
+
+/**
+ * @file rmngr/functor.hpp
+ */
+
 #pragma once
 
 #include <functional>
@@ -10,24 +15,48 @@
 namespace rmngr
 {
 
+/**
+ * Polymorphic base class for functors created through calling DelayingFunctor.
+ */
 struct DelayedFunctorInterface
 {
     virtual ~DelayedFunctorInterface() {};
     virtual void run (void) = 0;
 }; // class DelayedFunctorInterface
 
-template <typename Pusher, typename Functor, typename Worker>
+/**
+ * Wraps a functor to create delayed-functors on call
+ * and pass them on to a pusher (which could push them to a queue)
+ *
+ * @tparam Pusher must be Callable of the form `void (ProtoFunctor const&, DelayedFunctor&, Args&&...)`
+ * @tparam Functor must be any Callable
+ * @tparam Worker must be a nullary Callable
+ */
+template <
+    typename Pusher,
+    typename Functor,
+    typename Worker
+>
 class DelayingFunctor
 {
     private:
-        template <typename AppliedFunctor, typename Result = void>
-        class DelayedFunctor : virtual public DelayedFunctorInterface, public AppliedFunctor
+        template <
+            typename AppliedFunctor,
+            typename Result = void
+        >
+        class DelayedFunctor
+	    : virtual public DelayedFunctorInterface
+	    , public AppliedFunctor
         {
             public:
                 DelayedFunctor(AppliedFunctor const& f)
-                    : AppliedFunctor(f) {}
+                    : AppliedFunctor(f)
+	        {}
+
                 DelayedFunctor(DelayedFunctor&& other)
-                    : AppliedFunctor(other), result(std::move(other.result)) {}
+                    : AppliedFunctor(other)
+		    , result(std::move(other.result))
+	        {}
 
                 ~DelayedFunctor() {}
 
@@ -70,9 +99,20 @@ class DelayingFunctor
         Worker & worker;
 
     public:
-        DelayingFunctor(Pusher const& pusher_, Functor const& functor_, Worker & worker_)
-          :  pusher(pusher_), functor(functor_), worker(worker_) {}
+        /**
+         * @param pusher a callable which will receive the functor itself,
+         *               the delayed functor and the args
+         * @param functor the callable to be wrapped
+         * @param worker must outlive the actual execution
+         */
+        DelayingFunctor(Pusher const& pusher, Functor const& functor, Worker & worker)
+          :  pusher(pusher), functor(functor), worker(worker) {}
 
+        /** Bind args to functor and pass the
+         * resulting nullary functor to pusher.
+         *
+         * @return future of functors return
+         */
         template <typename... Args>
         WorkingFuture<typename std::result_of<Functor(Args...)>::type, Worker>
         operator() (Args&&... args)
@@ -86,6 +126,7 @@ class DelayingFunctor
             return result;
         }
 }; // class DelayingFunctor
+
 
 template <
     typename Pusher,
