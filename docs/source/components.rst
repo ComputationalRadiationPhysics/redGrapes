@@ -36,8 +36,20 @@ Functors
 Delaying & Delayed Functors
 ***************************
 
+.. _class_DelayedFunctorInterface:
+.. doxygenstruct:: rmngr::DelayedFunctorInterface
+    :members:
+    :undoc-members:
+
+.. _class_DelayingFunctor:
+.. doxygenclass:: rmngr::DelayingFunctor
+    :members:
+
 FunctorQueue
 ************
+
+.. _concept_Queue:
+.. doxygengroup:: Queue
 
 .. _class_FunctorQueue:
 .. doxygenclass:: rmngr::FunctorQueue
