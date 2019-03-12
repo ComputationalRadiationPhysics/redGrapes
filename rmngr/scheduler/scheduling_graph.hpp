@@ -37,10 +37,10 @@ class SchedulingGraph
         using EdgeID = typename boost::graph_traits<Graph>::edge_descriptor;
 
         SchedulingGraph(
-            std::atomic_flag volatile * uptodate_,
+	    FlagInterface * uptodate,
             RefinedGraph<RefinementGraph> & main_ref
         )
-            : uptodate(uptodate_)
+            : uptodate(uptodate)
 	    , main_refinement(main_ref)
         {
             this->main_refinement.uptodate = this->uptodate;
@@ -148,7 +148,7 @@ class SchedulingGraph
         }
 
     private:
-        std::atomic_flag volatile * uptodate;
+        FlagInterface * uptodate;
         RefinedGraph<RefinementGraph> & main_refinement;
         Graph scheduling_graph;
 }; // class SchedulingGraph

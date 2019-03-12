@@ -6,6 +6,7 @@
 #pragma once
 
 #include <condition_variable>
+#include <mutex>
 #include <boost/lockfree/queue.hpp>
 
 #include <rmngr/scheduler/dispatch.hpp>
@@ -27,13 +28,10 @@ public:
 
     FIFO()
       : queue(0)
-      , finished(false)
     {}
 
-    // call this when no more jobs will come
-    void finish()
+    void notify()
     {
-        this->finished = true;
         this->cv.notify_all();
     }
 
@@ -56,13 +54,17 @@ public:
             return false;
     }
 
+    /**
+     * @tparam Predicate nullary functor returning bool
+     * @param pred When no jobs available, wait until pred is true
+     */
+    template < typename Predicate >
     Job
-    getJob( void )
+    getJob( Predicate const& pred )
     {
-        if( !this->finished && this->empty() )
         {
             std::unique_lock<std::mutex> cv_lock( this->cv_mutex );
-            this->cv.wait( cv_lock );
+            this->cv.wait( cv_lock, [&](){ return (!this->empty()) || pred(); } );
         }
 
 	Job job;
@@ -77,8 +79,6 @@ private:
 
     std::mutex cv_mutex;
     std::condition_variable cv;
-
-    bool finished;
 }; // struct FIFO
 
 } // namespace rmngr
