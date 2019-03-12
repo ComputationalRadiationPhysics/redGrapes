@@ -3,7 +3,7 @@
 
 #include <rmngr/thread_dispatcher.hpp>
 #include <rmngr/graph/util.hpp>
-
+#include <functional>
 namespace rmngr
 {
 
@@ -15,9 +15,10 @@ struct DefaultJobSelector
     virtual void update() = 0;
 
     void finish() {}
+    void notify() {}
     bool empty( void ) { return true; }
     void push( Job const&, Property const& ) {}
-    Job getJob( void ) { return Job(); }
+  //Job getJob( int finished ) { return Job(); }
 };
 
 template <
@@ -87,22 +88,27 @@ struct DispatchPolicy
 
     struct JobSelector : T_JobSelector< Job >
     {
-        JobSelector() {}
+        bool finished;
+
+        JobSelector()
+	    : finished(false)
+        {}
 
         bool empty()
         {
-	    if( T_JobSelector<Job>::empty() && scheduler->empty() )
+            if( finished && T_JobSelector<Job>::empty() && scheduler->empty() )
 	    {
-	        this->finish();
+	        this->notify();
 		return true;
 	    }
 	    else
 	        return false;
         }
 
-        Job getJob()
+        template <typename Pred>
+        Job getJob( Pred const & pred )
         {
-	    return T_JobSelector<Job>::getJob();
+            return T_JobSelector<Job>::getJob( [&](){ return pred() || this->finished; } );
         }
 
         void update()
@@ -117,12 +123,14 @@ struct DispatchPolicy
         : T_JobSelector<Job>::Property
     {};
 
-    struct Worker : public SchedulerInterface::WorkerInterface
+    struct Worker
+      : public SchedulerInterface::WorkerInterface
     {
         ThreadDispatcher<JobSelector> * dispatcher;
-        void work(void)
+        void work( std::function<bool()> const& pred )
         {
-	    dispatcher->consume_job();
+	    while( !pred() )
+	        dispatcher->consume_job( pred );
         }
     };
 
@@ -149,8 +157,14 @@ struct DispatchPolicy
 
     void finish()
     {
+        this->selector.finished = true;
         if( this->dispatcher )
             delete this->dispatcher;
+    }
+
+    void notify()
+    {
+        this->selector.notify();
     }
 
     template <typename Graph>

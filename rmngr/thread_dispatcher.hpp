@@ -93,10 +93,11 @@ class ThreadDispatcher
     /**
      * Get the next job from the selector and execute it
      */
+    template <typename Pred>
     void
-    consume_job( void )
+    consume_job( Pred const& pred )
     {
-        (this->selector.getJob())();
+        (this->selector.getJob( pred ))();
     }
 
     /**
@@ -125,7 +126,7 @@ class ThreadDispatcher
 		}
 	    }
 
-            this->consume_job();
+            this->consume_job( []{ return false; } );
 	}
     }
 
