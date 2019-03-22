@@ -164,23 +164,15 @@ public:
     using PreparingProtoSchedulableFunctor = PreparingProtoSchedulableFunctor<Scheduler, Functor, PropertyFun>;
 
     Scheduler( size_t nthreads = 1 )
-      : graph( &uptodate, main_refinement ),
-        currently_scheduled( nthreads+1 )
+      : graph( &uptodate, main_refinement )
+      , currently_scheduled( nthreads+1 )
     {
-        Initializer initializer{ *this };
-        boost::mpl::for_each<
-            SchedulingPolicies,
-            boost::type<boost::mpl::_>
-        >( initializer );
+        this->for_each_policy< PolicyInit >();
     }
 
     ~Scheduler()
     {
-        Finisher finisher{ *this };
-        boost::mpl::for_each<
-            SchedulingPolicies,
-            boost::type<boost::mpl::_>
-        >( finisher );
+        this->for_each_policy< PolicyFinish >();
     }
 
     size_t num_threads(void) const
@@ -237,11 +229,7 @@ public:
 
             this->graph.update();
 
-            Updater updater{ *this };
-            boost::mpl::for_each<
-                SchedulingPolicies,
-                boost::type<boost::mpl::_>
-            >( updater );
+	    this->for_each_policy< PolicyUpdate >();
 
             this->currently_updating.clear();
             this->cv.notify_all();
@@ -374,38 +362,31 @@ private:
         boost::mpl::inherit< boost::mpl::_1, boost::mpl::_2 >
     >::type policies;
 
-    struct Initializer
-    {
-        Scheduler & scheduler;
-
-        template <typename Policy>
-        void operator() ( boost::type<Policy> )
-        {
-            scheduler.policy<Policy>().init( scheduler );
-        }
+#define POLICY_FUNCTOR( NAME, CALL )             \
+    struct NAME                                  \
+    {                                            \
+        Scheduler & scheduler;                   \
+                                                 \
+        template< typename Policy >              \
+        void operator()( boost::type< Policy > ) \
+        {                                        \
+            scheduler.policy< Policy >().CALL;   \
+        }                                        \
     };
 
-    struct Updater
+    POLICY_FUNCTOR( PolicyInit, init(scheduler) )
+    POLICY_FUNCTOR( PolicyUpdate, update(scheduler.graph, scheduler)  )
+    POLICY_FUNCTOR( PolicyFinish, finish() )
+
+    template <typename PolicyFun>
+    void for_each_policy()
     {
-        Scheduler & scheduler;
-
-        template <typename Policy>
-        void operator() ( boost::type<Policy> )
-        {
-            scheduler.policy<Policy>().update( scheduler.graph, scheduler );
-        }
-    };
-
-    struct Finisher
-    {
-        Scheduler & scheduler;
-
-        template <typename Policy>
-        void operator() ( boost::type<Policy> )
-        {
-            scheduler.policy<Policy>().finish();
-        }
-    };
+        PolicyFun f{ *this };
+	boost::mpl::for_each<
+	    SchedulingPolicies,
+	    boost::type<boost::mpl::_>
+	>( f );
+    }
 
 }; // class Scheduler
 
