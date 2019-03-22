@@ -13,10 +13,10 @@
 #include <rmngr/functor.hpp>
 #include <rmngr/functor_queue.hpp>
 #include <rmngr/thread_dispatcher.hpp>
-#include <rmngr/scheduler/scheduling_graph.hpp>
-
+#include <rmngr/scheduler/scheduler_interface.hpp>
 #include <rmngr/scheduler/schedulable.hpp>
 #include <rmngr/scheduler/schedulable_functor.hpp>
+#include <rmngr/scheduler/scheduling_graph.hpp>
 
 // defaults
 #include <boost/graph/adjacency_list.hpp>
@@ -25,75 +25,6 @@
 
 namespace rmngr
 {
-
-struct SchedulerInterface
-{
-    struct SchedulableInterface
-        : virtual public DelayedFunctorInterface
-    {
-        virtual ~SchedulableInterface() {}
-
-        virtual void start(void) = 0;
-        virtual void finish(void) = 0;
-    };
-
-    class WorkerInterface
-    {
-    protected:
-        virtual void work(void) = 0;
-
-    public:
-        void operator() (void)
-        {
-            this->work();
-        }
-    };
-
-    virtual void update(void) = 0;
-    virtual bool empty(void) = 0;
-    virtual size_t num_threads(void) const = 0;
-
-    std::unique_lock< std::mutex >
-    lock(void)
-    {
-        return std::unique_lock<std::mutex>(this->mutex);
-    };
-
-    void set_worker( WorkerInterface & worker_ )
-    {
-        this->worker = worker_;
-    }
-
-    template < typename Policy >
-    struct ProtoProperty
-    {
-        typename Policy::ProtoProperty prop;
-        operator typename Policy::ProtoProperty& ()
-        { return this->prop; }
-    };
-
-    template < typename Policy >
-    struct RuntimeProperty
-    {
-        typename Policy::RuntimeProperty prop;
-        operator typename Policy::RuntimeProperty& ()
-        { return this->prop; }
-    };
-
-    template < typename Policy >
-    static typename Policy::ProtoProperty &
-    proto_property( ProtoProperty<Policy> & s )
-    { return s.prop; }
-
-    template < typename Policy >
-    static typename Policy::RuntimeProperty &
-    runtime_property( RuntimeProperty<Policy> & s )
-    { return s.prop; }
-
-protected:
-    std::mutex mutex;
-    observer_ptr<WorkerInterface> worker;
-};
 
 template <typename T>
 using DefaultGraph =
@@ -117,7 +48,7 @@ struct DefaultSchedulingPolicy
     struct RuntimeProperty {};
 
     void init( SchedulerInterface & ) {}
-    void finish() {};
+    void finish() {}
 
     template <typename Graph>
     void update( Graph & graph, SchedulerInterface & scheduler ) {}
@@ -136,7 +67,7 @@ template <
     template <typename T> class Graph = DefaultGraph
 >
 class Scheduler
-  : public SchedulerInterface
+    : public SchedulerInterface
 {
 public:
     using ProtoProperties =
