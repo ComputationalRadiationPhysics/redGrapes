@@ -15,6 +15,9 @@
 #include <rmngr/thread_dispatcher.hpp>
 #include <rmngr/scheduler/scheduling_graph.hpp>
 
+#include <rmngr/scheduler/schedulable.hpp>
+#include <rmngr/scheduler/schedulable_functor.hpp>
+
 // defaults
 #include <boost/graph/adjacency_list.hpp>
 #include <rmngr/graph/precedence_graph.hpp>
@@ -135,7 +138,7 @@ template <
 class Scheduler
   : public SchedulerInterface
 {
-private:
+public:
     using ProtoProperties =
         typename boost::mpl::inherit_linearly<
             SchedulingPolicies,
@@ -148,7 +151,18 @@ private:
             boost::mpl::inherit< boost::mpl::_1, RuntimeProperty<boost::mpl::_2> >
         >::type;
 
-public:
+    friend class Schedulable<Scheduler>;
+    using Schedulable = Schedulable<Scheduler>;
+
+    template <typename DelayedFunctor>
+    using SchedulableFunctor = SchedulableFunctor<Scheduler, DelayedFunctor>;
+
+    template <typename Functor>
+    using ProtoSchedulableFunctor = ProtoSchedulableFunctor<Scheduler, Functor>;
+
+    template <typename Functor, typename PropertyFun>
+    using PreparingProtoSchedulableFunctor = PreparingProtoSchedulableFunctor<Scheduler, Functor, PropertyFun>;
+
     Scheduler( size_t nthreads = 1 )
       : graph( &uptodate, main_refinement ),
         currently_scheduled( nthreads+1 )
@@ -174,159 +188,12 @@ public:
         return this->currently_scheduled.size()-1;
     }
 
-    /**
-     * Base class storing all scheduling info and the functor
-     */
-    struct Schedulable
-        : public virtual SchedulerInterface::SchedulableInterface
-        , public ProtoProperties
-        , public RuntimeProperties
-    {
-        observer_ptr<Schedulable> last;
-
-        Schedulable( Scheduler & scheduler_ )
-            : scheduler(scheduler_) {}
-
-        virtual ~Schedulable()
-        {
-            this->scheduler.currently_scheduled[ thread::id ] = this->last;
-        }
-
-        void start(void)
-        {
-            last = this->scheduler.currently_scheduled[ thread::id ];
-            this->scheduler.currently_scheduled[ thread::id ] = this;
-        }
-
-        void finish(void)
-        {
-            if( this->scheduler.graph.finish(this) )
-                delete this;
-        }
-
-        template < typename Policy >
-        typename Policy::ProtoProperty & proto_property( void )
-        { return scheduler.proto_property< Policy >( *this ); }
-
-        template < typename Policy >
-        typename Policy::RuntimeProperty & runtime_property( void )
-        { return scheduler.runtime_property< Policy >( *this ); }
-
-    private:
-        Scheduler & scheduler;
-    };
-
-    template <typename DelayedFunctor>
-    struct SchedulableFunctor
-        : public DelayedFunctor
-        , public Schedulable
-    {
-        SchedulableFunctor(
-            DelayedFunctor && f,
-            ProtoProperties const & props,
-            Scheduler & scheduler
-        )
-            : DelayedFunctor( std::forward<DelayedFunctor>( f ) )
-            , Schedulable( scheduler )
-        {
-            ProtoProperties& p = *this;
-            p = props;
-        }
-    }; // struct SchedulableFunctor
-
-    template <typename Functor>
-    class ProtoSchedulableFunctor
-        : public ProtoProperties
-    {
-    public:
-        ProtoSchedulableFunctor(
-            Functor const & f,
-            Scheduler & scheduler_
-        )
-            : functor( f )
-            , scheduler(scheduler_)
-        {}
-
-        template <
-            typename DelayedFunctor,
-            typename... Args
-        >
-        SchedulableFunctor<DelayedFunctor> *
-        clone(
-            DelayedFunctor && f,
-            Args&&... args
-        ) const
-        {
-            return new SchedulableFunctor<DelayedFunctor>(
-                std::forward<DelayedFunctor>( f ),
-                *this,
-                this->scheduler
-            );
-        }
-
-        template <typename... Args>
-        typename std::result_of<Functor( Args... )>::type
-        operator()( Args &&... args )
-        {
-            return this->functor( std::forward<Args>( args )... );
-        }
-
-    private:
-        Functor functor;
-        Scheduler & scheduler;
-    }; // class ProtoSchedulableFunctor
-
-    template <typename Functor>
-    ProtoSchedulableFunctor<Functor>
+    template < typename Functor >
+    ProtoSchedulableFunctor< Functor >
     make_proto( Functor const & f )
     {
-        return ProtoSchedulableFunctor<Functor>( f, *this );
+        return ProtoSchedulableFunctor< Functor >( f, *this );
     }
-
-    template <
-        typename Functor,
-        typename PropertyFun
-    >
-    class PreparingProtoSchedulableFunctor
-        : public ProtoSchedulableFunctor<Functor>
-    {
-    public:
-        PreparingProtoSchedulableFunctor(
-            Functor const & f,
-            Scheduler & scheduler,
-            PropertyFun const & prepare_properties_
-        )
-          : ProtoSchedulableFunctor<Functor>(f, scheduler)
-          , prepare_properties(prepare_properties_)
-        {}
-
-        template <
-            typename DelayedFunctor,
-            typename... Args
-        >
-        SchedulableFunctor<DelayedFunctor> *
-        clone(
-            DelayedFunctor && f,
-            Args&&... args
-        ) const
-        {
-            SchedulableFunctor<DelayedFunctor> * schedulable =
-                this->ProtoSchedulableFunctor<Functor>::clone(
-                    std::forward<DelayedFunctor>(f),
-                    std::forward<Args>(args)...
-                );
-
-            this->prepare_properties(
-                schedulable,
-                std::forward<Args>(args)...
-            );
-
-            return schedulable;
-        }
-
-    private:
-        PropertyFun prepare_properties;
-    };
 
     template <
         typename Functor,
