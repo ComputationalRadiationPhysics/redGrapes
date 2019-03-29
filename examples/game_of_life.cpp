@@ -80,7 +80,7 @@ update_chunk_impl(
 
 void
 update_chunk_prop(
-    rmngr::observer_ptr<Scheduler::Schedulable> s,
+    Scheduler::Schedulable& s,
     Buffer & dst,
     Buffer const & src,
     Vec2 pos,
@@ -93,7 +93,7 @@ update_chunk_prop(
         pos.y + size.y - 1,
     };
 
-    scheduler->proto_property< rmngr::ResourceUserPolicy >( s ).access_list =
+    s.proto_property< rmngr::ResourceUserPolicy >().access_list =
     {
         dst.write( {{pos.x, end.x}, {pos.y, end.y}} ),
         src.read( {{pos.x - 1, end.x + 1}, {pos.y - 1, end.y + 1}} )
@@ -117,11 +117,11 @@ copy_borders_impl( Buffer & buf )
 
 void
 copy_borders_prop(
-    rmngr::observer_ptr<Scheduler::Schedulable> s,
+    Scheduler::Schedulable& s,
     Buffer & buf
 )
 {
-    scheduler->proto_property< rmngr::ResourceUserPolicy >( s ).access_list =
+    s.proto_property< rmngr::ResourceUserPolicy >().access_list =
     {
         buf.write({{0, size_x + 1}, {0, 0}}),
         buf.write({{0, size_x + 1}, {size_y + 1, size_y + 1}}),
@@ -148,11 +148,11 @@ print_buffer_impl( Buffer const & buf )
 
 void
 print_buffer_prop(
-    rmngr::observer_ptr<Scheduler::Schedulable> s,
+    Scheduler::Schedulable& s,
     Buffer const & buf
 )
 {
-    scheduler->proto_property< rmngr::ResourceUserPolicy >( s ).access_list =
+    s.proto_property< rmngr::ResourceUserPolicy >().access_list =
     { buf.read() };
 }
 

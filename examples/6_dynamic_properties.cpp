@@ -25,9 +25,9 @@ void fun1_impl( int x )
     std::this_thread::sleep_for( std::chrono::seconds(1) );
 }
 
-void fun1_prop( rmngr::observer_ptr<Scheduler::Schedulable> s, int x )
+void fun1_prop( Scheduler::Schedulable& s, int x )
 {
-    scheduler->proto_property< rmngr::ResourceUserPolicy >( s ).access_list =
+    s.proto_property< rmngr::ResourceUserPolicy >().access_list =
     {
        field.write({{x,x}}),
     };

@@ -47,9 +47,25 @@ struct DispatchPolicy
 
     struct Job
     {
-        observer_ptr<SchedulerInterface::SchedulableInterface> schedulable;
-        observer_ptr<RuntimeProperty> prop;
-        observer_ptr<SchedulerInterface> scheduler;
+        SchedulerInterface::SchedulableInterface * schedulable;
+        RuntimeProperty * prop;
+        SchedulerInterface * scheduler;
+
+        Job()
+            : schedulable(nullptr)
+	    , prop(nullptr)
+	    , scheduler(nullptr)
+        {}
+
+        Job(
+            SchedulerInterface::SchedulableInterface * schedulable,
+	    RuntimeProperty * prop,
+	    SchedulerInterface * scheduler
+	)
+            : schedulable(schedulable)
+	    , prop(prop)
+	    , scheduler(scheduler)
+        {}
 
         void operator() (void)
         {
@@ -94,7 +110,7 @@ struct DispatchPolicy
             this->scheduler->update();
         }
 
-        observer_ptr<SchedulerInterface> scheduler;
+        SchedulerInterface * scheduler;
     };
 
     struct ProtoProperty
@@ -103,10 +119,10 @@ struct DispatchPolicy
 
     struct Worker : public SchedulerInterface::WorkerInterface
     {
-        observer_ptr<ThreadDispatcher<JobSelector>> dispatcher;
+        ThreadDispatcher<JobSelector> * dispatcher;
         void work(void)
         {
-            dispatcher->consume_job();
+	    dispatcher->consume_job();
         }
     };
 
@@ -121,7 +137,7 @@ struct DispatchPolicy
 
     void init( SchedulerInterface & s )
     {
-        this->selector.scheduler = s;
+        this->selector.scheduler = &s;
         this->dispatcher =
           new ThreadDispatcher< JobSelector >(
             this->selector,
@@ -155,7 +171,7 @@ struct DispatchPolicy
                 if ( runtime_prop.state == RuntimeProperty::pending )
                 {
                     runtime_prop.state = RuntimeProperty::ready;
-                    selector.push( Job{ &schedulable, runtime_prop, scheduler }, proto_prop );
+                    selector.push( Job( schedulable, &runtime_prop, &scheduler ), proto_prop );
                 }
                 else if ( runtime_prop.state == RuntimeProperty::done )
                     schedulable->finish();
