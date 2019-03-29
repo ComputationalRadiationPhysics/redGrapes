@@ -38,11 +38,12 @@ class SchedulingGraph
 
         SchedulingGraph(
             std::atomic_flag volatile * uptodate_,
-            observer_ptr<RefinedGraph<RefinementGraph>> main_ref
+            RefinedGraph<RefinementGraph> & main_ref
         )
-            : uptodate(uptodate_), main_refinement(main_ref)
+            : uptodate(uptodate_)
+	    , main_refinement(main_ref)
         {
-            this->main_refinement->uptodate = this->uptodate;
+            this->main_refinement.uptodate = this->uptodate;
         }
 
         bool empty(void) const
@@ -71,7 +72,7 @@ class SchedulingGraph
         {
             // merge all refinements into one graph
             this->scheduling_graph.clear();
-            this->main_refinement->copy(this->scheduling_graph);
+            this->main_refinement.copy(this->scheduling_graph);
         }
 
         /** Remove a node from the graphs and reschedule
@@ -82,7 +83,7 @@ class SchedulingGraph
          */
         bool finish(ID a)
         {
-            bool finished = this->main_refinement->finish(a);
+            bool finished = this->main_refinement.finish(a);
             if( finished )
                 this->uptodate->clear();
 
@@ -148,7 +149,7 @@ class SchedulingGraph
 
     private:
         std::atomic_flag volatile * uptodate;
-        observer_ptr<RefinedGraph<RefinementGraph>> main_refinement;
+        RefinedGraph<RefinementGraph> & main_refinement;
         Graph scheduling_graph;
 }; // class SchedulingGraph
 

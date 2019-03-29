@@ -10,7 +10,6 @@
 
 #include <boost/graph/copy.hpp>
 
-#include <rmngr/observer_ptr.hpp>
 #include <rmngr/graph/util.hpp>
 
 namespace rmngr
@@ -33,6 +32,13 @@ class RefinedGraph
         RefinedGraph()
             : uptodate(nullptr) {}
 
+        RefinedGraph(RefinedGraph&& g)
+	  : uptodate(g.uptodate)
+	  , refinements(g.refinements)
+	  , m_graph(g.m_graph)
+        {}
+	    
+
         /// get graph object
         Graph & graph(void)
         {
@@ -47,18 +53,18 @@ class RefinedGraph
             this->copy_refinements(target_graph);
         }
 
-        observer_ptr<RefinedGraph>
+        RefinedGraph * /* should be std::optional<std::reference_wrapper<RefinedGraph>> */
         find_refinement(ID parent)
         {
             auto it = this->refinements.find(parent);
 
             if (it != this->refinements.end())
-                return it->second;
+                return it->second.get();
             else
             {
                 for (auto & r : this->refinements)
                 {
-                    observer_ptr<RefinedGraph> found = r.second->find_refinement(parent);
+                    auto found = r.second->find_refinement(parent);
                     if (found)
                         return found;
                 }
@@ -67,7 +73,7 @@ class RefinedGraph
             }
         }
 
-        observer_ptr<RefinedGraph>
+        RefinedGraph *
         find_refinement_containing(ID a)
         {
             if (graph_find_vertex(a, this->graph()).second)
@@ -75,7 +81,7 @@ class RefinedGraph
 
             for (auto & r : this->refinements)
             {
-                observer_ptr<RefinedGraph> found = r.second->find_refinement_containing(a);
+                auto found = r.second->find_refinement_containing(a);
                 if (found)
                     return found;
             }
@@ -83,27 +89,26 @@ class RefinedGraph
             return nullptr;
         }
 
-
         template <typename Refinement>
-        observer_ptr<Refinement>
+        Refinement *
         make_refinement(ID parent)
         {
-            Refinement* ptr = new Refinement();
+            Refinement * ptr = new Refinement();
             ptr->uptodate = this->uptodate;
             ptr->parent = parent;
             this->refinements[parent] = std::unique_ptr<RefinedGraph>(ptr);
-            return observer_ptr<Refinement>(ptr);
+            return ptr;
         }
 
         template <typename Refinement>
-        observer_ptr<Refinement>
+	Refinement *
         refinement(ID parent)
         {
-            observer_ptr<RefinedGraph> ref(this->find_refinement(parent));
+            auto ref = this->find_refinement(parent);
 
             if (! ref)
             {
-                observer_ptr<RefinedGraph> base(this->find_refinement_containing(parent));
+                auto base = this->find_refinement_containing(parent);
                 if (base)
                     return base->template make_refinement<Refinement>(parent);
 

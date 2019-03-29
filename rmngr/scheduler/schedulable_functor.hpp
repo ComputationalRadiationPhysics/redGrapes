@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <functional> // std::ref
 #include <rmngr/scheduler/schedulable.hpp>
 
 namespace rmngr
@@ -103,7 +104,9 @@ public:
                 std::forward< Args >( args )... );
 
         this->prepare_properties(
-            schedulable, std::forward< Args >( args )... );
+            std::ref(*schedulable),
+	    std::forward< Args >( args )...
+        );
 
         return schedulable;
     }

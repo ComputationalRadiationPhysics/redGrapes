@@ -26,9 +26,9 @@ struct Buffer : rmngr::FieldResource<1>
                 std::cout << "read buffer" << std::endl;
                 std::this_thread::sleep_for( std::chrono::seconds(1) );
             },
-            [this]( rmngr::observer_ptr<Scheduler::Schedulable> s )
+            [this]( Scheduler::Schedulable& s )
             {
-                s->proto_property< rmngr::ResourceUserPolicy >().access_list =
+                s.proto_property< rmngr::ResourceUserPolicy >().access_list =
                 {
                     this->FieldResource<1>::read()
                 };
@@ -50,9 +50,9 @@ int main( int, char*[] )
         {
             std::cout << "hello" << std::endl;
         },
-        [ &b ]( rmngr::observer_ptr<Scheduler::Schedulable> s )
+        [ &b ]( Scheduler::Schedulable& s )
         {
-            s->proto_property< rmngr::ResourceUserPolicy >().access_list =
+            s.proto_property< rmngr::ResourceUserPolicy >().access_list =
             {
                b.write()
             };

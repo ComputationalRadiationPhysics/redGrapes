@@ -34,7 +34,6 @@ private:
 
 public:
     using Schedulable = typename SchedulerType::Schedulable;
-    using SchedulablePtr = observer_ptr< Schedulable >;
 
     static void init( int nthreads )
     {
@@ -51,16 +50,12 @@ public:
         return *(getPtr());
     }
 
-#define CALL_INSTANCE( name, args ) \
-    getInstance(). name ( args )
-
-#define WRAP_INSTANCE( name ) \
-    template < typename... Args > \
-    static auto name ( Args&&... args ) \
-      -> decltype( CALL_INSTANCE( name, std::forward<Args>(args)... ) ) \
-    { \
-        return CALL_INSTANCE( name, std::forward<Args>(args)... ); \
-    } \
+#define WRAP_INSTANCE( name )                                         \
+    template< typename... Args >                                      \
+    static auto name( Args &&... args )                               \
+    {                                                                 \
+        return getInstance().name( std::forward< Args >( args )... ); \
+    }
 
     WRAP_INSTANCE( make_proto )
     WRAP_INSTANCE( make_functor )
