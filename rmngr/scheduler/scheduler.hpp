@@ -273,6 +273,9 @@ public:
     {
         this->lock();
         auto s = this->get_current_schedulable();
+	if(!s)
+            throw std::runtime_error("invalid update_property: no schedulable running");
+
         this->policy< Policy >().update_property(*s, *s, std::forward<Args>(args)...);
 
         auto ref = dynamic_cast< Refinement<Graph<Schedulable*>>* >(
