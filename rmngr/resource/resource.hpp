@@ -8,6 +8,8 @@
 #include <boost/type_index.hpp>
 #include <memory> // std::unique_ptr<>
 #include <vector>
+#include <atomic>
+#include <iostream>
 
 namespace rmngr
 {
@@ -28,11 +30,12 @@ class ResourceAccess
         {
         }
 
-        virtual ~AccessBase(){};
+        virtual ~AccessBase() {};
         virtual bool is_same_resource( AccessBase const & r ) const = 0;
         virtual bool is_serial( AccessBase const & r ) const = 0;
         virtual bool is_superset_of( AccessBase const & r ) const = 0;
         virtual AccessBase * clone( void ) const = 0;
+
         boost::typeindex::type_index access_type;
     }; // AccessBase
 
@@ -171,13 +174,15 @@ class Resource
     }; // struct ThisResourceAccess
 
     unsigned int const id;
-    static unsigned int id_counter;
+    static std::atomic_int id_counter;
 
   public:
     /**
      * Create a new resource with an unused ID.
      */
-    Resource() : id( id_counter++ ) {}
+    Resource()
+      : id( ++id_counter )
+    {}
 
     /**
      * Create an ResourceAccess, which represents an concrete
@@ -194,6 +199,6 @@ class Resource
 }; // class Resource
 
 template <typename AccessPolicy>
-unsigned int Resource<AccessPolicy>::id_counter = 0;
+std::atomic_int Resource<AccessPolicy>::id_counter;
 
 } // namespace rmngr
