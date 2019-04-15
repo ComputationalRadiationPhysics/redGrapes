@@ -36,11 +36,18 @@ boost::adjacency_list<
     T
 >;
 
+template <typename T>
+struct DefaultEnqueuePolicy
+{
+    static bool is_serial(T const & a, T const & b) { return true; }
+    static bool is_superset(T const & super, T const & sub) { return false; };
+};
+
 template <typename Graph>
 using DefaultRefinement =
 QueuedPrecedenceGraph<
     Graph,
-    ResourceUser
+    DefaultEnqueuePolicy<typename Graph::ID>
 >;
 
 struct DefaultSchedulingPolicy
@@ -284,11 +291,8 @@ public:
         this->policy< Policy >().update_property(*s, *s, std::forward<Args>(args)...);
 
         auto ref = dynamic_cast< Refinement<Graph<Schedulable*>>* >(
-                       this->main_refinement.find_refinement_containing( s )
-                   );
-
-        // fixme: precedence policy
-        ref->template update_vertex< ResourceUser >( s );
+                       this->main_refinement.find_refinement_containing( s ));
+        ref->update_vertex( s );
 
         this->update();
     }

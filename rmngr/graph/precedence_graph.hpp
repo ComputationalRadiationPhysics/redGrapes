@@ -108,7 +108,7 @@ class QueuedPrecedenceGraph :
         void push(ID a)
         {
             if( this->parent )
-                if( ! EnqueuePolicy::is_superset( *this->parent, *a ) )
+                if( ! EnqueuePolicy::is_superset( this->parent, a ) )
                     throw std::runtime_error("rmngr: not allowed in this refinement");
 
             this->add_vertex(a);
@@ -137,7 +137,7 @@ class QueuedPrecedenceGraph :
             VertexID i = graph_find_vertex(a, this->graph()).first;
             for(auto b : this->queue)
             {
-                if( EnqueuePolicy::is_serial(*b, *a) && indirect_dependencies.count(b) == 0 )
+                if( EnqueuePolicy::is_serial(b, a) && indirect_dependencies.count(b) == 0 )
                 {
                     this->add_edge(b, a);
                     boost::depth_first_visit(this->graph(), i, vis, colormap);
@@ -146,6 +146,11 @@ class QueuedPrecedenceGraph :
 
             this->queue.insert(this->queue.begin(), a);
         }
+
+        void update_vertex(ID a)
+        {
+            this->PrecedenceGraph<Graph>::template update_vertex< EnqueuePolicy >( a );
+	}
 
         bool finish(ID a)
         {
