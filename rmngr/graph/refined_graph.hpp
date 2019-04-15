@@ -35,7 +35,8 @@ class RefinedGraph
 
     public:
         RefinedGraph()
-            : uptodate(nullptr)
+	    : uptodate(nullptr)
+	    , parent(nullptr)
         {}
 
         RefinedGraph(RefinedGraph&& g)
@@ -43,7 +44,6 @@ class RefinedGraph
 	  , refinements(g.refinements)
 	  , m_graph(g.m_graph)
         {}
-	    
 
         /// get graph object
         Graph & graph(void)

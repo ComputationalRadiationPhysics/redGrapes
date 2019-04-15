@@ -51,7 +51,7 @@ class ResourceUser
     static bool
     is_superset( ResourceUser const & a, ResourceUser const & b )
     {
-      return a.is_superset_of(b);
+        return a.is_superset_of(b);
     }
 
     // protected:
