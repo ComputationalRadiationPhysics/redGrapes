@@ -7,6 +7,7 @@
 
 #include <boost/graph/adjacency_matrix.hpp>
 #include <rmngr/access/dependency_manager.hpp>
+#include <iostream>
 
 namespace rmngr
 {
@@ -46,6 +47,20 @@ struct IOAccess
     is_superset_of(IOAccess a) const
     {
         return m().is_superset(this->mode, a.mode);
+    }
+
+    friend std::ostream& operator<<(std::ostream& out, IOAccess const& a)
+    {
+        out << "IOAccess::";
+	switch(a.mode)
+	{
+            case root: out << "Root"; break;
+            case read: out << "Read"; break;
+            case write: out << "Write"; break;
+            case aadd: out << "AtomicAdd"; break;
+            case amul: out << "AtomicMul"; break;
+	}
+	return out;
     }
 
   private:

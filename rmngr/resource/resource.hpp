@@ -35,6 +35,7 @@ class ResourceAccess
         virtual bool is_serial( AccessBase const & r ) const = 0;
         virtual bool is_superset_of( AccessBase const & r ) const = 0;
         virtual AccessBase * clone( void ) const = 0;
+        virtual std::ostream& write(std::ostream&) = 0;
 
         boost::typeindex::type_index access_type;
     }; // AccessBase
@@ -83,6 +84,11 @@ class ResourceAccess
         if ( this->obj->access_type == a.obj->access_type )
             return this->obj->is_same_resource( *a.obj );
         return false;
+    }
+
+    friend std::ostream& operator<<(std::ostream& out, ResourceAccess const & acc)
+    {
+        return acc.obj->write(out);
     }
 }; // class ResourceAccess
 
@@ -167,6 +173,13 @@ class Resource
         clone( void ) const
         {
             return new Access( this->resource, this->policy );
+        }
+
+        std::ostream& write(std::ostream& out)
+        {
+            out << "Resource(" << resource.id << ")::";
+	    out << policy;
+            return out;
         }
 
         Resource<AccessPolicy> resource;

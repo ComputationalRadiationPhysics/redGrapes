@@ -6,6 +6,7 @@
 #pragma once
 
 #include <array>
+#include <iostream>
 
 namespace rmngr
 {
@@ -44,6 +45,12 @@ struct AreaAccess : std::array<int, 2>
             ((*this)[0] <= a[0]) &&
             ((*this)[1] >= a[1])
         );
+    }
+
+    friend std::ostream& operator<<(std::ostream& out, AreaAccess const& a)
+    {
+        out << "AreaAccess::[" << a[0] << ", " << a[1] << "]";
+	return out;
     }
 }; // struct AreaAccess
 

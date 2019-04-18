@@ -36,9 +36,21 @@ struct GraphvizWriter : DefaultSchedulingPolicy
         graph.write_graphviz(
             file,
             boost::make_function_property_map< typename Graph::ID >(
-                []( typename Graph::ID s ) {
-                    ProtoProperty const & prop = *s;
-                    return prop.label;
+                [&]( typename Graph::ID s ) {
+		    std::string label;
+
+		    // name
+		    ProtoProperty const & prop = *s;
+                    label += prop.label;
+		    label += "\n";
+
+		    // add resource information
+		    std::ostringstream stream;
+		    ResourceUserPolicy::ProtoProperty const & rp = *s;
+		    stream << rp;
+		    label += stream.str();
+
+                    return label;
                 }
             ),
             boost::make_function_property_map< typename Graph::ID >(

@@ -78,7 +78,7 @@ class PrecedenceGraph : public RefinedGraph<Graph>
                 bool operator() ( typename boost::graph_traits<Graph>::edge_descriptor edge ) const
                 {
                     auto src = boost::source(edge, graph);
-                    return ( ! PrecedencePolicy::is_serial( *id, *graph_get(src, graph) ) );
+                    return ( ! PrecedencePolicy::is_serial( id, graph_get(src, graph) ) );
                 }
             };
 
@@ -108,8 +108,7 @@ class QueuedPrecedenceGraph :
         void push(ID a)
         {
             if( this->parent )
-                if( ! EnqueuePolicy::is_superset( this->parent, a ) )
-                    throw std::runtime_error("rmngr: not allowed in this refinement");
+	        EnqueuePolicy::assert_superset( this->parent, a );
 
             this->add_vertex(a);
 
