@@ -6,6 +6,7 @@
 #pragma once
 
 #include <mutex>
+#include <functional>
 
 namespace rmngr
 {
@@ -30,13 +31,14 @@ struct SchedulerInterface
     {
     protected:
         virtual void
-        work( void ) = 0;
+        work( std::function<bool()> const& ) = 0;
 
     public:
+        template <typename Pred>
         void
-        operator()( void )
+        operator() ( Pred const& pred )
         {
-            this->work();
+            this->work( std::function<bool()>(pred) );
         }
     };
 

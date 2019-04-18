@@ -5,7 +5,7 @@
 #pragma once
 
 #include <future>
-
+#include <rmngr/thread_dispatcher.hpp>
 namespace rmngr
 {
 
@@ -31,9 +31,7 @@ struct WorkingFuture : std::future<T>
      */
     T get(void)
     {
-        while( ! this->is_ready() )
-            this->work();
-
+        this->work( [&]{ return this->is_ready(); } );
         return this->std::future<T>::get();
     }
 

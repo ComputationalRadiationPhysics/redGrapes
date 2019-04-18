@@ -50,6 +50,7 @@ struct DefaultSchedulingPolicy
 
     void init( SchedulerInterface & ) {}
     void finish() {}
+    void notify() {}
 
     template <typename Graph>
     void update( Graph & graph, SchedulerInterface & scheduler ) {}
@@ -98,6 +99,7 @@ public:
     Scheduler( size_t nthreads = 1 )
       : graph( &uptodate, main_refinement )
       , currently_scheduled( nthreads+1 )
+      , uptodate( *this )
     {
         this->for_each_policy< PolicyInit >();
     }
@@ -140,31 +142,34 @@ public:
         );
     }
 
-private:
-    std::condition_variable cv;
-    std::mutex cv_mutex;
-    std::atomic_flag currently_updating = ATOMIC_FLAG_INIT;
-
 public:
-    std::atomic_flag volatile uptodate = ATOMIC_FLAG_INIT;
+    struct UpToDateFlag
+      : std::atomic_flag
+      , virtual FlagInterface
+    {
+        Scheduler & scheduler;
+        UpToDateFlag( Scheduler& scheduler )
+	    : std::atomic_flag(ATOMIC_FLAG_INIT)
+            , scheduler(scheduler)
+        {}
+
+        void clear()
+        {
+	    this->std::atomic_flag::clear();
+	    // notify all policies
+	    this->scheduler.for_each_policy< PolicyNotify >();
+	}
+    };
+
+    UpToDateFlag uptodate;
+
     void update(void)
     {
-        if( ! this->uptodate.test_and_set() )
+        auto lock = this->lock();
+        while( ! this->uptodate.test_and_set() )
         {
-            if( this->currently_updating.test_and_set() )
-            {
-                std::unique_lock<std::mutex> lock( this->cv_mutex );
-                this->cv.wait( lock, [this]{ return !this->currently_updating.test_and_set(); } );
-            }
-
-            std::lock_guard< std::mutex > lock( this->mutex );
-
             this->graph.update();
-
 	    this->for_each_policy< PolicyUpdate >();
-
-            this->currently_updating.clear();
-            this->cv.notify_all();
         }
     }
 
@@ -313,6 +318,7 @@ private:
     POLICY_FUNCTOR( PolicyInit, init(scheduler) )
     POLICY_FUNCTOR( PolicyUpdate, update(scheduler.graph, scheduler)  )
     POLICY_FUNCTOR( PolicyFinish, finish() )
+    POLICY_FUNCTOR( PolicyNotify, notify() )
 
     template <typename PolicyFun>
     void for_each_policy()

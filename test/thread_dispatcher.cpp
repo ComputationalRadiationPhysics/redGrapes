@@ -31,7 +31,8 @@ struct TestSelector
         return (x == 0);
     }
 
-    auto getJob()
+    template <typename Pred>
+    auto getJob( Pred const& )
     {
         std::lock_guard<std::mutex> lock( this->mutex );
         if( n > 0 )

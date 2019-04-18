@@ -15,6 +15,11 @@
 namespace rmngr
 {
 
+struct FlagInterface
+{
+    virtual void clear() = 0;
+};
+
 /**
  * Boost-Graph adaptor storing a tree of subgraphs
  * which refine a node.
@@ -30,7 +35,8 @@ class RefinedGraph
 
     public:
         RefinedGraph()
-            : uptodate(nullptr) {}
+            : uptodate(nullptr)
+        {}
 
         RefinedGraph(RefinedGraph&& g)
 	  : uptodate(g.uptodate)
@@ -153,7 +159,7 @@ class RefinedGraph
             return false;
         }
 
-        volatile std::atomic_flag * uptodate;
+        FlagInterface * uptodate;
         void deprecate(void)
         {
             if( this->uptodate != nullptr )

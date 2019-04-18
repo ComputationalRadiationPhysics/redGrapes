@@ -6,7 +6,8 @@
 #pragma once
 
 #include <condition_variable>
-#include <queue>
+#include <mutex>
+#include <boost/lockfree/queue.hpp>
 
 #include <rmngr/scheduler/dispatch.hpp>
 
@@ -26,77 +27,58 @@ public:
     struct Property {};
 
     FIFO()
-        : finished(false)
+      : queue(0)
     {}
 
-    // call this when no more jobs will come
-    void finish()
+    void notify()
     {
-        this->finished = true;
         this->cv.notify_all();
     }
 
     void
     push( Job const & job, Property const & prop = Property() )
     {
-        {
-            std::lock_guard<std::mutex> lock( queue_mutex );
-            this->queue.push( job );
-        }
-
+        this->queue.push( job );
         this->cv.notify_one();
-    }
-
-    bool
-    queue_empty( void )
-    {
-        std::lock_guard< std::mutex >( this->queue_mutex );
-        return this->queue.empty();
     }
 
     bool
     empty( void )
     {
-        if( this->queue_empty() )
+        if( this->queue.empty() )
         {
             this->update();
-            return this->queue_empty();
+            return this->queue.empty();
         }
         else
             return false;
     }
 
+    /**
+     * @tparam Predicate nullary functor returning bool
+     * @param pred When no jobs available, wait until pred is true
+     */
+    template < typename Predicate >
     Job
-    getJob( void )
+    getJob( Predicate const& pred )
     {
-        if( !this->finished && this->empty() )
         {
-            if( this->empty() )
-                return Job();
             std::unique_lock<std::mutex> cv_lock( this->cv_mutex );
-            this->cv.wait( cv_lock );
+            this->cv.wait( cv_lock, [&](){ return (!this->empty()) || pred(); } );
         }
 
-        std::lock_guard<std::mutex> lock( this->queue_mutex );
-        if( this->queue.empty() )
-            return Job();
-        else
-        {
-            Job job = this->queue.front();
-            this->queue.pop();
-
+	Job job;
+	if( this->queue.pop(job) )
             return job;
-        }
+	else
+            return Job();
     }
 
 private:
-    std::mutex queue_mutex;
-    std::queue<Job> queue;
+    boost::lockfree::queue<Job> queue;
 
     std::mutex cv_mutex;
     std::condition_variable cv;
-
-    bool finished;
 }; // struct FIFO
 
 } // namespace rmngr
