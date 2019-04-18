@@ -56,6 +56,15 @@ class ResourceUser
 
     // protected:
     std::vector<ResourceAccess> access_list;
+
+    friend std::ostream& operator<<(std::ostream& out, ResourceUser const& r)
+    {
+        out << "ResourceUser {" << std::endl;
+        for( auto & access : r.access_list )
+            out << access << "," << std::endl; 
+	out << "}";
+	return out;
+    }
 }; // class ResourceUser
 
 } // namespace rmngr

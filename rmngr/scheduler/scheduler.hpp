@@ -40,14 +40,14 @@ template <typename T>
 struct DefaultEnqueuePolicy
 {
     static bool is_serial(T const & a, T const & b) { return true; }
-    static bool is_superset(T const & super, T const & sub) { return false; };
+    static void assert_superset(T const & super, T const & sub) {}
 };
 
 template <typename Graph>
 using DefaultRefinement =
 QueuedPrecedenceGraph<
     Graph,
-    DefaultEnqueuePolicy<typename Graph::ID>
+    DefaultEnqueuePolicy<typename Graph::vertex_property_type>
 >;
 
 struct DefaultSchedulingPolicy

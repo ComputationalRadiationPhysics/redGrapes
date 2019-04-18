@@ -7,6 +7,7 @@
 
 #include <array>
 #include <utility>
+#include <iostream>
 
 namespace rmngr
 {
@@ -67,6 +68,15 @@ struct ArrayAccess : std::array<Access, N>
 
         return true;
     }
+
+    friend std::ostream& operator<<(std::ostream& out, ArrayAccess<Access, N, Op> const& a)
+    {
+        out << "ArrayAccess::{" << std::endl;
+	for(std::size_t i = 0; i < N; ++i)
+	    out << a[i] << "," << std::endl;
+	out << "}";
+	return out;
+    }
 }; // struct ArrayAccess
 
 template <
@@ -114,6 +124,15 @@ struct CombineAccess : std::pair<Acc1, Acc2>
             this->first.is_superset_of(a.first) &&
             this->second.is_superset_of(a.second)
         );
+    }
+
+    friend std::ostream& operator<<(std::ostream& out, CombineAccess<Acc1, Acc2, Op> const& a)
+    {
+        out << "CombineAccess::{" << std::endl;
+	out << a.first << ";" << std::endl;
+	out << a.second << ";" << std::endl;
+	out << "}";
+	return out;
     }
 }; // struct CombineAccess
 
