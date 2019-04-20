@@ -127,10 +127,17 @@ struct DispatchPolicy
       : public SchedulerInterface::WorkerInterface
     {
         ThreadDispatcher<JobSelector> * dispatcher;
+
+        Worker()
+            : dispatcher(nullptr) {}
+
         void work( std::function<bool()> const& pred )
         {
-	    while( !pred() )
-	        dispatcher->consume_job( pred );
+             while( !pred() )
+             {
+                 if(dispatcher)
+		     dispatcher->consume_job( pred );
+            }
         }
     };
 
