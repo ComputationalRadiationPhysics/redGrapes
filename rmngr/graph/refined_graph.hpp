@@ -43,6 +43,7 @@ class RefinedGraph
 	  : uptodate(g.uptodate)
 	  , refinements(g.refinements)
 	  , m_graph(g.m_graph)
+	  , parent(g.parent)
         {}
 
         /// get graph object
