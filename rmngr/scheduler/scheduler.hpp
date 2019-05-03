@@ -22,7 +22,6 @@
 // defaults
 #include <boost/graph/adjacency_list.hpp>
 #include <rmngr/graph/precedence_graph.hpp>
-#include <rmngr/resource/resource_user.hpp>
 
 namespace rmngr
 {
@@ -47,7 +46,7 @@ template <typename Graph>
 using DefaultRefinement =
 QueuedPrecedenceGraph<
     Graph,
-    DefaultEnqueuePolicy<typename Graph::vertex_property_type>
+    DefaultEnqueuePolicy
 >;
 
 struct DefaultSchedulingPolicy
