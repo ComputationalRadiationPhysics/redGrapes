@@ -67,7 +67,7 @@ class PrecedenceGraph : public RefinedGraph<Graph>
         }
 
         /// remove edges which don't satisfy the precedence policy
-        template <typename PrecedencePolicy>
+        template < typename PrecedencePolicy >
         void update_vertex(ID id)
         {
             struct Predicate
@@ -96,7 +96,7 @@ class PrecedenceGraph : public RefinedGraph<Graph>
  */
 template<
     typename Graph,
-    typename EnqueuePolicy
+    template< typename > typename EnqueuePolicy
 >
 class QueuedPrecedenceGraph :
     public PrecedenceGraph<Graph>
@@ -108,7 +108,7 @@ class QueuedPrecedenceGraph :
         void push(ID a)
         {
             if( this->parent )
-	        EnqueuePolicy::assert_superset( this->parent, a );
+                EnqueuePolicy<ID>::assert_superset( this->parent, a );
 
             this->add_vertex(a);
 
@@ -136,7 +136,7 @@ class QueuedPrecedenceGraph :
             VertexID i = graph_find_vertex(a, this->graph()).first;
             for(auto b : this->queue)
             {
-                if( EnqueuePolicy::is_serial(b, a) && indirect_dependencies.count(b) == 0 )
+                if( EnqueuePolicy<ID>::is_serial(b, a) && indirect_dependencies.count(b) == 0 )
                 {
                     this->add_edge(b, a);
                     boost::depth_first_visit(this->graph(), i, vis, colormap);
@@ -148,7 +148,7 @@ class QueuedPrecedenceGraph :
 
         void update_vertex(ID a)
         {
-            this->PrecedenceGraph<Graph>::template update_vertex< EnqueuePolicy >( a );
+            this->PrecedenceGraph<Graph>::template update_vertex< EnqueuePolicy<ID> >( a );
 	}
 
         bool finish(ID a)
