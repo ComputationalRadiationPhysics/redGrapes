@@ -37,13 +37,13 @@ class SchedulingGraph
         using EdgeID = typename boost::graph_traits<Graph>::edge_descriptor;
 
         SchedulingGraph(
-	    FlagInterface * uptodate,
+	    FlagInterface & uptodate,
             RefinedGraph<RefinementGraph> & main_ref
         )
             : uptodate(uptodate)
 	    , main_refinement(main_ref)
         {
-            this->main_refinement.uptodate = this->uptodate;
+            this->main_refinement.uptodate = &this->uptodate;
         }
 
         bool empty(void) const
@@ -85,7 +85,7 @@ class SchedulingGraph
         {
             bool finished = this->main_refinement.finish(a);
             if( finished )
-                this->uptodate->clear();
+                this->uptodate.clear();
 
             return finished;
         }
@@ -148,7 +148,7 @@ class SchedulingGraph
         }
 
     private:
-        FlagInterface * uptodate;
+        FlagInterface & uptodate;
         RefinedGraph<RefinementGraph> & main_refinement;
         Graph scheduling_graph;
 }; // class SchedulingGraph
