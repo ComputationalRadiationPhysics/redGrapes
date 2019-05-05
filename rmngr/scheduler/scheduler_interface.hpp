@@ -7,6 +7,7 @@
 
 #include <mutex>
 #include <functional>
+#include <rmngr/functor.hpp>
 
 namespace rmngr
 {
@@ -22,6 +23,9 @@ struct SchedulerInterface
 
         virtual void
         start( void ) = 0;
+
+        virtual void
+        end( void ) = 0;
 
         virtual void
         finish( void ) = 0;
@@ -51,10 +55,10 @@ struct SchedulerInterface
     virtual size_t
     num_threads( void ) const = 0;
 
-    std::unique_lock< std::mutex >
+    std::unique_lock< std::recursive_mutex >
     lock( void )
     {
-        return std::unique_lock< std::mutex >( this->mutex );
+        return std::unique_lock< std::recursive_mutex >( this->mutex );
     };
 
     void
@@ -98,7 +102,7 @@ struct SchedulerInterface
     }
 
 protected:
-    std::mutex mutex;
+    std::recursive_mutex mutex;
     WorkerInterface* worker;
 };
 
