@@ -26,16 +26,17 @@ public:
     {
     }
 
-    virtual ~Schedulable()
-    {
-        this->scheduler.currently_scheduled[ thread::id ] = this->last;
-    }
-
     void
     start( void )
     {
         last = this->scheduler.currently_scheduled[ thread::id ];
         this->scheduler.currently_scheduled[ thread::id ] = this;
+    }
+
+    void
+    end( void )
+    {
+        this->scheduler.currently_scheduled[ thread::id ] = this->last;
     }
 
     void

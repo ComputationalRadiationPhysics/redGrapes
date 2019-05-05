@@ -81,6 +81,7 @@ struct DispatchPolicy
             schedulable->run();
             lock.lock();
 
+            schedulable->end();
             prop->state = RuntimeProperty::done;
             schedulable->finish();
         }
