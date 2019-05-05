@@ -103,9 +103,9 @@ public:
     using PreparingProtoSchedulableFunctor = PreparingProtoSchedulableFunctor<Scheduler, Functor, PropertyFun>;
 
     Scheduler( size_t nthreads = 1 )
-      : graph( &uptodate, main_refinement )
+      : uptodate( *this )
+      , graph( uptodate, main_refinement )
       , currently_scheduled( nthreads+1 )
-      , uptodate( *this )
     {
         this->for_each_policy< PolicyInit >();
     }
@@ -162,6 +162,7 @@ public:
         void clear()
         {
 	    this->std::atomic_flag::clear();
+
 	    // notify all policies
 	    this->scheduler.for_each_policy< PolicyNotify >();
 	}
@@ -171,9 +172,9 @@ public:
 
     void update(void)
     {
-        auto lock = this->lock();
         while( ! this->uptodate.test_and_set() )
         {
+	    auto lock = this->lock();
             this->graph.update();
 	    this->for_each_policy< PolicyUpdate >();
         }
@@ -209,7 +210,7 @@ public:
     SRefinement &
     get_current_refinement( void )
     {
-        std::lock_guard<std::mutex> lock( this->mutex );
+        auto lock = this->lock();
         if( this->get_current_schedulable() )
         {
             auto r = this->main_refinement.template refinement<SRefinement>(
@@ -228,6 +229,7 @@ public:
     FunctorQueue< SRefinement, WorkerInterface >
     get_current_queue( void )
     {
+        auto lock = this->lock();
         return make_functor_queue(
                    this->get_current_refinement< SRefinement >(),
                    *this->worker,
@@ -250,8 +252,8 @@ public:
             Args&&... args
         )
         {
-            auto& queue = scheduler->get_current_refinement();
             auto lock = scheduler->lock();
+            auto& queue = scheduler->get_current_refinement();
 
             queue.push(
 	        proto.clone(
@@ -282,7 +284,7 @@ public:
     >
     void update_property( Args&&... args )
     {
-        this->lock();
+        auto lock = this->lock();
         auto s = this->get_current_schedulable();
 	if(!s)
             throw std::runtime_error("invalid update_property: no schedulable running");

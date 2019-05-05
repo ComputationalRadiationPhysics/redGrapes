@@ -31,7 +31,7 @@ class FunctorQueue
         struct Pusher
         {
             Queue & queue;
-            std::mutex & queue_mutex;
+            std::recursive_mutex & queue_mutex;
 
             template <
                 typename ProtoFunctor,
@@ -44,7 +44,7 @@ class FunctorQueue
                 Args&&... args
             )
             {
-                std::lock_guard<std::mutex> lock(queue_mutex);
+                std::lock_guard<std::recursive_mutex> lock(queue_mutex);
                 queue.push(
                     proto.clone(
                         std::forward<DelayedFunctor>(delayed),
@@ -57,7 +57,7 @@ class FunctorQueue
         Worker & worker;
 
     public:
-        FunctorQueue(Queue& queue, Worker& worker_, std::mutex & mutex)
+        FunctorQueue(Queue& queue, Worker& worker_, std::recursive_mutex & mutex)
             : pusher{queue, mutex}, worker(worker_)
         {}
 
@@ -86,7 +86,7 @@ FunctorQueue<Queue, Worker>
 make_functor_queue(
     Queue& queue,
     Worker& worker,
-    std::mutex & mutex
+    std::recursive_mutex & mutex
 )
 {
     return FunctorQueue<Queue, Worker>(queue, worker, mutex);
