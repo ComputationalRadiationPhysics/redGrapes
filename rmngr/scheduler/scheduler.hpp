@@ -289,7 +289,7 @@ public:
 	if(!s)
             throw std::runtime_error("invalid update_property: no schedulable running");
 
-        this->policy< Policy >().update_property(*s, *s, std::forward<Args>(args)...);
+        this->policy< Policy >().update_property(s->template proto_property<Policy>(), s->template runtime_property<Policy>(), std::forward<Args>(args)...);
 
         auto ref = dynamic_cast< Refinement<Graph<Schedulable*>>* >(
                        this->main_refinement.find_refinement_containing( s ));
