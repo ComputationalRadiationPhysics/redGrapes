@@ -237,6 +237,11 @@ public:
                );
     }
 
+    std::experimental::optional<std::vector<Schedulable*>> backtrace()
+    {
+        return this->main_refinement.backtrace( this->get_current_schedulable() );
+    }
+
     struct CurrentQueuePusher
     {
         Scheduler * scheduler;

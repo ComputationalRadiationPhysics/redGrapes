@@ -6,7 +6,10 @@
 #pragma once
 
 #include <unordered_map>
+#include <vector>
 #include <memory> // std::unique_ptr<>
+
+#include <akrzemi/optional.hpp>
 
 #include <boost/graph/copy.hpp>
 
@@ -94,6 +97,33 @@ class RefinedGraph
             }
 
             return nullptr;
+        }
+
+        std::experimental::optional<std::vector<ID>> backtrace(ID a)
+        {
+            if (graph_find_vertex(a, this->graph()).second)
+            {
+                std::vector<ID> trace;
+                trace.push_back(a);
+
+                if( this->parent )
+                    trace.push_back(this->parent);
+
+                return trace;
+            }
+
+            for (auto & r : this->refinements)
+            {
+                if (std::experimental::optional<std::vector<ID>> trace = r.second->backtrace(a))
+                {
+                    if( this->parent )
+                        (*trace).push_back(this->parent);
+
+                    return *trace;
+                }
+            }
+
+            return std::experimental::nullopt;
         }
 
         template <typename Refinement>
