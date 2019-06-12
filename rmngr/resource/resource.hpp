@@ -31,6 +31,7 @@ class ResourceAccess
         }
 
         virtual ~AccessBase() {};
+        virtual bool operator==( AccessBase const & r ) const = 0;
         virtual bool is_same_resource( AccessBase const & r ) const = 0;
         virtual bool is_serial( AccessBase const & r ) const = 0;
         virtual bool is_superset_of( AccessBase const & r ) const = 0;
@@ -83,6 +84,14 @@ class ResourceAccess
     {
         if ( this->obj->access_type == a.obj->access_type )
             return this->obj->is_same_resource( *a.obj );
+        return false;
+    }
+
+    bool
+    operator== ( ResourceAccess const & a ) const
+    {
+        if ( this->obj->access_type == a.obj->access_type )
+            return *(this->obj) == *(a.obj);
         return false;
     }
 
@@ -167,6 +176,15 @@ class Resource
                 &a_ ); // no dynamic cast needed, type checked in ResourceAccess
             return ( this->is_same_resource( a ) ) &&
                    this->policy.is_superset_of( a.policy );
+        }
+
+        bool
+        operator==( ResourceAccess::AccessBase const & a_ ) const
+        {
+            Access const & a = *static_cast<Access const *>(
+                &a_ ); // no dynamic cast needed, type checked in ResourceAccess
+
+            return ( this->is_same_resource(a_) && this->policy == a.policy );
         }
 
         AccessBase *

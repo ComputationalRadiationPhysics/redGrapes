@@ -43,6 +43,11 @@ struct IOAccess
         return m().is_serial(a.mode, b.mode);
     }
 
+    bool operator==(IOAccess const & other) const
+    {
+        return this->mode == other.mode;
+    }
+
     bool
     is_superset_of(IOAccess a) const
     {

@@ -69,6 +69,16 @@ struct ArrayAccess : std::array<Access, N>
         return true;
     }
 
+    bool
+    operator==( ArrayAccess<Access, N, Op> const & other ) const
+    {
+        for(std::size_t i = 0; i < N; ++i)
+            if( ! ( (*this)[i] == other[i] ) )
+                return false;
+
+        return true;
+    }
+
     friend std::ostream& operator<<(std::ostream& out, ArrayAccess<Access, N, Op> const& a)
     {
         out << "ArrayAccess::{" << std::endl;
@@ -123,6 +133,15 @@ struct CombineAccess : std::pair<Acc1, Acc2>
         return (
             this->first.is_superset_of(a.first) &&
             this->second.is_superset_of(a.second)
+        );
+    }
+
+    bool
+    operator==( CombineAccess<Acc1, Acc2, Op> const & other ) const
+    {
+        return (
+             this->first == other.first &&
+             this->second == other.second
         );
     }
 
