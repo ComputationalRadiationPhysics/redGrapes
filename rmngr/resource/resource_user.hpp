@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include <vector>
+#include <list>
 #include <rmngr/resource/resource.hpp>
 
 namespace rmngr
@@ -16,7 +16,7 @@ class ResourceUser
   public:
     ResourceUser() {}
 
-    ResourceUser( std::vector<ResourceAccess> const & access_list_ )
+    ResourceUser( std::list<ResourceAccess> const & access_list_ )
         : access_list( access_list_ )
     {
     }
@@ -54,8 +54,8 @@ class ResourceUser
         return a.is_superset_of(b);
     }
 
-    // protected:
-    std::vector<ResourceAccess> access_list;
+protected:
+    std::list<ResourceAccess> access_list;
 
     friend std::ostream& operator<<(std::ostream& out, ResourceUser const& r)
     {
