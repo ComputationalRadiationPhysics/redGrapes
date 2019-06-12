@@ -47,6 +47,11 @@ struct AreaAccess : std::array<int, 2>
         );
     }
 
+    bool operator==(AreaAccess const & other) const
+    {
+        return (*this)[0] == other[0] && (*this)[1] == other[1];
+    }
+
     friend std::ostream& operator<<(std::ostream& out, AreaAccess const& a)
     {
         out << "AreaAccess::[" << a[0] << ", " << a[1] << "]";
