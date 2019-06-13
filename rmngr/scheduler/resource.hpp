@@ -10,21 +10,45 @@ namespace rmngr
 
 struct ResourceUserPolicy : DefaultSchedulingPolicy
 {
-    using ProtoProperty = ResourceUser;
-
-    void update_property(
-        ProtoProperty& s,
-        RuntimeProperty&,
-        std::vector< ResourceAccess > const & access_list
-    )
+    struct Property : ResourceUser
     {
-        ResourceUser n( access_list );
+        struct Patch
+        {
+            enum DiffType { ADD, REMOVE };
+            std::list<std::pair<DiffType, ResourceAccess>> diff;
 
-        if( s.is_superset_of( n ) )
-            s.access_list = access_list;
-        else
-            throw std::runtime_error("rmngr: updated access is no superset");
-    }
+            void operator+= (Patch const& other)
+            {
+                this->diff.insert(std::end(this->diff), std::begin(other.diff), std::end(other.diff));
+            }
+
+            void operator+= (ResourceAccess const & ra)
+            {
+                this->diff.push_back(std::make_pair(DiffType::ADD, ra));
+            }
+
+            void operator-= (ResourceAccess const & ra)
+            {
+                this->diff.push_back(std::make_pair(DiffType::REMOVE, ra));
+            }
+        };
+
+        void apply_patch(Patch const & patch)
+        {
+            for( auto x : patch.diff )
+            {
+                switch(x.first)
+                {
+                case Patch::DiffType::ADD:
+                    this->access_list.push_back(x.second);
+                    break;
+                case Patch::DiffType::REMOVE:
+                    this->access_list.remove(x.second);
+                    break;
+                }
+            }
+        }
+    };
 };
 
 template <typename T>

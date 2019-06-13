@@ -28,28 +28,11 @@ template <
 struct DispatchPolicy
   : DefaultSchedulingPolicy
 {
-    struct RuntimeProperty
-    {
-        RuntimeProperty() : state(pending) {}
-
-        enum State { pending, ready, running, done } state;
-
-        std::string color() const
-        {
-            switch( state )
-            {
-                case pending: return "yellow";
-                case ready: return "green";
-                case running: return "white";
-                default: return "gray";
-            }
-        }
-    };
-
+    struct Property;
     struct Job
     {
         SchedulerInterface::SchedulableInterface * schedulable;
-        RuntimeProperty * prop;
+        Property * prop;
         SchedulerInterface * scheduler;
 
         Job()
@@ -60,7 +43,7 @@ struct DispatchPolicy
 
         Job(
             SchedulerInterface::SchedulableInterface * schedulable,
-	    RuntimeProperty * prop,
+	    Property * prop,
 	    SchedulerInterface * scheduler
 	)
             : schedulable(schedulable)
@@ -74,7 +57,7 @@ struct DispatchPolicy
                 return;
 
             auto lock = scheduler->lock();
-            prop->state = RuntimeProperty::running;
+            prop->state = Property::running;
             schedulable->start();
 
             lock.unlock();
@@ -82,10 +65,41 @@ struct DispatchPolicy
             lock.lock();
 
             schedulable->end();
-            prop->state = RuntimeProperty::done;
+            prop->state = Property::done;
             schedulable->finish();
         }
     };
+
+    struct Property
+    {
+        struct Patch// TODO job selector patch
+        {
+        };
+
+        Property() : state(pending) {}
+
+        typename T_JobSelector< Job >::Property job_selector_prop;
+        enum State { pending, ready, running, done } state;
+
+        std::string color() const
+        {
+            switch( state )
+            {
+                case pending: return "yellow";
+                case ready: return "green";
+                case running: return "white";
+                default: return "gray";
+            }
+        }
+
+        void apply_patch( Patch const & patch )
+        {}
+    };
+
+    void update_property( Property & s, typename Property::Patch const & patch )
+    {
+        s.apply_patch( patch );
+    }
 
     struct JobSelector : T_JobSelector< Job >
     {
@@ -119,10 +133,6 @@ struct DispatchPolicy
 
         SchedulerInterface * scheduler;
     };
-
-    struct ProtoProperty
-        : T_JobSelector<Job>::Property
-    {};
 
     struct Worker
       : public SchedulerInterface::WorkerInterface
@@ -187,15 +197,13 @@ struct DispatchPolicy
             auto schedulable = graph_get( *(it.first), graph.graph() );
             if ( graph.is_ready( schedulable ) )
             {
-                ProtoProperty & proto_prop = *schedulable;
-                RuntimeProperty & runtime_prop = *schedulable;
-
-                if ( runtime_prop.state == RuntimeProperty::pending )
+                Property & prop = schedulable->template property< DispatchPolicy >();
+                if ( prop.state == Property::pending )
                 {
-                    runtime_prop.state = RuntimeProperty::ready;
-                    selector.push( Job( schedulable, &runtime_prop, &scheduler ), proto_prop );
+                    prop.state = Property::ready;
+                    selector.push( Job( schedulable, &prop, &scheduler ), prop.job_selector_prop );
                 }
-                else if ( runtime_prop.state == RuntimeProperty::done )
+                else if ( prop.state == Property::done )
                     schedulable->finish();
             }
         }

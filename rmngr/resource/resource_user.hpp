@@ -54,7 +54,6 @@ class ResourceUser
         return a.is_superset_of(b);
     }
 
-protected:
     std::list<ResourceAccess> access_list;
 
     friend std::ostream& operator<<(std::ostream& out, ResourceUser const& r)
