@@ -16,7 +16,6 @@
 #include <rmngr/thread_dispatcher.hpp>
 #include <rmngr/scheduler/scheduler_interface.hpp>
 #include <rmngr/scheduler/schedulable.hpp>
-#include <rmngr/scheduler/schedulable_functor.hpp>
 #include <rmngr/scheduler/scheduling_graph.hpp>
 
 // defaults
@@ -51,8 +50,11 @@ QueuedPrecedenceGraph<
 
 struct DefaultSchedulingPolicy
 {
-    struct ProtoProperty {};
-    struct RuntimeProperty {};
+    struct Property
+    {
+        struct Patch {};
+        void apply_patch( Patch const & patch ) {}
+    };
 
     void init( SchedulerInterface & ) {}
     void finish() {}
@@ -78,29 +80,43 @@ class Scheduler
     : public SchedulerInterface
 {
 public:
-    using ProtoProperties =
+    using Properties =
         typename boost::mpl::inherit_linearly<
             SchedulingPolicies,
-            boost::mpl::inherit< boost::mpl::_1, ProtoProperty<boost::mpl::_2> >
+            boost::mpl::inherit< boost::mpl::_1, Property<boost::mpl::_2> >
         >::type;
 
-    using RuntimeProperties =
+    struct PropertyPatch :
         typename boost::mpl::inherit_linearly<
             SchedulingPolicies,
-            boost::mpl::inherit< boost::mpl::_1, RuntimeProperty<boost::mpl::_2> >
-        >::type;
+            boost::mpl::inherit< boost::mpl::_1, PropertyPatch<boost::mpl::_2> >
+        >::type
+    {
+        struct AddPatch
+        {
+            PropertyPatch & first;
+            PropertyPatch const & second;
+
+            template< typename Policy >
+            void operator()( boost::type< Policy > )
+            {
+                Policy::Property::Patch & p1 = first;
+                Policy::Property::Patch & p2 = second;
+                p1 += p2;
+            }
+        };
+
+        void operator+= ( PropertyPatch const & other )
+        {
+            boost::mpl::for_each<
+                SchedulingPolicies,
+                boost::type<boost::mpl::_>
+            >( AddPatch{ *this, other } );
+        }
+    }
 
     friend class rmngr::Schedulable<Scheduler>;
     using Schedulable = rmngr::Schedulable<Scheduler>;
-
-    template <typename DelayedFunctor>
-    using SchedulableFunctor = SchedulableFunctor<Scheduler, DelayedFunctor>;
-
-    template <typename Functor>
-    using ProtoSchedulableFunctor = ProtoSchedulableFunctor<Scheduler, Functor>;
-
-    template <typename Functor, typename PropertyFun>
-    using PreparingProtoSchedulableFunctor = PreparingProtoSchedulableFunctor<Scheduler, Functor, PropertyFun>;
 
     Scheduler( size_t nthreads = 1 )
       : uptodate( *this )
@@ -120,35 +136,6 @@ public:
         return this->currently_scheduled.size()-1;
     }
 
-    template < typename Functor >
-    ProtoSchedulableFunctor< Functor >
-    make_proto( Functor const & f )
-    {
-        return ProtoSchedulableFunctor< Functor >( f, *this );
-    }
-
-    template <
-        typename Functor,
-        typename PropertyFun
-    >
-    PreparingProtoSchedulableFunctor<Functor, PropertyFun>
-    make_proto(
-        Functor const & f,
-        PropertyFun const & prepare_properties
-    )
-    {
-        return
-        PreparingProtoSchedulableFunctor<
-            Functor,
-            PropertyFun
-        >(
-            f,
-            *this,
-            prepare_properties
-        );
-    }
-
-public:
     struct UpToDateFlag
       : std::atomic_flag
       , virtual FlagInterface
@@ -192,12 +179,6 @@ public:
         return this->graph.empty();
     }
 
-    FunctorQueue< Refinement< Graph<Schedulable*> >, WorkerInterface >
-    get_main_queue( void )
-    {
-        return make_functor_queue( this->main_refinement, *this->worker, this->mutex );
-    }
-
     Schedulable *
     get_current_schedulable( void )
     {
@@ -223,78 +204,57 @@ public:
         return this->main_refinement;
     }
 
-    template <
-        typename SRefinement = Refinement< Graph<Schedulable*> >
-    >
-    FunctorQueue< SRefinement, WorkerInterface >
-    get_current_queue( void )
-    {
-        auto lock = this->lock();
-        return make_functor_queue(
-                   this->get_current_refinement< SRefinement >(),
-                   *this->worker,
-                   this->mutex
-               );
-    }
-
+    /**
+     * generate the trace of parent tasks for the current task
+     */
     std::experimental::optional<std::vector<Schedulable*>> backtrace()
     {
         return this->main_refinement.backtrace( this->get_current_schedulable() );
     }
 
-    struct CurrentQueuePusher
+    /**
+     * Create a task and enqueue it immediately
+     */
+    template< typename NullaryCallable >
+    void make_task( NullaryCallable && impl, Properties const & prop = Properties{} )
     {
-        Scheduler * scheduler;
-
-        template <
-            typename ProtoFunctor,
-            typename DelayedFunctor,
-            typename... Args
-        >
-        void operator() (
-            ProtoFunctor const& proto,
-            DelayedFunctor&& delayed,
-            Args&&... args
-        )
-        {
-            auto lock = scheduler->lock();
-            auto& queue = scheduler->get_current_refinement();
-
-            queue.push(
-	        proto.clone(
-		    std::forward<DelayedFunctor>(delayed),
-                    std::forward<Args>(args)...
-	    ));
-        }
-    };
-
-    template < typename Functor >
-    using CurrentQueueFunctor = DelayingFunctor< CurrentQueuePusher, Functor, WorkerInterface >;
-
-    template <typename ProtoFunctor>
-    auto make_functor( ProtoFunctor const & proto )
-    {
-        return make_delaying( CurrentQueuePusher{ this }, proto, *this->worker );
+        this->push( new SchedulableFunctor<Scheduler, NullaryCallable>(std::move(impl), prop, *this) );
     }
 
-    template <typename Functor, typename PropertyFun>
-    auto make_functor( Functor const& f, PropertyFun const & prop )
-    {
-        return make_functor( this->make_proto( f, prop ) );
-    }
-
-    template<
-        typename Policy,
-        typename... Args
-    >
-    void update_property( Args&&... args )
+    /**
+     * Enqueue a Schedulable as child of the current task.
+     */
+    void push( Schedulable * s )
     {
         auto lock = this->lock();
-        auto s = this->get_current_schedulable();
-	if(!s)
-            throw std::runtime_error("invalid update_property: no schedulable running");
+        this->get_current_refinement().push( s );
+    }
 
-        this->policy< Policy >().update_property(s->template proto_property<Policy>(), s->template runtime_property<Policy>(), std::forward<Args>(args)...);
+    /**
+     * Apply a patch to the properties of the current schedulable
+     */
+    void update_property( PropertyPatch const & patch )
+    {
+        update_property( get_current_schedulable(), patch );
+    }
+
+    /**
+     * Apply a patch to the properties of a schedulable and
+     * recalculate its dependencies
+     *
+     * @param s Schedulable to be updated
+     * @param patch changes on the properties
+     */
+    void update_property( Schedulable * s, PropertyPatch const & patch )
+    {
+	if(!s)
+            throw std::runtime_error("update_property: invalid schedulable");
+
+        auto lock = this->lock();
+	boost::mpl::for_each<
+	    SchedulingPolicies,
+	    boost::type<boost::mpl::_>
+            >( PropertyPatcher{ *s, patch, *this } );
 
         auto ref = dynamic_cast< Refinement<Graph<Schedulable*>>* >(
                        this->main_refinement.find_refinement_containing( s ));
@@ -312,6 +272,19 @@ private:
         SchedulingPolicies,
         boost::mpl::inherit< boost::mpl::_1, boost::mpl::_2 >
     >::type policies;
+
+    struct PropertyPatcher
+    {
+        Schedulable & s;
+        PropertyPatch const & patch;
+        Scheduler & scheduler;
+
+        template< typename Policy >
+        void operator() ( boost::type< Policy > )
+        {
+            s.template property< Policy >().apply_patch( patch );
+        }
+    };
 
 #define POLICY_FUNCTOR( NAME, CALL )             \
     struct NAME                                  \

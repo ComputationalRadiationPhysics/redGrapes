@@ -16,12 +16,11 @@ template<
 >
 class Schedulable
     : public virtual Scheduler::SchedulableInterface
-    , public Scheduler::ProtoProperties
-    , public Scheduler::RuntimeProperties
 {
 public:
-    Schedulable( Scheduler & scheduler_ )
+    Schedulable( typename Scheduler::Properties const & prop,  Scheduler & scheduler_ )
         : scheduler( scheduler_ )
+        , properties( prop )
 	, last( nullptr )
     {
     }
@@ -47,22 +46,42 @@ public:
     }
 
     template< typename Policy >
-    typename Policy::ProtoProperty &
-    proto_property( void )
+    typename Policy::Property &
+    property( void )
     {
-        return scheduler.template proto_property< Policy >( *this );
-    }
-
-    template< typename Policy >
-    typename Policy::RuntimeProperty &
-    runtime_property( void )
-    {
-        return scheduler.template runtime_property< Policy >( *this );
+        return this->properties;
     }
 
 private:
     Schedulable * last;
     Scheduler & scheduler;
-};
+
+    typename Scheduler::Properties properties;
+}; // class Schedulable
+
+template<
+    typename Scheduler,
+    typename NullaryCallable
+>
+struct SchedulableFunctor
+    : public Schedulable< Scheduler >
+{
+    SchedulableFunctor(
+	NullaryCallable && impl_,
+        typename Scheduler::Properties const & properties,
+        Scheduler & scheduler
+    )
+        : Schedulable< Scheduler >( properties, scheduler )
+        , impl( std::move(impl_) )
+    {}
+
+    void run()
+    {
+        this->impl();
+    }
+
+private:
+    NullaryCallable impl;
+}; // struct SchedulableFunctor
 
 } // namespace rmngr
