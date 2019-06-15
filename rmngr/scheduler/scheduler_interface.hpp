@@ -13,12 +13,10 @@ namespace rmngr
 
 struct SchedulerInterface
 {
-    struct SchedulableInterface
+    struct TaskInterface
     {
-        virtual ~SchedulableInterface() = default;
-        virtual void start( void ) = 0;
+        virtual ~TaskInterface() = default;
         virtual void run( void ) = 0;
-        virtual void end( void ) = 0;
         virtual void finish( void ) = 0;
     };
 
