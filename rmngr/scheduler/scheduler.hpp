@@ -10,12 +10,12 @@
 #include <boost/mpl/inherit.hpp>
 #include <boost/mpl/inherit_linearly.hpp>
 #include <boost/mpl/for_each.hpp>
+#include <akrzemi/optional.hpp>
 
 #include <rmngr/delayed_functor.hpp>
 #include <rmngr/working_future.hpp>
 #include <rmngr/thread_dispatcher.hpp>
 #include <rmngr/scheduler/scheduler_interface.hpp>
-#include <rmngr/scheduler/schedulable.hpp>
 #include <rmngr/scheduler/scheduling_graph.hpp>
 
 // defaults
@@ -85,6 +85,53 @@ public:
             SchedulingPolicies,
             boost::mpl::inherit< boost::mpl::_1, Property<boost::mpl::_2> >
         >::type;
+
+    struct Task
+        : virtual SchedulerInterface::TaskInterface
+    {
+    public:
+        Task(Scheduler & scheduler, Properties const & properties)
+            : scheduler(scheduler)
+            , properties(properties)
+        {}
+
+        void finish()
+        {
+            if( this->scheduler.graph.finish( this ) )
+                delete this;
+        }
+
+        template< typename Policy >
+        typename Policy::Property &
+        property( void )
+        {
+            return this->properties;
+        }
+
+    protected:
+        Scheduler & scheduler;
+        Properties properties;
+    };
+
+    template< typename NullaryCallable >
+    struct FunctorTask : Task
+    {
+        FunctorTask(Scheduler & scheduler, NullaryCallable && impl, Properties const & properties)
+            : Task(scheduler, properties)
+            , impl(std::move(impl))
+        {}
+
+        void run()
+        {
+            this->scheduler.currently_scheduled[thread::id].push(this);
+            this->impl();
+            this->scheduler.currently_scheduled[thread::id].pop();
+        }
+
+    private:
+        NullaryCallable impl;
+    };
+    
     /*
     struct PropertyPatch :
         boost::mpl::inherit_linearly<
@@ -115,8 +162,6 @@ public:
         }
     }
     */
-    friend class rmngr::Schedulable<Scheduler>;
-    using Schedulable = rmngr::Schedulable<Scheduler>;
 
     Scheduler( size_t nthreads = 1 )
       : uptodate( *this )
@@ -179,24 +224,25 @@ public:
         return this->graph.empty();
     }
 
-    Schedulable *
-    get_current_schedulable( void )
+    std::experimental::optional<Task *>
+    get_current_task( void )
     {
-        return this->currently_scheduled[thread::id];
+        if( this->currently_scheduled[thread::id].empty() )
+            return std::experimental::nullopt;
+        else
+            return this->currently_scheduled[thread::id].top();
     }
 
     template <
-        typename SRefinement = Refinement< Graph<Schedulable*> >
+        typename SRefinement = Refinement< Graph<Task*> >
     >
     SRefinement &
     get_current_refinement( void )
     {
         auto lock = this->lock();
-        if( this->get_current_schedulable() )
+        if( std::experimental::optional<Task*> task = this->get_current_task() )
         {
-            auto r = this->main_refinement.template refinement<SRefinement>(
-                       this->get_current_schedulable()
-                   );
+            auto r = this->main_refinement.template refinement<SRefinement>( *task );
 
             if(r)
                 return *r;
@@ -207,18 +253,18 @@ public:
     /**
      * generate the trace of parent tasks for the current task
      */
-    std::experimental::optional<std::vector<Schedulable*>> backtrace()
+    std::experimental::optional<std::vector<Task*>> backtrace()
     {
-        return this->main_refinement.backtrace( this->get_current_schedulable() );
+        return this->main_refinement.backtrace( this->get_current_task() );
     }
 
     /**
      * Create a task and enqueue it immediately
      */
     template< typename NullaryCallable >
-    void make_task( NullaryCallable && impl, Properties const & prop = Properties{} )
+    void emplace_task( NullaryCallable && impl, Properties const & prop = Properties{} )
     {
-        this->push( new SchedulableFunctor<Scheduler, NullaryCallable>(std::move(impl), prop, *this) );
+        this->push( new FunctorTask<NullaryCallable>(*this, std::move(impl), prop) );
     }
 
     template< typename ImplCallable, typename PropCallable >
@@ -235,7 +281,7 @@ public:
             auto applied = std::bind( this->impl, std::forward<Args>(args)... );
             auto delayed = make_delayed_functor( std::move(applied) );
             auto result = make_working_future( delayed.get_future(), *scheduler.worker );
-            scheduler.make_task( std::move(delayed), props );
+            scheduler.emplace_task( std::move(delayed), props );
             return result;
         }
     };
@@ -249,10 +295,10 @@ public:
     /**
      * Enqueue a Schedulable as child of the current task.
      */
-    void push( Schedulable * s )
+    void push( Task * task )
     {
         auto lock = this->lock();
-        this->get_current_refinement().push( s );
+        this->get_current_refinement().push( task );
     }
 
     /**
@@ -289,9 +335,9 @@ public:
         }*/
 
 private:
-    Refinement< Graph<Schedulable*> > main_refinement;
-    SchedulingGraph< Graph<Schedulable*> > graph;
-    std::vector< Schedulable* > currently_scheduled;
+    Refinement< Graph< Task* > > main_refinement;
+    SchedulingGraph< Graph< Task* > > graph;
+    std::vector< std::stack< Task* > > currently_scheduled;
 
     typename boost::mpl::inherit_linearly<
         SchedulingPolicies,
@@ -300,7 +346,7 @@ private:
 
     struct PropertyPatcher
     {
-        Schedulable & s;
+        Task & task;
         //PropertyPatch const & patch;
         Scheduler & scheduler;
 

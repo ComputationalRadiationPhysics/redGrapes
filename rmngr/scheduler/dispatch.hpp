@@ -31,42 +31,40 @@ struct DispatchPolicy
     struct Property;
     struct Job
     {
-        SchedulerInterface::SchedulableInterface * schedulable;
+        SchedulerInterface::TaskInterface * task;
         Property * prop;
         SchedulerInterface * scheduler;
 
         Job()
-            : schedulable(nullptr)
+            : task(nullptr)
 	    , prop(nullptr)
 	    , scheduler(nullptr)
         {}
 
         Job(
-            SchedulerInterface::SchedulableInterface * schedulable,
+            SchedulerInterface::TaskInterface * task,
 	    Property * prop,
 	    SchedulerInterface * scheduler
 	)
-            : schedulable(schedulable)
+            : task(task)
 	    , prop(prop)
 	    , scheduler(scheduler)
         {}
 
         void operator() (void)
         {
-            if(! schedulable)
+            if(! task)
                 return;
 
             auto lock = scheduler->lock();
             prop->state = Property::running;
-            schedulable->start();
 
             lock.unlock();
-            schedulable->run();
+            task->run();
             lock.lock();
 
-            schedulable->end();
             prop->state = Property::done;
-            schedulable->finish();
+            task->finish();
         }
     };
 
@@ -194,17 +192,17 @@ struct DispatchPolicy
             ++it.first
         )
 	{
-            auto schedulable = graph_get( *(it.first), graph.graph() );
-            if ( graph.is_ready( schedulable ) )
+            auto task = graph_get( *(it.first), graph.graph() );
+            if ( graph.is_ready( task ) )
             {
-                Property & prop = schedulable->template property< DispatchPolicy >();
+                Property & prop = task->template property< DispatchPolicy >();
                 if ( prop.state == Property::pending )
                 {
                     prop.state = Property::ready;
-                    selector.push( Job( schedulable, &prop, &scheduler ), prop.job_selector_prop );
+                    selector.push( Job( task, &prop, &scheduler ), prop.job_selector_prop );
                 }
                 else if ( prop.state == Property::done )
-                    schedulable->finish();
+                    task->finish();
             }
         }
     }
