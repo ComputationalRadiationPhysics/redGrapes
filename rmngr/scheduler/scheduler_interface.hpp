@@ -7,7 +7,6 @@
 
 #include <mutex>
 #include <functional>
-#include <rmngr/functor.hpp>
 
 namespace rmngr
 {

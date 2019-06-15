@@ -11,8 +11,8 @@
 #include <boost/mpl/inherit_linearly.hpp>
 #include <boost/mpl/for_each.hpp>
 
-#include <rmngr/functor.hpp>
-#include <rmngr/functor_queue.hpp>
+#include <rmngr/delayed_functor.hpp>
+#include <rmngr/working_future.hpp>
 #include <rmngr/thread_dispatcher.hpp>
 #include <rmngr/scheduler/scheduler_interface.hpp>
 #include <rmngr/scheduler/schedulable.hpp>
@@ -85,9 +85,9 @@ public:
             SchedulingPolicies,
             boost::mpl::inherit< boost::mpl::_1, Property<boost::mpl::_2> >
         >::type;
-
+    /*
     struct PropertyPatch :
-        typename boost::mpl::inherit_linearly<
+        boost::mpl::inherit_linearly<
             SchedulingPolicies,
             boost::mpl::inherit< boost::mpl::_1, PropertyPatch<boost::mpl::_2> >
         >::type
@@ -114,7 +114,7 @@ public:
             >( AddPatch{ *this, other } );
         }
     }
-
+    */
     friend class rmngr::Schedulable<Scheduler>;
     using Schedulable = rmngr::Schedulable<Scheduler>;
 
@@ -221,6 +221,31 @@ public:
         this->push( new SchedulableFunctor<Scheduler, NullaryCallable>(std::move(impl), prop, *this) );
     }
 
+    template< typename ImplCallable, typename PropCallable >
+    struct TaskFactoryFunctor
+    {
+        Scheduler & scheduler;
+        ImplCallable impl;
+        PropCallable prop;
+
+        template <typename... Args>
+        auto operator() (Args&&... args)
+        {
+            Properties props = this->prop( std::forward<Args>(args)... );
+            auto applied = std::bind( this->impl, std::forward<Args>(args)... );
+            auto delayed = make_delayed_functor( std::move(applied) );
+            auto result = make_working_future( delayed.get_future(), *scheduler.worker );
+            scheduler.make_task( std::move(delayed), props );
+            return result;
+        }
+    };
+
+    template< typename ImplCallable, typename PropCallable >
+    auto make_functor(ImplCallable && impl, PropCallable && prop)
+    {
+        return TaskFactoryFunctor<ImplCallable, PropCallable>{*this, impl, prop};
+    }
+
     /**
      * Enqueue a Schedulable as child of the current task.
      */
@@ -232,11 +257,11 @@ public:
 
     /**
      * Apply a patch to the properties of the current schedulable
-     */
+     *//*
     void update_property( PropertyPatch const & patch )
     {
         update_property( get_current_schedulable(), patch );
-    }
+        }*/
 
     /**
      * Apply a patch to the properties of a schedulable and
@@ -244,7 +269,7 @@ public:
      *
      * @param s Schedulable to be updated
      * @param patch changes on the properties
-     */
+     *//*
     void update_property( Schedulable * s, PropertyPatch const & patch )
     {
 	if(!s)
@@ -261,7 +286,7 @@ public:
         ref->update_vertex( s );
 
         this->update();
-    }
+        }*/
 
 private:
     Refinement< Graph<Schedulable*> > main_refinement;
@@ -276,13 +301,13 @@ private:
     struct PropertyPatcher
     {
         Schedulable & s;
-        PropertyPatch const & patch;
+        //PropertyPatch const & patch;
         Scheduler & scheduler;
 
         template< typename Policy >
         void operator() ( boost::type< Policy > )
         {
-            s.template property< Policy >().apply_patch( patch );
+            // s.template property< Policy >().apply_patch( patch );
         }
     };
 
