@@ -9,30 +9,36 @@
 #include <rmngr/scheduler/dispatch.hpp>
 #include <rmngr/scheduler/fifo.hpp>
 
-using Scheduler = rmngr::SchedulerSingleton<
-    boost::mpl::vector<
-        rmngr::ResourceUserPolicy,
-        rmngr::DispatchPolicy< rmngr::FIFO >
-    >
->;
+template <typename Graph>
+using PrecedenceGraph =
+    rmngr::QueuedPrecedenceGraph<
+        Graph,
+        rmngr::ResourceEnqueuePolicy
+    >;
+
+using Scheduler =
+    rmngr::SchedulerSingleton<
+        boost::mpl::vector<
+            rmngr::ResourceUserPolicy,
+            rmngr::DispatchPolicy< rmngr::FIFO >
+        >,
+        PrecedenceGraph
+    >;
 
 struct Buffer : rmngr::FieldResource<1>
 {
     void do_something( )
     {
-        Scheduler::enqueue_functor(
-            []()
+        Scheduler::Properties prop;
+        prop.policy<rmngr::ResourceUserPolicy>() += this->FieldResource<1>::read();
+
+        Scheduler::emplace_task(
+            []
             {
                 std::cout << "read buffer" << std::endl;
                 std::this_thread::sleep_for( std::chrono::seconds(1) );
             },
-            [this]( Scheduler::Schedulable& s )
-            {
-                s.proto_property< rmngr::ResourceUserPolicy >().access_list =
-                {
-                    this->FieldResource<1>::read()
-                };
-            }
+            prop
         );
     }
 };
@@ -45,18 +51,15 @@ int main( int, char*[] )
     b.do_something();
     b.do_something();
 
-    Scheduler::enqueue_functor(
-        [ &b ]()
+    Scheduler::Properties prop;
+    prop.policy< rmngr::ResourceUserPolicy >() += b.write();
+    
+    Scheduler::emplace_task(
+        [ &b ]
         {
             std::cout << "hello" << std::endl;
         },
-        [ &b ]( Scheduler::Schedulable& s )
-        {
-            s.proto_property< rmngr::ResourceUserPolicy >().access_list =
-            {
-               b.write()
-            };
-        }
+        prop
     );
 
     Scheduler::finish();

@@ -14,13 +14,20 @@
 #include <rmngr/scheduler/dispatch.hpp>
 #include <rmngr/scheduler/fifo.hpp>
 
+template <typename Graph>
+using PrecedenceGraph =
+    rmngr::QueuedPrecedenceGraph<
+        Graph,
+        rmngr::ResourceEnqueuePolicy
+    >;
+
 using Scheduler =
     rmngr::Scheduler<
         boost::mpl::vector<
             rmngr::ResourceUserPolicy,
-          //rmngr::GraphvizWriter< rmngr::Dispatch<rmngr::FIFO> >
             rmngr::DispatchPolicy< rmngr::FIFO >
-        >
+        >,
+        PrecedenceGraph
     >;
 
 Scheduler * scheduler;
@@ -78,9 +85,8 @@ update_chunk_impl(
             update_cell( dst.data, src.data, Vec2{ pos.x + x, pos.y + y } );
 }
 
-void
+Scheduler::Properties
 update_chunk_prop(
-    Scheduler::Schedulable& s,
     Buffer & dst,
     Buffer const & src,
     Vec2 pos,
@@ -93,11 +99,11 @@ update_chunk_prop(
         pos.y + size.y - 1,
     };
 
-    s.proto_property< rmngr::ResourceUserPolicy >().access_list =
-    {
-        dst.write( {{pos.x, end.x}, {pos.y, end.y}} ),
-        src.read( {{pos.x - 1, end.x + 1}, {pos.y - 1, end.y + 1}} )
-    };
+    Scheduler::Properties prop;
+    prop.policy< rmngr::ResourceUserPolicy >() += dst.write( {{pos.x, end.x}, {pos.y, end.y}} );
+    prop.policy< rmngr::ResourceUserPolicy >() += src.read( {{pos.x - 1, end.x + 1}, {pos.y - 1, end.y + 1}} );
+
+    return prop;
 }
 
 void
@@ -115,23 +121,24 @@ copy_borders_impl( Buffer & buf )
     }
 }
 
-void
+Scheduler::Properties
 copy_borders_prop(
-    Scheduler::Schedulable& s,
     Buffer & buf
 )
 {
-    s.proto_property< rmngr::ResourceUserPolicy >().access_list =
-    {
-        buf.write({{0, size_x + 1}, {0, 0}}),
-        buf.write({{0, size_x + 1}, {size_y + 1, size_y + 1}}),
-        buf.write({{0, 0}, {0, size_y + 1}}),
-        buf.write({{size_x + 1, size_x + 1}, {0, size_y + 1}}),
-        buf.read({{0, size_x + 1}, {0, 1}}),
-        buf.read({{0, size_x + 1}, {size_y, size_y + 1}}),
-        buf.read({{0, 1}, {0, size_y + 1}}),
-        buf.read({{size_x, size_x + 1}, {0, size_y + 1}}),
-    };
+    Scheduler::Properties prop;
+    #define ADD_ACCESS prop.policy< rmngr::ResourceUserPolicy >() +=
+
+    ADD_ACCESS buf.write({{0, size_x + 1}, {0, 0}});
+    ADD_ACCESS buf.write({{0, size_x + 1}, {size_y + 1, size_y + 1}});
+    ADD_ACCESS buf.write({{0, 0}, {0, size_y + 1}});
+    ADD_ACCESS buf.write({{size_x + 1, size_x + 1}, {0, size_y + 1}});
+    ADD_ACCESS buf.read({{0, size_x + 1}, {0, 1}});
+    ADD_ACCESS buf.read({{0, size_x + 1}, {size_y, size_y + 1}});
+    ADD_ACCESS buf.read({{0, 1}, {0, size_y + 1}});
+    ADD_ACCESS buf.read({{size_x, size_x + 1}, {0, size_y + 1}});
+
+    return prop;
 }
 
 void
@@ -146,14 +153,15 @@ print_buffer_impl( Buffer const & buf )
     std::cout << std::endl;
 }
 
-void
+Scheduler::Properties
 print_buffer_prop(
-    Scheduler::Schedulable& s,
     Buffer const & buf
 )
 {
-    s.proto_property< rmngr::ResourceUserPolicy >().access_list =
-    { buf.read() };
+    Scheduler::Properties prop;
+    prop.policy< rmngr::ResourceUserPolicy >() += buf.read();
+
+    return prop;
 }
 
 int
@@ -161,20 +169,16 @@ main( int, char * [] )
 {
     size_t n_threads = std::thread::hardware_concurrency();
     std::cout << "using " << n_threads << " threads." << std::endl;
-    scheduler = new Scheduler( n_threads );
-    auto queue = scheduler->get_main_queue();
+
+    Scheduler * scheduler = new Scheduler( n_threads );
+    auto copy_borders = scheduler->make_functor( &copy_borders_impl, &copy_borders_prop );
+    auto update_chunk = scheduler->make_functor( &update_chunk_impl, &update_chunk_prop );
+    auto print_buffer = scheduler->make_functor( &print_buffer_impl, &print_buffer_prop );
 
     Vec2 const chunk_size { 8, 8 };
     std::array< Buffer, 4 > buffers;
 
     int current = 0;
-
-    auto copy_borders = queue.make_functor(
-        scheduler->make_proto( &copy_borders_impl, &copy_borders_prop ));
-    auto update_chunk = queue.make_functor(
-        scheduler->make_proto( &update_chunk_impl, &update_chunk_prop ));
-    auto print_buffer = queue.make_functor(
-        scheduler->make_proto( &print_buffer_impl, &print_buffer_prop ));
 
     std::default_random_engine generator;
     std::bernoulli_distribution distribution{0.35};

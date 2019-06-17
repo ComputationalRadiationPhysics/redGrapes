@@ -4,17 +4,23 @@
 #include <rmngr/resource/resource.hpp>
 #include <rmngr/resource/ioresource.hpp>
 
+struct Access
+{
+    static bool is_serial(Access a, Access b)
+    { return true; }
+
+    bool is_superset_of(Access a) const
+    { return true; }
+
+    bool operator==(Access const & other) const
+    { return false; }
+
+    friend std::ostream& operator<< (std::ostream & out, Access const &)
+    { return out; }
+};
+
 TEST_CASE("Resource ID")
 {
-    struct Access
-    {
-        static bool is_serial(Access a, Access b)
-        { return true; }
-
-        bool is_superset_of(Access a) const
-        { return true; }
-    };
-
     rmngr::Resource< Access > a, b;
 
     // same resource
