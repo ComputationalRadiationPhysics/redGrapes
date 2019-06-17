@@ -72,13 +72,13 @@ struct ResourceEnqueuePolicy
     static bool is_serial(T const & a, T const & b)
     {
         return rmngr::ResourceUser::is_serial(
-                   a->template proto_property< rmngr::ResourceUserPolicy >(),
-		   b->template proto_property< rmngr::ResourceUserPolicy >());
+                   a->template property< rmngr::ResourceUserPolicy >(),
+		   b->template property< rmngr::ResourceUserPolicy >());
     }
     static void assert_superset(T const & super, T const & sub)
     {
-        auto r_super = super->template proto_property< rmngr::ResourceUserPolicy >();
-        auto r_sub = sub->template proto_property< rmngr::ResourceUserPolicy >();
+        auto r_super = super->template property< rmngr::ResourceUserPolicy >();
+        auto r_sub = sub->template property< rmngr::ResourceUserPolicy >();
         if(! rmngr::ResourceUser::is_superset( r_super, r_sub ))
         {
             std::stringstream stream;
