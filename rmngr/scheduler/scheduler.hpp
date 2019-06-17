@@ -297,8 +297,17 @@ public:
         }
     };
 
-    template< typename ImplCallable, typename PropCallable >
-    auto make_functor(ImplCallable && impl, PropCallable && prop)
+    struct DefaultPropFunctor
+    {
+        template < typename... Args >
+        Properties operator() (Args&&...)
+        {
+            return Properties{};
+        }
+    };
+
+    template < typename ImplCallable, typename PropCallable = DefaultPropFunctor >
+    auto make_functor(ImplCallable && impl, PropCallable && prop = DefaultPropFunctor{})
     {
         return TaskFactoryFunctor<ImplCallable, PropCallable>{*this, impl, prop};
     }
