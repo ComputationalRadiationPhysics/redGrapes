@@ -80,11 +80,19 @@ class Scheduler
     : public SchedulerInterface
 {
 public:
-    using Properties =
-        typename boost::mpl::inherit_linearly<
+    struct Properties :
+        boost::mpl::inherit_linearly<
             SchedulingPolicies,
             boost::mpl::inherit< boost::mpl::_1, Property<boost::mpl::_2> >
-        >::type;
+        >::type
+    {
+        template < typename Policy >
+        typename Policy::Property &
+        policy( void )
+        {
+            return *this;
+        }
+    };
 
     struct Task
         : virtual SchedulerInterface::TaskInterface
@@ -105,7 +113,7 @@ public:
         typename Policy::Property &
         property( void )
         {
-            return this->properties;
+            return this->properties.template policy< Policy >();
         }
 
     protected:
@@ -131,9 +139,8 @@ public:
     private:
         NullaryCallable impl;
     };
-    
-    /*
-    struct PropertyPatch :
+
+    struct PropertiesPatch :
         boost::mpl::inherit_linearly<
             SchedulingPolicies,
             boost::mpl::inherit< boost::mpl::_1, PropertyPatch<boost::mpl::_2> >
@@ -141,27 +148,31 @@ public:
     {
         struct AddPatch
         {
-            PropertyPatch & first;
-            PropertyPatch const & second;
+            PropertiesPatch & first;
+            PropertiesPatch const & second;
 
             template< typename Policy >
             void operator()( boost::type< Policy > )
             {
-                Policy::Property::Patch & p1 = first;
-                Policy::Property::Patch & p2 = second;
-                p1 += p2;
+                first.policy<Policy>() += second.policy<Policy>();
             }
         };
 
-        void operator+= ( PropertyPatch const & other )
+        void operator+= ( PropertiesPatch const & other )
         {
             boost::mpl::for_each<
                 SchedulingPolicies,
                 boost::type<boost::mpl::_>
             >( AddPatch{ *this, other } );
         }
-    }
-    */
+
+        template< typename Policy >
+        typename Policy::Property::Patch &
+        policy( void )
+        {
+            return *this;
+        }
+    };
 
     Scheduler( size_t nthreads = 1 )
       : uptodate( *this )
@@ -303,11 +314,14 @@ public:
 
     /**
      * Apply a patch to the properties of the current schedulable
-     *//*
-    void update_property( PropertyPatch const & patch )
+     */
+    void update_property( PropertiesPatch const & patch )
     {
-        update_property( get_current_schedulable(), patch );
-        }*/
+        if( std::experimental::optional<Task*> t = get_current_task() )
+            update_property( *t, patch );
+        else
+            throw std::runtime_error("update_property: invalid schedulable");
+    }
 
     /**
      * Apply a patch to the properties of a schedulable and
@@ -315,24 +329,21 @@ public:
      *
      * @param s Schedulable to be updated
      * @param patch changes on the properties
-     *//*
-    void update_property( Schedulable * s, PropertyPatch const & patch )
+     */
+    void update_property( Task * s, PropertiesPatch const & patch )
     {
-	if(!s)
-            throw std::runtime_error("update_property: invalid schedulable");
-
         auto lock = this->lock();
 	boost::mpl::for_each<
 	    SchedulingPolicies,
 	    boost::type<boost::mpl::_>
             >( PropertyPatcher{ *s, patch, *this } );
 
-        auto ref = dynamic_cast< Refinement<Graph<Schedulable*>>* >(
+        auto ref = dynamic_cast< Refinement<Graph<Task*>>* >(
                        this->main_refinement.find_refinement_containing( s ));
         ref->update_vertex( s );
 
         this->update();
-        }*/
+    }
 
 private:
     Refinement< Graph< Task* > > main_refinement;
@@ -347,13 +358,13 @@ private:
     struct PropertyPatcher
     {
         Task & task;
-        //PropertyPatch const & patch;
+        PropertiesPatch const & patch;
         Scheduler & scheduler;
 
         template< typename Policy >
         void operator() ( boost::type< Policy > )
         {
-            // s.template property< Policy >().apply_patch( patch );
+            task.template property< Policy >().apply_patch( patch );
         }
     };
 

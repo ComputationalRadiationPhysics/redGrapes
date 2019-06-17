@@ -33,20 +33,35 @@ struct ResourceUserPolicy : DefaultSchedulingPolicy
             }
         };
 
+        void operator+= (ResourceAccess const & ra)
+        {
+            this->access_list.push_back(ra);
+        }
+
+        void operator-= (ResourceAccess const & ra)
+        {
+            this->access_list.remove(ra);
+        }
+
         void apply_patch(Patch const & patch)
         {
+            ResourceUser before = *this;
+
             for( auto x : patch.diff )
             {
                 switch(x.first)
                 {
                 case Patch::DiffType::ADD:
-                    this->access_list.push_back(x.second);
+                    (*this) += x.second;
                     break;
                 case Patch::DiffType::REMOVE:
-                    this->access_list.remove(x.second);
+                    (*this) -= x.second;
                     break;
                 }
             }
+
+            if( ! before.is_superset_of(*this) )
+                throw std::runtime_error("rmngr: ResourceUserPolicy: updated access list is no subset!");
         }
     };
 };

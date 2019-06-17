@@ -76,7 +76,7 @@ struct SchedulerInterface
             return this->patch;
         }
 
-        operator typename Policy::Property::Patch const & ()
+        operator typename Policy::Property::Patch const & () const
         {
             return this->patch;
         }
