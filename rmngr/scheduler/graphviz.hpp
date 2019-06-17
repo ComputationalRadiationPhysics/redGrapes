@@ -14,10 +14,10 @@ namespace rmngr
  * ColorProperty must be used in a SchedulingPolicy
  * and provide std::string color()
  */
-template < typename ColorProperty >
+template < typename ColorPolicy >
 struct GraphvizWriter : DefaultSchedulingPolicy
 {
-    struct ProtoProperty
+    struct Property : DefaultSchedulingPolicy::Property
     {
         std::string label;
     };
@@ -40,14 +40,12 @@ struct GraphvizWriter : DefaultSchedulingPolicy
 		    std::string label;
 
 		    // name
-		    ProtoProperty const & prop = *s;
-                    label += prop.label;
+                    label += s->template property<GraphvizWriter>().label;
 		    label += "\n";
 
 		    // add resource information
 		    std::ostringstream stream;
-		    ResourceUserPolicy::ProtoProperty const & rp = *s;
-		    stream << rp;
+		    stream << s->template property<ResourceUserPolicy>();
 		    label += stream.str();
 
                     return label;
@@ -55,8 +53,7 @@ struct GraphvizWriter : DefaultSchedulingPolicy
             ),
             boost::make_function_property_map< typename Graph::ID >(
                 []( typename Graph::ID s ) {
-                    ColorProperty const & prop = *s;
-                    return prop.color();
+                    return s->template property<ColorPolicy>().color();
                 }
             ),
             name
