@@ -324,10 +324,10 @@ public:
     /**
      * Apply a patch to the properties of the current schedulable
      */
-    void update_property( PropertiesPatch const & patch )
+    void update_properties( PropertiesPatch const & patch )
     {
         if( std::experimental::optional<Task*> t = get_current_task() )
-            update_property( *t, patch );
+            update_properties( *t, patch );
         else
             throw std::runtime_error("update_property: invalid schedulable");
     }
@@ -339,13 +339,13 @@ public:
      * @param s Schedulable to be updated
      * @param patch changes on the properties
      */
-    void update_property( Task * s, PropertiesPatch const & patch )
+    void update_properties( Task * s, PropertiesPatch const & patch )
     {
         auto lock = this->lock();
 	boost::mpl::for_each<
 	    SchedulingPolicies,
 	    boost::type<boost::mpl::_>
-            >( PropertyPatcher{ *s, patch, *this } );
+        >( PropertyPatcher{ *s, patch, *this } );
 
         auto ref = dynamic_cast< Refinement<Graph<Task*>>* >(
                        this->main_refinement.find_refinement_containing( s ));
