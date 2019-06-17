@@ -33,7 +33,8 @@ private:
     }
 
 public:
-    using Schedulable = typename SchedulerType::Schedulable;
+    using Properties = typename SchedulerType::Properties;
+    using PropertiesPatch = typename SchedulerType::PropertiesPatch;
 
     static void init( int nthreads )
     {
@@ -50,33 +51,23 @@ public:
         return *(getPtr());
     }
 
-#define WRAP_INSTANCE( name )                                         \
-    template< typename... Args >                                      \
-    static auto name( Args &&... args )                               \
-    {                                                                 \
-        return getInstance().name( std::forward< Args >( args )... ); \
-    }
-
-    WRAP_INSTANCE( make_proto )
-    WRAP_INSTANCE( make_functor )
-    WRAP_INSTANCE( get_current_queue )
-
-    /**
-     * Create a functor and enqueue it immediately
-     * in the current refinement
-     */
-    template <
-        typename Functor,
-        typename PropertyFun
-    >
-    static auto enqueue_functor(
-        Functor const & impl,
-        PropertyFun const & property_fun
-    )
+    template < typename NullaryCallable >
+    static void emplace_task( NullaryCallable && impl, Properties const & prop )
     {
-        auto functor = make_functor( impl, property_fun );
-        return functor();
+        getInstance().emplace_task( std::move(impl), prop );
     }
+
+    template < typename ImplCallable, typename PropCallable >
+    static auto make_functor( ImplCallable && impl, PropCallable && prop )
+    {
+        return getInstance().make_functor( std::move(impl), std::move(prop) );
+    }
+
+    static auto update_properties( PropertiesPatch const & patch )
+    {
+        return getInstance().update_properties( patch );
+    }
+
 }; // class SchedulerSingleton
 
 } // namespace rmngr
