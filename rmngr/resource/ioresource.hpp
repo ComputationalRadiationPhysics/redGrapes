@@ -14,7 +14,7 @@ namespace rmngr
 struct IOResource : public Resource< access::IOAccess >
 {
 #define OP(name)                                                                \
-    inline ResourceAccess name (void)                                           \
+    inline ResourceAccess name (void) const                                     \
     { return this->make_access(access::IOAccess{access::IOAccess::name}); }
 
     OP(read)
