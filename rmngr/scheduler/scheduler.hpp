@@ -207,7 +207,7 @@ public:
 	    this->std::atomic_flag::clear();
 
 	    // notify all policies
-	    this->scheduler.for_each_policy< PolicyNotify >();
+	    this->scheduler.template for_each_policy< PolicyNotify >();
 	}
     };
 
