@@ -53,9 +53,9 @@ public:
     }
 
     template < typename NullaryCallable >
-    static void emplace_task( NullaryCallable && impl, Properties const & prop )
+    static auto emplace_task( NullaryCallable && impl, Properties const & prop )
     {
-        getInstance().emplace_task( std::move(impl), prop );
+        return getInstance().emplace_task( std::move(impl), prop );
     }
 
     template < typename ImplCallable, typename PropCallable >

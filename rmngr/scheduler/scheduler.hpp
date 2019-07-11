@@ -273,9 +273,12 @@ public:
      * Create a task and enqueue it immediately
      */
     template< typename NullaryCallable >
-    void emplace_task( NullaryCallable && impl, Properties const & prop = Properties{} )
+    auto emplace_task( NullaryCallable && impl, Properties const & prop = Properties{} )
     {
-        this->push( new FunctorTask<NullaryCallable>(*this, std::move(impl), prop) );
+        auto delayed = make_delayed_functor( std::move(impl) );
+        auto result = make_working_future( delayed.get_future(), *this->worker );
+        this->push( new FunctorTask<decltype(delayed)>(*this, std::move(delayed), prop) );
+        return result;
     }
 
     template< typename ImplCallable, typename PropCallable >
@@ -288,12 +291,10 @@ public:
         template <typename... Args>
         auto operator() (Args&&... args)
         {
-            Properties props = this->prop( std::forward<Args>(args)... );
-            auto applied = std::bind( this->impl, std::forward<Args>(args)... );
-            auto delayed = make_delayed_functor( std::move(applied) );
-            auto result = make_working_future( delayed.get_future(), *scheduler.worker );
-            scheduler.emplace_task( std::move(delayed), props );
-            return result;
+            return scheduler.emplace_task(
+                       std::bind( this->impl, std::forward<Args>(args)... ),
+                       this->prop( std::forward<Args>(args)... )
+                   );
         }
     };
 
