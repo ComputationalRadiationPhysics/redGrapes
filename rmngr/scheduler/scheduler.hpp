@@ -266,7 +266,10 @@ public:
      */
     std::experimental::optional<std::vector<Task*>> backtrace()
     {
-        return this->main_refinement.backtrace( this->get_current_task() );
+        if( std::experimental::optional<Task*> task = this->get_current_task() )
+            return this->main_refinement.backtrace( *task );
+        else
+            return std::experimental::nullopt;
     }
 
     /**
