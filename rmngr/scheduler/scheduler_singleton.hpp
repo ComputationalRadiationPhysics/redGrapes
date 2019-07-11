@@ -33,6 +33,7 @@ private:
     }
 
 public:
+    using Task = typename SchedulerType::Task;
     using Properties = typename SchedulerType::Properties;
     using PropertiesPatch = typename SchedulerType::PropertiesPatch;
 
