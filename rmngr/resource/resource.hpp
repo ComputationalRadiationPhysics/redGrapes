@@ -128,6 +128,14 @@ struct DefaultAccessPolicy
  * @}
  */
 
+    struct ResourceIDGenerator {
+        static std::atomic_int id_counter;
+        static int getID() {
+            return id_counter ++;
+        }
+    };
+    std::atomic_int ResourceIDGenerator::id_counter;
+    
 /**
  * @class Resource
  * @tparam AccessPolicy Defines the access-modes (e.g. read/write) that are possible
@@ -205,14 +213,13 @@ class Resource
     }; // struct ThisResourceAccess
 
     unsigned int const id;
-    static std::atomic_int id_counter;
 
   public:
     /**
      * Create a new resource with an unused ID.
      */
     Resource()
-      : id( ++id_counter )
+        : id( ResourceIDGenerator::getID() )
     {}
 
     /**
@@ -228,8 +235,5 @@ class Resource
         return ResourceAccess( new Access( *this, pol ) );
     }
 }; // class Resource
-
-template <typename AccessPolicy>
-std::atomic_int Resource<AccessPolicy>::id_counter;
 
 } // namespace rmngr
