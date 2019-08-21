@@ -153,12 +153,15 @@ class QueuedPrecedenceGraph :
 
         bool finish(ID a)
         {
-            auto it = std::find(this->queue.begin(), this->queue.end(), a);
-
-            if (it != this->queue.end())
-                this->queue.erase(it);
-
-            return this->PrecedenceGraph<Graph>::finish(a);
+            if( this->PrecedenceGraph<Graph>::finish(a) )
+            {
+                auto it = std::find(this->queue.begin(), this->queue.end(), a);
+                if (it != this->queue.end())
+                    this->queue.erase(it);
+                return true;
+            }
+            else
+                return false;
         }
 
     private:
