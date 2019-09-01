@@ -120,13 +120,13 @@ public:
         task->hook_after( [this, after_event]{ finish_event( after_event ); } );
 
         std::lock_guard< std::mutex > lock( mutex );
-        auto task_id = graph_find_vertex( task, precedence_graph.graph() ).first;
-        for(
-            auto it = boost::out_edges( task_id, precedence_graph.graph() );
-            it.first != it.second;
-            ++ it.first
-        )
-            boost::add_edge( (EventID) boost::source( *(it.first), precedence_graph.graph() ), before_event, m_graph );
+        if( auto task_id = graph_find_vertex( task, precedence_graph.graph() ) )
+            for(
+                auto it = boost::out_edges( *task_id, precedence_graph.graph() );
+                it.first != it.second;
+                ++ it.first
+            )
+                boost::add_edge( (EventID) boost::source( *(it.first), precedence_graph.graph() ), before_event, m_graph );
 
         auto ref = precedence_graph.find_refinement_containing( task );
         if( ref && ref->parent )

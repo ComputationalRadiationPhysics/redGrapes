@@ -61,8 +61,10 @@ struct FIFOScheduler
 
     bool is_task_ready( Task * task )
     {
-        auto task_id = graph_find_vertex( task, graph.precedence_graph.graph()  );
-        return boost::out_degree( task_id.first, graph.precedence_graph.graph() ) == 0;
+        if( auto task_id = graph_find_vertex( task, graph.precedence_graph.graph() ) )
+            return boost::out_degree( *task_id, graph.precedence_graph.graph() ) == 0;
+        else
+            return true;
     }
 
     void make_task_ready( Task * task )

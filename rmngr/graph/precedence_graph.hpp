@@ -59,8 +59,8 @@ class PrecedenceGraph : public RefinedGraph<Graph>
         void add_edge(ID a, ID b)
         {
             boost::add_edge(
-                graph_find_vertex(b, this->graph()).first,
-                graph_find_vertex(a, this->graph()).first,
+                *graph_find_vertex(b, this->graph()),
+                *graph_find_vertex(a, this->graph()),
                 this->graph()
             );
             this->deprecate();
@@ -133,7 +133,7 @@ class QueuedPrecedenceGraph :
             std::unordered_map<VertexID, boost::default_color_type> vertex2color;
             auto colormap = boost::make_assoc_property_map(vertex2color);
 
-            VertexID i = graph_find_vertex(a, this->graph()).first;
+            VertexID i = *graph_find_vertex(a, this->graph());
             for(auto b : this->queue)
             {
                 if( EnqueuePolicy::is_serial(b, a) && indirect_dependencies.count(b) == 0 )
