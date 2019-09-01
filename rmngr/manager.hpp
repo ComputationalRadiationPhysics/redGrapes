@@ -12,105 +12,10 @@
 #include <rmngr/graph/precedence_graph.hpp>
 #include <rmngr/graph/util.hpp>
 
+#include <rmngr/scheduler/fifo.hpp>
+
 namespace rmngr
 {
-
-template < typename SchedulingGraph >
-struct FIFOScheduler
-{
-    SchedulingGraph & graph;
-
-    using Task = typename SchedulingGraph::Task;
-    using TaskID = typename boost::graph_traits< typename SchedulingGraph::P_Graph >::vertex_descriptor;
-
-    enum State { pending = 0, ready, running, done };
-    std::unordered_map< Task*, State > states;
-
-    FIFOScheduler( SchedulingGraph & graph )
-        : graph(graph)
-    {}
-
-    void notify()
-    {
-        for( auto & thread : graph.schedule )
-        {
-            if( thread.empty() )
-                schedule( thread );
-            else if( auto j = thread.get_current_job() )
-                if( states[(*j).task] == done )
-                    schedule( thread );
-        }
-    }
-
-    std::experimental::optional<Task*> find_task( std::function<bool(Task*)> pred )
-    {
-        for(
-            auto it = boost::vertices(graph.precedence_graph.graph());
-            it.first != it.second;
-            ++ it.first
-        )
-        {
-            auto task_id = *(it.first);
-            auto task = graph_get( task_id, graph.precedence_graph.graph() );
-            if( pred( task ) )
-                return std::experimental::optional<Task*>(task);
-        }
-
-        return std::experimental::nullopt;
-    }
-
-    bool is_task_ready( Task * task )
-    {
-        if( auto task_id = graph_find_vertex( task, graph.precedence_graph.graph() ) )
-            return boost::out_degree( *task_id, graph.precedence_graph.graph() ) == 0;
-        else
-            return true;
-    }
-
-    void make_task_ready( Task * task )
-    {
-        task->hook_before( [this, task] { states[ task ] = running; } );
-        task->hook_after( [this, task] { states[ task ] = done; } );
-
-        states[ task ] = ready;
-    }
-
-    void remove_done_tasks()
-    {
-        for(
-            auto it = boost::vertices(graph.precedence_graph.graph());
-            it.first != it.second;
-            ++ it.first
-        )
-        {
-            auto task = graph_get( *(it.first), graph.precedence_graph.graph() );
-            if( states[ task ] == done )
-                graph.precedence_graph.finish( task );
-        }
-    }
-
-    void schedule( typename SchedulingGraph::ThreadSchedule & thread )
-    {
-        std::unique_lock<std::mutex> lock(graph.mutex);
-
-        remove_done_tasks();
-
-        if( std::experimental::optional<Task *> task = find_task(
-                [this]( Task * task )
-                {
-                    return
-                        states[ task ] == pending &&
-                        is_task_ready( task );
-                } ))
-        {
-            make_task_ready( *task );
-            (*task)->hook_after( [this, &thread]{ notify(); } );
-
-            lock.unlock();
-            thread.push( graph.make_job( *task ) );
-        }
-    }
-};
 
 struct DefaultTaskProperties
 {
