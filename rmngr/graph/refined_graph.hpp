@@ -197,7 +197,7 @@ class RefinedGraph
                 this->uptodate->clear();
         }
 
-    protected:
+    public:
         ID parent;
 
     private:
