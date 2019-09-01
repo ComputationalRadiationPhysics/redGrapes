@@ -86,7 +86,7 @@ class RefinedGraph
         RefinedGraph *
         find_refinement_containing(ID a)
         {
-            if (graph_find_vertex(a, this->graph()).second)
+            if ( auto d = graph_find_vertex(a, this->graph()) )
                 return this;
 
             for (auto & r : this->refinements)
@@ -101,7 +101,7 @@ class RefinedGraph
 
         std::experimental::optional<std::vector<ID>> backtrace(ID a)
         {
-            if (graph_find_vertex(a, this->graph()).second)
+            if ( auto d = graph_find_vertex(a, this->graph()) )
             {
                 std::vector<ID> trace;
                 trace.push_back(a);
@@ -161,12 +161,10 @@ class RefinedGraph
         {
             if (this->refinements.count(a) == 0)
             {
-                auto v = graph_find_vertex(a, this->graph());
-
-                if (v.second)
+                if ( auto v = graph_find_vertex(a, this->graph()) )
                 {
-                    boost::clear_vertex(v.first, this->graph());
-                    boost::remove_vertex(v.first, this->graph());
+                    boost::clear_vertex(*v, this->graph());
+                    boost::remove_vertex(*v, this->graph());
 
                     this->deprecate();
                     return true;
@@ -239,10 +237,8 @@ class RefinedGraph
         {
             for (auto & r : this->refinements)
             {
-                std::pair<VertexID, bool> parent = graph_find_vertex(r.first, target_graph);
-
-                if (parent.second)
-                    r.second->copy(target_graph, parent.first);
+                if ( auto parent = graph_find_vertex(r.first, target_graph) )
+                    r.second->copy(target_graph, *parent);
                 else
                     r.second->copy(target_graph);
             }

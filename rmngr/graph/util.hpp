@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include <utility> // std::pair
+#include <akrzemi/optional.hpp>
 #include <boost/graph/graph_traits.hpp>
 
 namespace rmngr
@@ -33,10 +33,7 @@ graph_get(
  *         property exists, else (_, false)
  */
 template <typename Graph>
-std::pair<
-    typename boost::graph_traits<Graph>::vertex_descriptor,
-    bool
->
+std::experimental::optional< typename boost::graph_traits<Graph>::vertex_descriptor >
 graph_find_vertex(
     typename Graph::vertex_property_type a,
     Graph & graph
@@ -47,10 +44,10 @@ graph_find_vertex(
     for (boost::tie(it, end) = boost::vertices(graph); it != end; ++it)
     {
         if (graph_get(*it, graph) == a)
-            return std::make_pair(*it, true);
+            return std::experimental::optional< decltype(*it) >( *it );
     }
 
-    return std::make_pair(*it, false);
+    return std::experimental::nullopt;
 }
 
 } // namespace rmngr
