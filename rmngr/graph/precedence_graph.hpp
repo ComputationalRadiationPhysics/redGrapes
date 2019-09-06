@@ -83,7 +83,7 @@ class PrecedenceGraph : public RefinedGraph<Graph>
             };
 
             Predicate pred{id, this->graph()};
-            auto v = graph_find_vertex(id, this->graph()).first;
+            auto v = *graph_find_vertex(id, this->graph());
             boost::remove_in_edge_if(v, pred, this->graph());
 
             this->deprecate();
