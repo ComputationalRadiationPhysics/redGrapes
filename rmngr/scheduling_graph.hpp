@@ -1,6 +1,9 @@
 
 #pragma once
 
+#include <mutex>
+#include <condition_variable>
+#include <boost/graph/adjacency_list.hpp>
 #include <rmngr/graph/refined_graph.hpp>
 #include <rmngr/graph/precedence_graph.hpp>
 #include <rmngr/graph/util.hpp>
@@ -101,6 +104,11 @@ public:
     void finish()
     {
         finishing = true;
+        if( empty() )
+        {
+            for( auto & thread : schedule )
+                thread.notify();
+        }
     }
 
     bool empty()

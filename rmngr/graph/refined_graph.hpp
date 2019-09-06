@@ -10,9 +10,7 @@
 #include <memory> // std::unique_ptr<>
 
 #include <akrzemi/optional.hpp>
-
 #include <boost/graph/copy.hpp>
-
 #include <rmngr/graph/util.hpp>
 
 namespace rmngr

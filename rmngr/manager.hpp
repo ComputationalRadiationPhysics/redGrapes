@@ -104,10 +104,10 @@ public:
     {
         SchedulingGraph< Task > & scheduling_graph;
 
-        void work( std::function<bool()> const& pred )
+        void operator() ( std::function<bool()> const& pred )
         {
              while( !pred() )
-                 scheduling_graph.consume( pred );
+                 scheduling_graph.consume_job( pred );
         }
     };
 
@@ -164,6 +164,62 @@ public:
         return this->precedence_graph;
     }
 
+    void update_properties( typename TaskProperties::Patch const & patch )
+    {
+        if( std::experimental::optional< Task* > task = scheduling_graph.get_current_task() )
+            update_properties( *task, patch );
+        else
+            throw std::runtime_error("update_properties: currently no task running");
+    }
+
+    void update_properties( Task * task, typename TaskProperties::Patch const & patch )
+    {
+        task->properties.apply_patch( patch );
+        auto ref = dynamic_cast<Refinement*>(this->precedence_graph.find_refinement_containing( task ));
+        ref->update_vertex( task );
+        this->scheduler.notify();
+    }
+
+    auto backtrace()
+    {
+        if( std::experimental::optional< Task* > task = scheduling_graph.get_current_task() )
+            return precedence_graph.backtrace( *task );
+        else
+            return std::experimental::nullopt;
+    }
+
+
+    template< typename ImplCallable, typename PropCallable >
+    struct TaskFactoryFunctor
+    {
+        Manager & mgr;
+        ImplCallable impl;
+        PropCallable prop;
+
+        template <typename... Args>
+        auto operator() (Args&&... args)
+        {
+            return mgr.emplace_task(
+                       std::bind( this->impl, std::forward<Args>(args)... ),
+                       this->prop( std::forward<Args>(args)... )
+                   );
+        }
+    };
+
+    struct DefaultPropFunctor
+    {
+        template < typename... Args >
+        TaskProperties operator() (Args&&...)
+        {
+            return TaskProperties{};
+        }
+    };
+
+    template < typename ImplCallable, typename PropCallable = DefaultPropFunctor >
+    auto make_functor( ImplCallable && impl, PropCallable && prop = DefaultPropFunctor{} )
+    {
+        return TaskFactoryFunctor< ImplCallable, PropCallable >{ *this, impl, prop };
+    }
 };
 
 } // namespace rmngr
