@@ -9,28 +9,14 @@
 #include <random>
 #include <thread>
 #include <rmngr/resource/fieldresource.hpp>
-#include <rmngr/scheduler/scheduler.hpp>
-#include <rmngr/scheduler/resource.hpp>
-#include <rmngr/scheduler/dispatch.hpp>
-#include <rmngr/scheduler/fifo.hpp>
+#include <rmngr/resource/ioresource.hpp>
+#include <rmngr/property/resource.hpp>
+#include <rmngr/property/inherit.hpp>
+#include <rmngr/manager.hpp>
 
-template <typename Graph>
-using PrecedenceGraph =
-    rmngr::QueuedPrecedenceGraph<
-        Graph,
-        rmngr::ResourceEnqueuePolicy
-    >;
-
-using Scheduler =
-    rmngr::Scheduler<
-        boost::mpl::vector<
-            rmngr::ResourceUserPolicy,
-            rmngr::DispatchPolicy< rmngr::FIFO >
-        >,
-        PrecedenceGraph
-    >;
-
-Scheduler * scheduler;
+using Properties = rmngr::TaskProperties<
+    rmngr::ResourceProperty
+>;
 
 struct Vec2 { int x, y; };
 static constexpr size_t size_x = 16;
@@ -72,108 +58,16 @@ update_cell( Cell dst[][size_x+2], Cell const src[][size_x+2], Vec2 pos )
     dst[pos.y][pos.x] = next_state( neighbours );
 }
 
-void
-update_chunk_impl(
-    Buffer & dst,
-    Buffer const & src,
-    Vec2 pos,
-    Vec2 size
-)
-{
-    for ( int x = 0; x < size.x; ++x )
-        for ( int y = 0; y < size.y; ++y )
-            update_cell( dst.data, src.data, Vec2{ pos.x + x, pos.y + y } );
-}
-
-Scheduler::Properties
-update_chunk_prop(
-    Buffer & dst,
-    Buffer const & src,
-    Vec2 pos,
-    Vec2 size
-)
-{
-    Vec2 end
-    {
-        pos.x + size.x - 1,
-        pos.y + size.y - 1,
-    };
-
-    Scheduler::Properties prop;
-    prop.policy< rmngr::ResourceUserPolicy >() += dst.write( {{pos.x, end.x}, {pos.y, end.y}} );
-    prop.policy< rmngr::ResourceUserPolicy >() += src.read( {{pos.x - 1, end.x + 1}, {pos.y - 1, end.y + 1}} );
-
-    return prop;
-}
-
-void
-copy_borders_impl( Buffer & buf )
-{
-    for ( int x = 0; x < size_x+2; ++x )
-    {
-        buf.data[0][x] = buf.data[size_y][x];
-        buf.data[size_y+1][x] = buf.data[1][x];
-    }
-    for ( int y = 0; y < size_y+2; ++y )
-    {
-        buf.data[y][0] = buf.data[y][size_x];
-        buf.data[y][size_x+1] = buf.data[y][1];
-    }
-}
-
-Scheduler::Properties
-copy_borders_prop(
-    Buffer & buf
-)
-{
-    Scheduler::Properties prop;
-    #define ADD_ACCESS prop.policy< rmngr::ResourceUserPolicy >() +=
-
-    ADD_ACCESS buf.write({{0, size_x + 1}, {0, 0}});
-    ADD_ACCESS buf.write({{0, size_x + 1}, {size_y + 1, size_y + 1}});
-    ADD_ACCESS buf.write({{0, 0}, {0, size_y + 1}});
-    ADD_ACCESS buf.write({{size_x + 1, size_x + 1}, {0, size_y + 1}});
-    ADD_ACCESS buf.read({{0, size_x + 1}, {0, 1}});
-    ADD_ACCESS buf.read({{0, size_x + 1}, {size_y, size_y + 1}});
-    ADD_ACCESS buf.read({{0, 1}, {0, size_y + 1}});
-    ADD_ACCESS buf.read({{size_x, size_x + 1}, {0, size_y + 1}});
-
-    return prop;
-}
-
-void
-print_buffer_impl( Buffer const & buf )
-{
-    for ( auto const & row : buf.data )
-    {
-        for ( Cell cell : row )
-            std::cout << ( ( cell == ALIVE ) ? "\x1b[47m" : "\x1b[100m" ) << "  ";
-        std::cout << "\x1b[0m" << std::endl;
-    }
-    std::cout << std::endl;
-}
-
-Scheduler::Properties
-print_buffer_prop(
-    Buffer const & buf
-)
-{
-    Scheduler::Properties prop;
-    prop.policy< rmngr::ResourceUserPolicy >() += buf.read();
-
-    return prop;
-}
-
 int
 main( int, char * [] )
 {
     size_t n_threads = std::thread::hardware_concurrency();
     std::cout << "using " << n_threads << " threads." << std::endl;
 
-    Scheduler * scheduler = new Scheduler( n_threads );
-    auto copy_borders = scheduler->make_functor( &copy_borders_impl, &copy_borders_prop );
-    auto update_chunk = scheduler->make_functor( &update_chunk_impl, &update_chunk_prop );
-    auto print_buffer = scheduler->make_functor( &print_buffer_impl, &print_buffer_prop );
+    auto mgr = new rmngr::Manager<
+        Properties,
+        rmngr::ResourceEnqueuePolicy
+    >( n_threads );
 
     Vec2 const chunk_size { 8, 8 };
     std::array< Buffer, 4 > buffers;
@@ -186,22 +80,72 @@ main( int, char * [] )
         for ( int y = 1; y <= size_y; ++y )
             buffers[current].data[y][x] = distribution( generator ) ? ALIVE : DEAD;
 
-    for ( int generation = 0; generation < 10; ++generation )
+    for ( int generation = 0; generation < 30; ++generation )
     {
         int next = ( current + 1 ) % buffers.size();
+        auto & buf = buffers[current];
 
-        copy_borders( std::ref(buffers[current]) );
-        print_buffer( std::ref(buffers[current]) );
+        mgr->emplace_task(
+            [&buf]
+            {
+                for ( int x = 0; x < size_x+2; ++x )
+                {
+                    buf.data[0][x] = buf.data[size_y][x];
+                    buf.data[size_y+1][x] = buf.data[1][x];
+                }
+                for ( int y = 0; y < size_y+2; ++y )
+                {
+                    buf.data[y][0] = buf.data[y][size_x];
+                    buf.data[y][size_x+1] = buf.data[y][1];
+                }
+            },
+            Properties::Builder()
+                .resources({
+                    buf.write({{0, size_x + 1}, {0, 0}}),
+                    buf.write({{0, size_x + 1}, {size_y + 1, size_y + 1}}),
+                    buf.write({{0, 0}, {0, size_y + 1}}),
+                    buf.write({{size_x + 1, size_x + 1}, {0, size_y + 1}}),
+                    buf.read({{0, size_x + 1}, {0, 1}}),
+                    buf.read({{0, size_x + 1}, {size_y, size_y + 1}}),
+                    buf.read({{0, 1}, {0, size_y + 1}}),
+                    buf.read({{size_x, size_x + 1}, {0, size_y + 1}})
+                })
+        );
 
+        // print buffer
+        mgr->emplace_task(
+            [&buf]
+            {
+                for ( auto const & row : buf.data )
+                {
+                    for ( Cell cell : row )
+                        std::cout << ( ( cell == ALIVE ) ? "\x1b[47m" : "\x1b[100m" ) << "  ";
+                    std::cout << "\x1b[0m" << std::endl;
+                }
+                std::cout << std::endl;    
+            },
+            Properties::Builder().resources({ buf.read() })
+        );
+
+        // update
         for ( int x = 1; x <= size_x; x += chunk_size.x )
         {
             for ( int y = 1; y <= size_y; y += chunk_size.y )
             {
-                update_chunk(
-                    std::ref(buffers[next]),
-                    std::ref(buffers[current]),
-                    Vec2{x, y},
-                    chunk_size
+                auto & dst = buffers[next];
+                auto & src = buffers[current];
+                mgr->emplace_task(
+                    [&dst, &src, x, y, chunk_size]
+                    {
+                        for ( int xi = 0; xi < chunk_size.x; ++xi )
+                            for ( int yi = 0; yi < chunk_size.y; ++yi )
+                                update_cell( dst.data, src.data, Vec2{ x + xi, y + yi } );
+                    },
+                    Properties::Builder()
+                        .resources({
+                            dst.write( {{x, x + chunk_size.x - 1}, {y, y + chunk_size.y - 1}} ),
+                            src.read( {{x - 1, x + chunk_size.x}, {y - 1, y + chunk_size.y}} )
+                        })
                 );
             }
         }
@@ -209,7 +153,7 @@ main( int, char * [] )
         current = next;
     }
 
-    delete scheduler;
+    delete mgr;
 
     return 0;
 }

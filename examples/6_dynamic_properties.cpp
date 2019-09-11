@@ -4,34 +4,25 @@
 #include <chrono>
 
 #include <rmngr/resource/fieldresource.hpp>
-#include <rmngr/scheduler/scheduler.hpp>
-#include <rmngr/scheduler/resource.hpp>
-#include <rmngr/scheduler/dispatch.hpp>
-#include <rmngr/scheduler/fifo.hpp>
+#include <rmngr/resource/ioresource.hpp>
+#include <rmngr/property/resource.hpp>
+#include <rmngr/property/inherit.hpp>
+#include <rmngr/manager.hpp>
 
-template <typename Graph>
-using PrecedenceGraph =
-    rmngr::QueuedPrecedenceGraph<
-        Graph,
-        rmngr::ResourceEnqueuePolicy
-    >;
-
-using Scheduler =
-    rmngr::Scheduler<
-        boost::mpl::vector<
-            rmngr::ResourceUserPolicy,
-            rmngr::DispatchPolicy< rmngr::FIFO >
-        >,
-        PrecedenceGraph
-    >;
+using Properties = rmngr::TaskProperties<
+    rmngr::ResourceProperty
+>;
 
 int main( int, char*[] )
 {
-    Scheduler scheduler(4);
+    rmngr::Manager<
+        Properties,
+        rmngr::ResourceEnqueuePolicy
+    > mgr( 4 );
 
     rmngr::FieldResource<1> field;
 
-    auto fun1 = scheduler.make_functor(
+    auto fun1 = mgr.make_functor(
         []( int x )
         {
             std::cout << "Access " << x << std::endl;
@@ -39,9 +30,7 @@ int main( int, char*[] )
         },
         [field]( int x )
         {
-            Scheduler::Properties prop;
-            prop.policy<rmngr::ResourceUserPolicy>() += field.write({{x,x}});
-            return prop;
+            return Properties::Builder().resources({ field.write({{x,x}}) });
         }
     );
 

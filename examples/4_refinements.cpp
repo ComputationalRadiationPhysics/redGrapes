@@ -1,46 +1,35 @@
 
 #include <thread>
 #include <chrono>
-
 #include <iostream>
-#include <rmngr/scheduler/scheduler.hpp>
-#include <rmngr/scheduler/resource.hpp>
-#include <rmngr/scheduler/dispatch.hpp>
-#include <rmngr/scheduler/fifo.hpp>
-#include <rmngr/scheduler/graphviz.hpp>
 
-template <typename Graph>
-using PrecedenceGraph =
-    rmngr::QueuedPrecedenceGraph<
-        Graph,
-        rmngr::ResourceEnqueuePolicy
-    >;
+#include <rmngr/property/resource.hpp>
+#include <rmngr/property/inherit.hpp>
+#include <rmngr/manager.hpp>
 
-using Scheduler =
-    rmngr::Scheduler<
-        boost::mpl::vector<
-            rmngr::ResourceUserPolicy,
-            rmngr::DispatchPolicy< rmngr::FIFO >
-        >,
-        PrecedenceGraph
-    >;
+using Properties = rmngr::TaskProperties<
+    rmngr::ResourceProperty
+>;
 
 int main( int, char*[] )
 {
-    Scheduler scheduler(4);
+    rmngr::Manager<
+        Properties,
+        rmngr::ResourceEnqueuePolicy
+    > mgr( 4 );
 
-    auto fun1 = scheduler.make_functor(
-        [&scheduler]
+    auto fun1 = mgr.make_functor(
+        [&mgr]
         {
             std::cout << "f1 on thread " << rmngr::thread::id << "..." << std::endl;
 
-            scheduler.emplace_task(
+            mgr.emplace_task(
                 []{
                     std::cout << "Refinement 1 on thread " << rmngr::thread::id << std::endl;
                     std::this_thread::sleep_for( std::chrono::seconds(1) );
                 });
 
-            scheduler.emplace_task(
+            mgr.emplace_task(
                 []{
                     std::cout << "Refinement 2 on thread " << rmngr::thread::id << std::endl;
                     std::this_thread::sleep_for( std::chrono::seconds(1) );

@@ -19,6 +19,7 @@ namespace rmngr
 
 struct DefaultTaskProperties
 {
+    struct Patch {};
 };
 
 template <typename T>
