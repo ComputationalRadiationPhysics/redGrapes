@@ -30,7 +30,18 @@ struct TaskPropertiesInherit
     struct Patch
         : T_Head::Patch
         , TaskPropertiesInherit< T_Tail ... >::Patch
-    {};
+    {
+        template < typename PatchBuilder >
+        struct Builder
+            : T_Head::Patch::template Builder< PatchBuilder >
+            , TaskPropertiesInherit< T_Tail ... >::Patch::template Builder< PatchBuilder >
+        {
+            Builder( PatchBuilder & p )
+                : T_Head::Patch::template Builder< PatchBuilder >{ p }
+                , TaskPropertiesInherit< T_Tail ... >::Patch::template Builder< PatchBuilder >( p )
+            {}
+        };
+    };
 
     void apply_patch( Patch const & patch )
     {
@@ -50,7 +61,14 @@ struct TaskPropertiesInherit< PropEnd_t >
         Builder( PropertiesBuilder & ) {}
     };
 
-    struct Patch {};
+    struct Patch
+    {
+        template < typename PatchBuilder >
+        struct Builder
+        {
+            Builder( PatchBuilder & ) {}
+        };        
+    };
     void apply_patch( Patch const & ) {}
 };
 
@@ -80,7 +98,27 @@ struct TaskProperties
 
     struct Patch
         : TaskPropertiesInherit< Policies..., PropEnd_t >::Patch
-    {};
+    {
+        struct Builder
+            : TaskPropertiesInherit< Policies..., PropEnd_t >::Patch::template Builder< Builder >
+        {
+            Patch patch;
+
+            Builder()
+                : TaskPropertiesInherit< Policies..., PropEnd_t >::Patch::template Builder< Builder >( *this )
+            {}
+
+            Builder( Builder const & b )
+                : patch( b.patch )
+                , TaskPropertiesInherit< Policies..., PropEnd_t >::Patch::template Builder< Builder >( *this )
+            {}
+
+            operator Patch () const
+            {
+                return patch;
+            }
+        };
+    };
 
     void apply_patch( Patch const & patch )
     {
