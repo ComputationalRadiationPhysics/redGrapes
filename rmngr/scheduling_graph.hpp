@@ -98,17 +98,15 @@ public:
     {
         std::lock_guard< std::mutex > lock( mutex );
         null_id = boost::add_vertex( m_graph );
+
+        precedence_graph.set_notify_hook( [this]{ this->notify(); } );
     }
 
     std::atomic_bool finishing;
     void finish()
     {
         finishing = true;
-        if( empty() )
-        {
-            for( auto & thread : schedule )
-                thread.notify();
-        }
+        notify();
     }
 
     bool empty()
@@ -121,6 +119,7 @@ public:
     {
         EventID before_event = make_event();
         EventID after_event = make_event();
+        //std::cerr << "JOB Create task="<<task<<" preevent="<<before_event<<", postevent="<<after_event<<std::endl;
 
         after_events[ task ] = after_event;
 
@@ -128,28 +127,42 @@ public:
         task->hook_after( [this, after_event]{ finish_event( after_event ); } );
 
         std::lock_guard< std::mutex > lock( mutex );
-        if( auto task_id = graph_find_vertex( task, precedence_graph.graph() ) )
-            for(
-                auto it = boost::out_edges( *task_id, precedence_graph.graph() );
-                it.first != it.second;
-                ++ it.first
-            )
-                boost::add_edge( (EventID) boost::source( *(it.first), precedence_graph.graph() ), before_event, m_graph );
-
         auto ref = precedence_graph.find_refinement_containing( task );
-        if( ref && ref->parent )
-            boost::add_edge( after_event, after_events[ ref->parent ], m_graph );
+        if( ref )
+        {
+            auto l = ref->lock();
+            if( auto task_id = graph_find_vertex( task, ref->graph() ) )
+            {
+                for(
+                    auto it = boost::in_edges( *task_id, ref->graph() );
+                    it.first != it.second;
+                    ++ it.first
+                )
+                {
+                    auto v_id = boost::source( *(it.first), ref->graph() );
+                    auto precending_task = graph_get( v_id, ref->graph() );
+                    //std::cerr << "depend on task " << precending_task << ", ev= " << after_events[precending_task]<<std::endl;
+                    boost::add_edge( after_events[ precending_task ], before_event, m_graph );
+                }
+            }
+
+            if( ref->parent )
+            {
+                //std::cerr << "SCHEDGRAPH: make edge to parent: " << after_events[ref->parent] << std::endl;
+                boost::add_edge( after_event, after_events[ ref->parent ], m_graph );
+            }
+        }
 
         return Job{ task };
     }
 
-    void consume_job()
+    void consume_job( std::function<bool()> const & pred = []{ return false; } )
     {
-        schedule[ thread::id ].consume( [this]{ return empty(); } );
-    }
-
-    void consume_job( std::function<bool()> const & pred )
-    {
+        /*
+        std::cout << "consume job" << std::endl;
+        if( schedule[thread::id].needs_job() )
+            notify();
+        */
         schedule[ thread::id ].consume( [this, pred]{ return empty() || pred(); } );
     }
 
@@ -172,9 +185,26 @@ public:
         return event_id;
     }
 
-    void notify_event( EventID id )
+    std::function<void()> notify_hook;
+    void set_notify_hook( std::function<void()> h )
+    {
+        notify_hook = h;
+    }
+
+    void notify()
+    {
+        notify_hook();
+        //if( empty() )
+        {
+            for( auto & thread : schedule )
+                thread.notify();
+        }
+    }
+
+    bool notify_event( EventID id )
     {
         std::unique_lock< std::mutex > lock( mutex );
+        //std::cerr << "EVENT Notify " << id << std::endl;
         if( boost::in_degree( id, m_graph ) == 0 )
         {
             events[ id ].notify();
@@ -184,6 +214,8 @@ public:
             for( auto it = boost::out_edges( id, m_graph ); it.first != it.second; it.first++ )
                 out.push_back( boost::target( *it.first, m_graph ) );
 
+            //std::cerr << "SCHEDGRAPH: remove " << id << std::endl;
+            boost::clear_vertex( id, m_graph );
             boost::remove_vertex( id, m_graph );
 
             lock.unlock();
@@ -192,23 +224,23 @@ public:
             for( EventID e : out )
                 notify_event( e );
 
-            if( empty() )
-            {
-                for( auto & thread : schedule )
-                    thread.notify();
-            }
+            return true;
         }
+        else
+            return false;
     }
 
     void finish_event( EventID id )
     {
+        //std::cerr << "EVENT Finish " << id << std::endl;
         {
             auto cv_lock = events[id].lock();
             std::lock_guard< std::mutex > graph_lock( mutex );
             boost::remove_edge( null_id, id, m_graph );
         }
 
-        notify_event( id );
+        if( notify_event( id ) )
+            notify();
     }
 }; // class SchedulingGraph
     

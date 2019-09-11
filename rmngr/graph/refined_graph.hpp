@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <vector>
 #include <memory> // std::unique_ptr<>
+#include <mutex>
 
 #include <akrzemi/optional.hpp>
 #include <boost/graph/copy.hpp>
@@ -15,11 +16,6 @@
 
 namespace rmngr
 {
-
-struct FlagInterface
-{
-    virtual void clear() = 0;
-};
 
 /**
  * Boost-Graph adaptor storing a tree of subgraphs
@@ -36,16 +32,19 @@ class RefinedGraph
 
     public:
         RefinedGraph()
-	    : uptodate(nullptr)
-	    , parent(nullptr)
+            : parent(nullptr)
         {}
 
         RefinedGraph(RefinedGraph&& g)
-	  : uptodate(g.uptodate)
-	  , refinements(g.refinements)
-	  , m_graph(g.m_graph)
-	  , parent(g.parent)
+            : refinements(g.refinements)
+            , m_graph(g.m_graph)
+            , parent(g.parent)
         {}
+
+        auto lock()
+        {
+            return std::unique_lock<std::recursive_mutex>( mutex );
+        }
 
         /// get graph object
         Graph & graph(void)
@@ -53,17 +52,16 @@ class RefinedGraph
             return this->m_graph;
         }
 
-        /// build the complete graph with its refinemets in target_graph
-        template <typename MutableGraph>
-        void copy(MutableGraph & target_graph)
-        {
-            boost::copy_graph(this->graph(), target_graph);
-            this->copy_refinements(target_graph);
-        }
+    bool empty()
+    {
+        auto l = lock();
+        return boost::num_vertices( graph() ) == 0;
+    }
 
         RefinedGraph * /* should be std::optional<std::reference_wrapper<RefinedGraph>> */
         find_refinement(ID parent)
         {
+            auto l = lock();
             auto it = this->refinements.find(parent);
 
             if (it != this->refinements.end())
@@ -84,6 +82,7 @@ class RefinedGraph
         RefinedGraph *
         find_refinement_containing(ID a)
         {
+            auto l = lock();
             if ( auto d = graph_find_vertex(a, this->graph()) )
                 return this;
 
@@ -99,6 +98,7 @@ class RefinedGraph
 
         std::experimental::optional<std::vector<ID>> backtrace(ID a)
         {
+            auto l = lock();
             if ( auto d = graph_find_vertex(a, this->graph()) )
             {
                 std::vector<ID> trace;
@@ -128,8 +128,9 @@ class RefinedGraph
         Refinement *
         make_refinement(ID parent)
         {
+            auto l = lock();
             Refinement * ptr = new Refinement();
-            ptr->uptodate = this->uptodate;
+            ptr->notify_hook = this->notify_hook;
             ptr->parent = parent;
             this->refinements[parent] = std::unique_ptr<RefinedGraph>(ptr);
             return ptr;
@@ -157,91 +158,111 @@ class RefinedGraph
         /// does it belong here?
         virtual bool finish(ID a)
         {
+            auto l = lock();
             if (this->refinements.count(a) == 0)
             {
+                //std::cerr << "refined-graph: " << a << " hos no childs"<<std::endl;
                 if ( auto v = graph_find_vertex(a, this->graph()) )
                 {
                     boost::clear_vertex(*v, this->graph());
                     boost::remove_vertex(*v, this->graph());
 
-                    this->deprecate();
+                    //std::cerr << "removed VERTEX for task " << a << std::endl;
+
                     return true;
                 }
                 else
                 {
                     for(auto & r : this->refinements)
                     {
-                        if (r.second->finish(a))
+                        if ( r.second->finish(a) )
                         {
                             if (boost::num_vertices(r.second->graph()) == 0)
                                 this->refinements.erase(r.first);
 
-                            this->deprecate();
                             return true;
                         }
                     }
                 }
             }
+            //else
+            //    std::cerr << "refined-graph: "<<a << " has children" << std::endl;
 
             return false;
         }
 
-        FlagInterface * uptodate;
-        void deprecate(void)
+    struct Iterator
+    {
+        RefinedGraph & r;
+        typename boost::graph_traits< Graph >::vertex_iterator g_it;
+        std::unique_ptr< std::pair< Iterator, Iterator > > sub;
+
+        ID operator* ()
         {
-            if( this->uptodate != nullptr )
-                this->uptodate->clear();
+            if( !sub )
+            {
+                auto id = graph_get( *g_it, r.graph() );
+                if( r.refinements.count(id) )
+                    sub.reset( new std::pair<Iterator,Iterator>( r.refinements[id]->vertices() ) );
+                else
+                    return id;
+            }
+
+            if( sub->first == sub->second )
+            {
+                sub.reset(nullptr);
+                return graph_get( *g_it, r.graph() );
+            }
+            else
+                return *(sub->first);
         }
+
+        bool operator== ( Iterator const & other )
+        {
+            return g_it == other.g_it;
+        }
+
+        bool operator!= ( Iterator const & other )
+        {
+            return g_it != other.g_it;
+        }
+
+        void operator++ ()
+        {
+            if( sub )
+                ++(sub->first);
+            else
+                ++g_it;
+        }
+    };
+
+    std::pair<Iterator, Iterator> vertices()
+    {
+        auto g_it = boost::vertices( graph() );
+        return std::make_pair(
+                   Iterator{*this, g_it.first, nullptr},
+                   Iterator{*this, g_it.second, nullptr}
+               );
+    }
+
+    void deprecate()
+    {
+        notify_hook();
+    }
+
+    void set_notify_hook( std::function<void()> const & h )
+    {
+        notify_hook = h;
+    }
 
     public:
         ID parent;
 
     private:
+        std::function<void()> notify_hook;
+        std::recursive_mutex mutex;
         std::unordered_map<ID, std::unique_ptr<RefinedGraph>> refinements;
         Graph m_graph;
-
-        template <typename MutableGraph>
-        void copy(MutableGraph & target_graph, VertexID parent)
-        {
-            // copy all vertices and edges from refinement into the scheduling graph
-            struct vertex_copier
-            {
-                Graph & src;
-                Graph & dest;
-                VertexID parent;
-
-                void
-                operator() (VertexID in, VertexID out)
-                {
-                    ID a = graph_get(in, src);
-                    dest[out] = a;
-                    boost::add_edge(parent, out, dest);
-                }
-            };
-            boost::copy_graph(
-                this->graph(),
-                target_graph,
-                boost::vertex_copy( vertex_copier
-            {
-                this->graph(),
-                target_graph,
-                parent} )
-            );
-            this->copy_refinements(target_graph);
-        }
-
-        template <typename MutableGraph>
-        void copy_refinements(MutableGraph & target_graph)
-        {
-            for (auto & r : this->refinements)
-            {
-                if ( auto parent = graph_find_vertex(r.first, target_graph) )
-                    r.second->copy(target_graph, *parent);
-                else
-                    r.second->copy(target_graph);
-            }
-        }
-
 }; // class RefinedGraph
 
 } // namespace rmngr

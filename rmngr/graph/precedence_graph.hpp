@@ -52,18 +52,16 @@ class PrecedenceGraph : public RefinedGraph<Graph>
         void add_vertex(ID a)
         {
             boost::add_vertex(a, this->graph());
-            this->deprecate();
         }
 
         /// a precedes b
         void add_edge(ID a, ID b)
         {
             boost::add_edge(
-                *graph_find_vertex(b, this->graph()),
                 *graph_find_vertex(a, this->graph()),
+                *graph_find_vertex(b, this->graph()),
                 this->graph()
             );
-            this->deprecate();
         }
 
         /// remove edges which don't satisfy the precedence policy
@@ -77,16 +75,15 @@ class PrecedenceGraph : public RefinedGraph<Graph>
 
                 bool operator() ( typename boost::graph_traits<Graph>::edge_descriptor edge ) const
                 {
-                    auto src = boost::source(edge, graph);
-                    return ( ! PrecedencePolicy::is_serial( id, graph_get(src, graph) ) );
+                    auto t = boost::target(edge, graph);
+                    return ( ! PrecedencePolicy::is_serial( id, graph_get(t, graph) ) );
                 }
             };
 
+            auto l = this->lock();
             Predicate pred{id, this->graph()};
             auto v = *graph_find_vertex(id, this->graph());
-            boost::remove_in_edge_if(v, pred, this->graph());
-
-            this->deprecate();
+            boost::remove_out_edge_if(v, pred, this->graph());
         }
 }; // class PrecedenceGraph
 
@@ -107,6 +104,7 @@ class QueuedPrecedenceGraph :
     public:
         void push(ID a)
         {
+            auto l = this->lock();
             if( this->parent )
                 EnqueuePolicy::assert_superset( this->parent, a );
 
@@ -153,11 +151,13 @@ class QueuedPrecedenceGraph :
 
         bool finish(ID a)
         {
+            auto l = this->lock();
             if( this->PrecedenceGraph<Graph>::finish(a) )
             {
                 auto it = std::find(this->queue.begin(), this->queue.end(), a);
                 if (it != this->queue.end())
                     this->queue.erase(it);
+
                 return true;
             }
             else

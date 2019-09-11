@@ -44,6 +44,8 @@ public:
             , after_hook( []{} )
         {}
 
+        virtual ~Task() = default;
+
         virtual void run() = 0;
 
         void operator() ()
@@ -112,10 +114,9 @@ public:
     };
 
     Refinement precedence_graph;
-
     SchedulingGraph< Task > scheduling_graph;
-    Scheduler< SchedulingGraph<Task> > scheduler;
     ThreadDispatcher< SchedulingGraph<Task> > thread_dispatcher;
+    Scheduler< SchedulingGraph<Task> > scheduler;
     Worker worker;
 
 public:
@@ -146,8 +147,10 @@ public:
      */
     void push( Task * task )
     {
+        //std::cerr << "MANAGER push task " << task <<std::endl;
         this->get_current_refinement().push( task );
-        this->scheduler.notify();
+        //std::cerr << "MANAGER: inserted task, now notify"<<std::endl;
+        scheduler.notify();
     }
 
     Refinement &
@@ -177,7 +180,7 @@ public:
         task->properties.apply_patch( patch );
         auto ref = dynamic_cast<Refinement*>(this->precedence_graph.find_refinement_containing( task ));
         ref->update_vertex( task );
-        this->scheduler.notify();
+        scheduler.notify();
     }
 
     auto backtrace()
@@ -187,7 +190,6 @@ public:
         else
             return std::experimental::nullopt;
     }
-
 
     template< typename ImplCallable, typename PropCallable >
     struct TaskFactoryFunctor
