@@ -72,6 +72,7 @@ public:
     std::mutex mutex;
     EventGraph m_graph;
     std::unordered_map< EventID, Event > events;
+    std::unordered_map< Task* , EventID > before_events;
     std::unordered_map< Task* , EventID > after_events;
 
     struct Job
@@ -121,6 +122,7 @@ public:
         EventID after_event = make_event();
         //std::cerr << "JOB Create task="<<task<<" preevent="<<before_event<<", postevent="<<after_event<<std::endl;
 
+        before_events[ task ] = before_event;
         after_events[ task ] = after_event;
 
         task->hook_before( [this, before_event]{ finish_event( before_event ); events[before_event].wait(); } );
@@ -154,6 +156,21 @@ public:
         }
 
         return Job{ task };
+    }
+
+    template <typename Refinement>
+    void update_vertex( Task * task )
+    {
+        auto ref = dynamic_cast<Refinement*>(this->precedence_graph.find_refinement_containing( task ));
+        std::vector<Task*> selection = ref->update_vertex( task );
+
+        for( Task * other_task : selection )
+        {
+            boost::remove_edge( after_events[task], before_events[other_task], m_graph );
+            notify_event( before_events[other_task] );
+        }
+
+        notify();
     }
 
     void consume_job( std::function<bool()> const & pred = []{ return false; } )

@@ -35,6 +35,10 @@ struct ResourceProperty : ResourceUser
         struct Builder
         {
             PatchBuilder & builder;
+            Builder( PatchBuilder & b )
+                : builder( b )
+            {}
+            
             PatchBuilder add_resources( std::initializer_list<ResourceAccess> list )
             {
                 Patch & p = builder.patch;
