@@ -4,86 +4,67 @@
 #include <chrono>
 
 #include <rmngr/resource/ioresource.hpp>
-#include <rmngr/scheduler/scheduler.hpp>
-#include <rmngr/scheduler/resource.hpp>
-#include <rmngr/scheduler/dispatch.hpp>
-#include <rmngr/scheduler/fifo.hpp>
+#include <rmngr/property/resource.hpp>
+#include <rmngr/property/inherit.hpp>
+#include <rmngr/manager.hpp>
 
-template <typename Graph>
-using PrecedenceGraph =
-    rmngr::QueuedPrecedenceGraph<
-        Graph,
-        rmngr::ResourceEnqueuePolicy
-    >;
-
-using Scheduler =
-    rmngr::Scheduler<
-        boost::mpl::vector<
-            rmngr::ResourceUserPolicy,
-            rmngr::DispatchPolicy< rmngr::FIFO >
-        >,
-        PrecedenceGraph
-    >;
+using Properties = rmngr::TaskProperties<
+    rmngr::ResourceProperty
+>;
 
 int main(void)
 {
-    Scheduler scheduler(4);
+    rmngr::Manager<
+        Properties,
+        rmngr::ResourceEnqueuePolicy
+    > mgr( 4 );
 
     rmngr::IOResource a;
     rmngr::IOResource b;
 
-    auto read_a = scheduler.make_functor(
-        [=]
+    auto read_a = mgr.make_functor(
+        [a, &mgr]
         {
             std::cout << "Read from A" << std::endl;
             std::this_thread::sleep_for(std::chrono::seconds(1));
         },
-        [=]
+        [a]
         {
-            Scheduler::Properties prop;
-            prop.policy<rmngr::ResourceUserPolicy>() += a.read();
-            return prop;
+            return Properties::Builder().resources({ a.read() });
         }
     );
 
-    auto write_a = scheduler.make_functor(
-        [=]
+    auto write_a = mgr.make_functor(
+        [a]
         {
             std::cout << "Write to A" << std::endl;
             std::this_thread::sleep_for(std::chrono::seconds(1));
         },
-        [=]
+        [a]
         {
-            Scheduler::Properties prop;
-            prop.policy<rmngr::ResourceUserPolicy>() += a.write();
-            return prop;
+            return Properties::Builder().resources({ a.write() });
         }
     );
 
-    auto write_b = scheduler.make_functor(
-        [=]
+    auto write_b = mgr.make_functor(
+        [b]
         {
             std::cout << "Write to B" << std::endl;
         },
-        [=]
+        [b]
         {
-            Scheduler::Properties prop;
-            prop.policy<rmngr::ResourceUserPolicy>() += b.write();
-            return prop;                      
+            return Properties::Builder().resources({ b.write() });
         }
     );
 
-    auto read_ab = scheduler.make_functor(
-        [=]()
+    auto read_ab = mgr.make_functor(
+        [a,b]
         {
             std::cout << "Read from A & B" << std::endl;
         },
-        [=]
+        [a,b]
         {
-            Scheduler::Properties prop;
-            prop.policy<rmngr::ResourceUserPolicy>() += a.read();
-            prop.policy<rmngr::ResourceUserPolicy>() += b.read();
-            return prop;                      
+            return Properties::Builder().resources({ a.read(), b.read() });
         }
     );
 
