@@ -6,7 +6,7 @@
 namespace rmngr
 {
 
-enum TaskState { pending = 0, ready, running, done };
+enum TaskState { pending = 0, ready, scheduled, running, done };
 
 template < typename TaskID >
 struct TaskStateMap
@@ -16,8 +16,7 @@ struct TaskStateMap
     {
         task->hook_before( [this, task] { (*this)[ task ] = TaskState::running; } );
         task->hook_after( [this, task] { (*this)[ task ] = TaskState::done; } );
-
-        (*this)[ task ] = TaskState::ready;
+        (*this)[ task ] = TaskState::pending;
     }
 };
 

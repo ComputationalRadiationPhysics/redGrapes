@@ -31,6 +31,26 @@ struct ResourceProperty : ResourceUser
 
     struct Patch
     {
+        template <typename PatchBuilder>
+        struct Builder
+        {
+            PatchBuilder & builder;
+            PatchBuilder add_resources( std::initializer_list<ResourceAccess> list )
+            {
+                Patch & p = builder.patch;
+                for( auto const & acc : list )
+                    p += acc;
+                return builder;
+            }
+            PatchBuilder remove_resources( std::initializer_list<ResourceAccess> list )
+            {
+                Patch & p = builder.patch;
+                for( auto const & acc : list )
+                    p -= acc;
+                return builder;
+            }
+        };
+
         enum DiffType { ADD, REMOVE };
         std::list<std::pair<DiffType, ResourceAccess>> diff;
 
