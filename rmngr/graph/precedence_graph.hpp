@@ -66,24 +66,29 @@ class PrecedenceGraph : public RefinedGraph<Graph>
 
         /// remove edges which don't satisfy the precedence policy
         template < typename PrecedencePolicy >
-        void update_vertex(ID id)
+        std::vector<ID> update_vertex(ID id)
         {
-            struct Predicate
-            {
-                ID id;
-                Graph const & graph;
-
-                bool operator() ( typename boost::graph_traits<Graph>::edge_descriptor edge ) const
-                {
-                    auto t = boost::target(edge, graph);
-                    return ( ! PrecedencePolicy::is_serial( id, graph_get(t, graph) ) );
-                }
-            };
-
             auto l = this->lock();
-            Predicate pred{id, this->graph()};
             auto v = *graph_find_vertex(id, this->graph());
-            boost::remove_out_edge_if(v, pred, this->graph());
+
+            std::vector<ID> selection;
+            std::vector<typename boost::graph_traits<Graph>::vertex_descriptor> vertices;
+
+            for(auto it = boost::out_edges(v, this->graph()); it.first != it.second; ++it.first)
+            {
+                auto other_vertex = boost::target(*(it.first), this->graph());
+                auto other_id = graph_get(other_vertex, this->graph());
+                if( ! PrecedencePolicy::is_serial( id, other_id ) )
+                {
+                    selection.push_back( other_id );
+                    vertices.push_back( other_vertex );
+                }
+            }
+
+            for( auto other_vertex : vertices )
+                boost::remove_edge(v, other_vertex, this->graph());
+
+            return selection;
         }
 }; // class PrecedenceGraph
 
@@ -144,9 +149,9 @@ class QueuedPrecedenceGraph :
             this->queue.insert(this->queue.begin(), a);
         }
 
-        void update_vertex(ID a)
+        auto update_vertex(ID a)
         {
-            this->PrecedenceGraph<Graph>::template update_vertex< EnqueuePolicy >( a );
+            return this->PrecedenceGraph<Graph>::template update_vertex< EnqueuePolicy >( a );
 	}
 
         bool finish(ID a)

@@ -4,63 +4,49 @@
 
 #include <iostream>
 #include <rmngr/resource/ioresource.hpp>
-#include <rmngr/scheduler/scheduler.hpp>
-#include <rmngr/scheduler/resource.hpp>
-#include <rmngr/scheduler/dispatch.hpp>
-#include <rmngr/scheduler/fifo.hpp>
+#include <rmngr/property/resource.hpp>
+#include <rmngr/property/inherit.hpp>
+#include <rmngr/manager.hpp>
 
-template <typename Graph>
-using PrecedenceGraph =
-    rmngr::QueuedPrecedenceGraph<
-        Graph,
-        rmngr::ResourceEnqueuePolicy
-    >;
-
-using Scheduler =
-    rmngr::Scheduler<
-        boost::mpl::vector<
-            rmngr::ResourceUserPolicy,
-            rmngr::DispatchPolicy< rmngr::FIFO >
-        >,
-        PrecedenceGraph
-    >;
+using Properties = rmngr::TaskProperties<
+    rmngr::ResourceProperty
+>;
 
 int main( int, char*[] )
 {
-    Scheduler scheduler(4);
+    rmngr::Manager<
+        Properties,
+        rmngr::ResourceEnqueuePolicy
+    > mgr( 4 );
+
     rmngr::IOResource a;
 
-    Scheduler::Properties f1_prop;
-    f1_prop.policy<rmngr::ResourceUserPolicy>() += a.write();
-
-    scheduler.emplace_task(
-        [&scheduler, a]
+    mgr.emplace_task(
+        [&mgr, a]
         {
             std::cout << "f1 writes A" << std::endl;
             std::this_thread::sleep_for( std::chrono::seconds(1) );
 
             std::cout << "f1 now only reads A" << std::endl;
-
-            Scheduler::PropertiesPatch patch;
-            patch.policy<rmngr::ResourceUserPolicy>() -= a.write();
-            patch.policy<rmngr::ResourceUserPolicy>() += a.read();
-            scheduler.update_properties(patch);
+            mgr.update_properties(
+                Properties::Patch::Builder()
+                    .remove_resources({ a.write() })
+                    .add_resources({ a.read() })
+            );
             std::this_thread::sleep_for( std::chrono::seconds(1) );
 
             std::cout << "f1 done" << std::endl; 
         },
-        f1_prop
+        Properties::Builder().resources({ a.write() })
     );
 
-    Scheduler::Properties f2_prop;
-    f2_prop.policy<rmngr::ResourceUserPolicy>() += a.read();
-    scheduler.emplace_task(
+    mgr.emplace_task(
         []
         {
             std::cout << "f2 reads A" << std::endl;
             std::cout << "f2 done" << std::endl;
         },
-        f2_prop
+        Properties::Builder().resources({ a.read() })
     );
     
     return 0;

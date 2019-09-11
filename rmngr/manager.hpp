@@ -178,9 +178,7 @@ public:
     void update_properties( Task * task, typename TaskProperties::Patch const & patch )
     {
         task->properties.apply_patch( patch );
-        auto ref = dynamic_cast<Refinement*>(this->precedence_graph.find_refinement_containing( task ));
-        ref->update_vertex( task );
-        scheduler.notify();
+        scheduling_graph.template update_vertex< Refinement >( task );
     }
 
     auto backtrace()
