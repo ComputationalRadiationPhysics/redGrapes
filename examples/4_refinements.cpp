@@ -40,7 +40,6 @@ int main( int, char*[] )
     fun1();
     fun1();
 
-
     return 0;
 }
 

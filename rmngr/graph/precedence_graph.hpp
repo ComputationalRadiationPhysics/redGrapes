@@ -51,17 +51,21 @@ class PrecedenceGraph : public RefinedGraph<Graph>
     public:
         void add_vertex(ID a)
         {
+            auto l = this->lock();
             boost::add_vertex(a, this->graph());
+            this->mark_dirty();
         }
 
         /// a precedes b
         void add_edge(ID a, ID b)
         {
+            auto l = this->lock();
             boost::add_edge(
                 *graph_find_vertex(a, this->graph()),
                 *graph_find_vertex(b, this->graph()),
                 this->graph()
             );
+            this->mark_dirty();
         }
 
         /// remove edges which don't satisfy the precedence policy
@@ -88,6 +92,8 @@ class PrecedenceGraph : public RefinedGraph<Graph>
             for( auto other_vertex : vertices )
                 boost::remove_edge(v, other_vertex, this->graph());
 
+            this->mark_dirty();
+            
             return selection;
         }
 }; // class PrecedenceGraph

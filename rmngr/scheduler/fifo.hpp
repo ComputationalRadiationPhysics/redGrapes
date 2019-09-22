@@ -2,9 +2,9 @@
 #pragma once
 
 #include <mutex>
+#include <queue>
 #include <akrzemi/optional.hpp>
 #include <rmngr/scheduler/scheduler.hpp>
-#include <rmngr/scheduler/states.hpp>
 
 namespace rmngr
 {
@@ -14,88 +14,100 @@ struct FIFOScheduler
     : SchedulerBase< SchedulingGraph >
 {
     using typename SchedulerBase< SchedulingGraph >::Task;
+    using Job = typename SchedulingGraph::Job;
 
-    TaskStateMap< Task* > states;
+    enum TaskState { uninitialized, pending, ready, running, done };
+
+    std::mutex states_mutex;
+    std::unordered_map< Task*, TaskState > states;
+
+    std::mutex queue_mutex;
+    std::queue< Job > job_queue;
 
     FIFOScheduler( SchedulingGraph & graph )
         : SchedulerBase< SchedulingGraph >( graph )
     {
-        graph.set_notify_hook( [this]{ this->notify(); } );
         for( auto & t : this->graph.schedule )
-            t.set_request_hook( [this]{ this->notify(); } );
+            t.set_request_hook( [this,&t]{ get_job(t); } );
     }
 
-    void notify()
+    void new_task( Task * task )
     {
-        auto l = this->graph.precedence_graph.lock();
-        //std::cout << "scheduler notify()" << std::endl;
+        task->hook_before( [this, task]
+            {
+                std::lock_guard<std::mutex> lock(this->states_mutex);
+                states[ task ] = TaskState::running;
+            });
 
-        for( Task * task : this->collect_tasks(
-                                               [this](Task * task)
-                                               {
-                                                   //std::cerr << "test " << task;
-                                                   if( this->states.count(task) )
-                                                   {
-                                                       //std::cerr << "has state..";
-                                                       //std::cerr << ".. has state " << this->states[task] << std::endl;
-                                                       return this->states[ task ] == TaskState::done;
-                                                   }
-                                                   else
-                                                   {
-                                                       //std::cerr << ".. has no state yet"<<std::endl;
-                                                       return false;
-                                                   }
-                                               })
-             )
+        task->hook_after( [this, task]
+            {
+                std::lock_guard<std::mutex> lock(this->states_mutex);
+                states[ task ] = TaskState::done;
+
+                this->uptodate.clear();
+            });
+
+        this->graph.make_job( task );
+
         {
-            //std::cerr << "TASK " << task << "done: ";
+            std::lock_guard<std::mutex> lock(this->states_mutex);
+            states[task] = TaskState::pending;
+        }
+
+        this->uptodate.clear();
+
+        for( auto & t : this->graph.schedule )
+            t.notify();
+    }
+
+private:
+    std::atomic_flag uptodate;
+
+    void get_job( typename SchedulingGraph::ThreadSchedule & thread )
+    {
+        if( thread.needs_job() )
+        {
+            std::unique_lock< std::mutex > lock( queue_mutex );
+
+            if( job_queue.empty() )
+            {
+                bool u1 = this->uptodate.test_and_set();
+                bool u2 = this->graph.precedence_graph.test_and_set();
+                if( !u1 || !u2 )
+                    update_graph();
+            }
+
+            if( ! job_queue.empty() )
+            {
+                auto job = job_queue.front();
+                job_queue.pop();
+                thread.push( job );
+            }
+        }
+    }
+
+    void update_graph()
+    {
+        std::lock_guard<std::mutex> lock(this->states_mutex);
+
+        auto l = this->graph.precedence_graph.lock();
+
+        for( auto task : this->collect_tasks( [this](Task * task){ return this->states[ task ] == TaskState::done; }) )
+        {
             if( this->graph.precedence_graph.finish( task ) )
             {
-                //std::cerr << "destroy task" <<std::endl;
                 states.erase( task );
-                delete task;
+                //delete task;
             }
-            //else
-                //std::cerr << "task not yet removed" << std::endl;
         }
 
-        for( auto it = this->graph.precedence_graph.vertices(); it.first!=it.second; ++it.first )
+        for( auto task : this->collect_tasks( [this](Task * task){ return this->states[ task ] == TaskState::pending; }) )
         {
-            auto task = *(it.first);
-            if( states.count(task) == 0 )
+            if( this->is_task_ready( task ) )
             {
-                // new task
-                states.prepare_task_states( task );
-                this->graph.make_job( task );
-            }
-
-            if( states[task] == TaskState::pending && this->is_task_ready( task ) )
                 states[task] = TaskState::ready;
-        }
-
-        for( auto & thread : this->graph.schedule )
-        {
-            if( thread.needs_job() )
-                schedule( thread );
-        }
-    }
-
-    void schedule( typename SchedulingGraph::ThreadSchedule & thread )
-    {
-        //std::cout << "thread needs task" << std::endl;
-        if( std::experimental::optional<Task *> task =
-                this->find_task(
-                    [this]( Task * task )
-                    {
-                        return this->states[ task ] == TaskState::ready;
-                    }
-                )
-        )
-        {
-            //std::cerr << "task["<<*task<<"] has state = "<<states[*task]<<", set state to "<<TaskState::scheduled<<std::endl;
-            states[ *task ] = TaskState::scheduled;
-            //std::cerr << "fifo: Found Task " << *task <<std::endl;
-            thread.push( typename SchedulingGraph::Job{ *task } );
+                job_queue.push( Job{ task } );
+            }
         }
     }
 };

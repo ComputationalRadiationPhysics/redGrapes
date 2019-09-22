@@ -23,7 +23,7 @@ int main(void)
     rmngr::IOResource b;
 
     auto read_a = mgr.make_functor(
-        [a, &mgr]
+        [a]
         {
             std::cout << "Read from A" << std::endl;
             std::this_thread::sleep_for(std::chrono::seconds(1));
