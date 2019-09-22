@@ -27,12 +27,15 @@ struct SchedulerBase
     {
         auto r = graph.precedence_graph.find_refinement_containing( task );
         if( r )
+        {
+            auto l = r->lock();
             if( auto task_id = graph_find_vertex( task, r->graph() ) )
                 return boost::in_degree( *task_id, graph.precedence_graph.graph() ) == 0;
+        }
         return false;
     }
 
-    std::experimental::optional<Task*> find_task( std::function<bool(Task*)> pred )
+    std::experimental::optional<Task*> find_task( std::function<bool(Task*)> pred = [](Task*){ return true; } )
     {
         for(
             auto it = graph.precedence_graph.vertices();
@@ -48,7 +51,7 @@ struct SchedulerBase
         return std::experimental::nullopt;
     }
 
-    std::vector<Task*> collect_tasks( std::function<bool(Task*)> pred )
+    std::vector<Task*> collect_tasks( std::function<bool(Task*)> pred = [](Task*){ return true; } )
     {
         std::vector<Task*> selection;
         for(

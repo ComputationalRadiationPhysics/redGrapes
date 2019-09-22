@@ -69,7 +69,7 @@ main( int, char * [] )
         rmngr::ResourceEnqueuePolicy
     >( n_threads );
 
-    Vec2 const chunk_size { 8, 8 };
+    Vec2 const chunk_size { 4, 4 };
     std::array< Buffer, 4 > buffers;
 
     int current = 0;
@@ -80,13 +80,13 @@ main( int, char * [] )
         for ( int y = 1; y <= size_y; ++y )
             buffers[current].data[y][x] = distribution( generator ) ? ALIVE : DEAD;
 
-    for ( int generation = 0; generation < 30; ++generation )
+    for ( int generation = 0; generation < 500; ++generation )
     {
         int next = ( current + 1 ) % buffers.size();
         auto & buf = buffers[current];
 
         mgr->emplace_task(
-            [&buf]
+            [&buf, generation]
             {
                 for ( int x = 0; x < size_x+2; ++x )
                 {

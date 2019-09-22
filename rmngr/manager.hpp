@@ -32,7 +32,7 @@ struct DefaultEnqueuePolicy
 template <
     typename TaskProperties = DefaultTaskProperties,
     typename EnqueuePolicy = DefaultEnqueuePolicy< TaskProperties >,
-    template <typename> typename Scheduler = FIFOScheduler
+    template <typename> class Scheduler = FIFOScheduler
 >
 class Manager
 {
@@ -138,7 +138,7 @@ public:
     auto emplace_task( NullaryCallable && impl, TaskProperties const & prop = TaskProperties{} )
     {
         auto delayed = make_delayed_functor( std::move(impl) );
-        auto result = make_working_future( delayed.get_future(), this->worker );
+        auto result = make_working_future( std::move(delayed.get_future()), this->worker );
         this->push( new FunctorTask< decltype(delayed) >( std::move(delayed), prop ) );
         return result;
     }
@@ -148,10 +148,8 @@ public:
      */
     void push( Task * task )
     {
-        //std::cerr << "MANAGER push task " << task <<std::endl;
         this->get_current_refinement().push( task );
-        //std::cerr << "MANAGER: inserted task, now notify"<<std::endl;
-        scheduler.notify();
+        scheduler.new_task( task );
     }
 
     Refinement &

@@ -130,7 +130,6 @@ class RefinedGraph
         {
             auto l = lock();
             Refinement * ptr = new Refinement();
-            ptr->notify_hook = this->notify_hook;
             ptr->parent = parent;
             this->refinements[parent] = std::unique_ptr<RefinedGraph>(ptr);
             return ptr;
@@ -166,6 +165,7 @@ class RefinedGraph
                 {
                     boost::clear_vertex(*v, this->graph());
                     boost::remove_vertex(*v, this->graph());
+                    mark_dirty();
 
                     //std::cerr << "removed VERTEX for task " << a << std::endl;
 
@@ -178,7 +178,10 @@ class RefinedGraph
                         if ( r.second->finish(a) )
                         {
                             if (boost::num_vertices(r.second->graph()) == 0)
+                            {
                                 this->refinements.erase(r.first);
+                                this->mark_dirty();
+                            }
 
                             return true;
                         }
@@ -196,6 +199,7 @@ class RefinedGraph
         RefinedGraph & r;
         typename boost::graph_traits< Graph >::vertex_iterator g_it;
         std::unique_ptr< std::pair< Iterator, Iterator > > sub;
+        std::unique_lock< std::recursive_mutex > lock;
 
         ID operator* ()
         {
@@ -240,26 +244,29 @@ class RefinedGraph
     {
         auto g_it = boost::vertices( graph() );
         return std::make_pair(
-                   Iterator{*this, g_it.first, nullptr},
+                   Iterator{*this, g_it.first, nullptr, this->lock()},
                    Iterator{*this, g_it.second, nullptr}
                );
     }
 
-    void deprecate()
+    bool test_and_set()
     {
-        notify_hook();
+        bool u = uptodate.test_and_set();
+        for( auto & r : refinements )
+            u &= r.second->test_and_set();
+        return u;
     }
 
-    void set_notify_hook( std::function<void()> const & h )
+    void mark_dirty()
     {
-        notify_hook = h;
+        this->uptodate.clear();
     }
 
     public:
         ID parent;
 
     private:
-        std::function<void()> notify_hook;
+        std::atomic_flag uptodate;
         std::recursive_mutex mutex;
         std::unordered_map<ID, std::unique_ptr<RefinedGraph>> refinements;
         Graph m_graph;

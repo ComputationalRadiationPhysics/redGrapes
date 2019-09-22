@@ -36,8 +36,11 @@ public:
         bool state;
 
     public:
+        bool ready;
+
         Event()
             : state( false )
+            , ready( false )
         {}
 
         auto lock()
@@ -47,11 +50,14 @@ public:
 
         void notify()
         {
+            if( ready )
             {
-                auto l = lock();
-                state = true;
+                {
+                    auto l = lock();
+                    state = true;
+                }
+                cv.notify_all();
             }
-            cv.notify_all();
         }
 
         void wait()
@@ -74,6 +80,7 @@ public:
     std::unordered_map< EventID, Event > events;
     std::unordered_map< Task* , EventID > before_events;
     std::unordered_map< Task* , EventID > after_events;
+    std::unordered_map< EventID, Task* > event_tasks;
 
     struct Job
     {
@@ -97,38 +104,36 @@ public:
         , schedule( n_threads )
         , finishing( false )
     {
-        std::lock_guard< std::mutex > lock( mutex );
-        null_id = boost::add_vertex( m_graph );
-
-        precedence_graph.set_notify_hook( [this]{ this->notify(); } );
     }
 
-    std::atomic_bool finishing;
+    bool finishing;
     void finish()
     {
-        finishing = true;
+        {
+            std::lock_guard< std::mutex > lock( mutex );
+            finishing = true;
+        }
         notify();
     }
 
     bool empty()
     {
         std::lock_guard< std::mutex > lock( mutex );
-        return finishing && (boost::num_vertices( m_graph ) == 1);
+        //std::cout << "empty? events remaining: " << boost::num_vertices( m_graph ) << std::endl;
+        return finishing && (boost::num_vertices( m_graph ) == 0);
     }
 
     Job make_job( Task * task )
     {
+        std::lock_guard< std::mutex > lock( mutex );
         EventID before_event = make_event();
         EventID after_event = make_event();
-        //std::cerr << "JOB Create task="<<task<<" preevent="<<before_event<<", postevent="<<after_event<<std::endl;
 
         before_events[ task ] = before_event;
         after_events[ task ] = after_event;
+        event_tasks[ before_event ] = task;
+        event_tasks[ after_event ] = task;
 
-        task->hook_before( [this, before_event]{ finish_event( before_event ); events[before_event].wait(); } );
-        task->hook_after( [this, after_event]{ finish_event( after_event ); } );
-
-        std::lock_guard< std::mutex > lock( mutex );
         auto ref = precedence_graph.find_refinement_containing( task );
         if( ref )
         {
@@ -142,18 +147,33 @@ public:
                 )
                 {
                     auto v_id = boost::source( *(it.first), ref->graph() );
-                    auto precending_task = graph_get( v_id, ref->graph() );
-                    //std::cerr << "depend on task " << precending_task << ", ev= " << after_events[precending_task]<<std::endl;
-                    boost::add_edge( after_events[ precending_task ], before_event, m_graph );
+                    auto preceding_task = graph_get( v_id, ref->graph() );
+                    if( after_events.count(preceding_task) )
+                        boost::add_edge( after_events[ preceding_task ], before_event, m_graph );
                 }
             }
 
             if( ref->parent )
             {
-                //std::cerr << "SCHEDGRAPH: make edge to parent: " << after_events[ref->parent] << std::endl;
-                boost::add_edge( after_event, after_events[ ref->parent ], m_graph );
+                if( after_events.count( ref->parent ) )
+                    boost::add_edge( after_event, after_events[ ref->parent ], m_graph );
+                else
+                    throw std::runtime_error("parent post-event doesn't exist!");
             }
         }
+        else
+            throw std::runtime_error("task not found in precedence graph!");
+
+        task->hook_before( [this, before_event, task]
+            {
+                if( !finish_event( before_event ) )
+                    events[before_event].wait();
+            });
+        task->hook_after( [this, after_event]
+            {
+                if( finish_event( after_event ) )
+                    notify();
+            });
 
         return Job{ task };
     }
@@ -164,10 +184,13 @@ public:
         auto ref = dynamic_cast<Refinement*>(this->precedence_graph.find_refinement_containing( task ));
         std::vector<Task*> selection = ref->update_vertex( task );
 
-        for( Task * other_task : selection )
         {
-            boost::remove_edge( after_events[task], before_events[other_task], m_graph );
-            notify_event( before_events[other_task] );
+            std::lock_guard< std::mutex > lock( mutex );
+            for( Task * other_task : selection )
+                boost::remove_edge( after_events[task], before_events[other_task], m_graph );
+
+            for( Task * other_task : selection )
+                notify_event( before_events[other_task] );
         }
 
         notify();
@@ -175,12 +198,7 @@ public:
 
     void consume_job( std::function<bool()> const & pred = []{ return false; } )
     {
-        /*
-        std::cout << "consume job" << std::endl;
-        if( schedule[thread::id].needs_job() )
-            notify();
-        */
-        schedule[ thread::id ].consume( [this, pred]{ return empty() || pred(); } );
+        schedule[ thread::id ].consume( [this, pred]{ return pred() || empty(); } );
     }
 
     std::experimental::optional<Task*> get_current_task()
@@ -193,36 +211,36 @@ public:
 
     EventID make_event()
     {
-        std::lock_guard< std::mutex > lock( mutex );
         EventID event_id = boost::add_vertex( m_graph );
         events.emplace( std::piecewise_construct, std::forward_as_tuple(event_id), std::forward_as_tuple() );
-
-        boost::add_edge( null_id, event_id, m_graph );
-
         return event_id;
-    }
-
-    std::function<void()> notify_hook;
-    void set_notify_hook( std::function<void()> h )
-    {
-        notify_hook = h;
     }
 
     void notify()
     {
-        notify_hook();
-        //if( empty() )
-        {
-            for( auto & thread : schedule )
-                thread.notify();
-        }
+        for( auto & thread : schedule )
+            thread.notify();
+    }
+
+    void remove_event( EventID id )
+    {
+        boost::clear_vertex( id, m_graph );
+        boost::remove_vertex( id, m_graph );
+        events.erase( id );
+
+        Task * task = event_tasks[id];
+        if( before_events.count(task) && before_events[task] == id )
+            before_events.erase( task );
+        if( after_events.count(task) && after_events[task] == id )
+            after_events.erase(task);
+
+        event_tasks.erase( id );
     }
 
     bool notify_event( EventID id )
     {
-        std::unique_lock< std::mutex > lock( mutex );
-        //std::cerr << "EVENT Notify " << id << std::endl;
-        if( boost::in_degree( id, m_graph ) == 0 )
+        //std::cout << "notify event " << id << std::endl;
+        if( events[id].ready && boost::in_degree( id, m_graph ) == 0 )
         {
             events[ id ].notify();
 
@@ -231,11 +249,7 @@ public:
             for( auto it = boost::out_edges( id, m_graph ); it.first != it.second; it.first++ )
                 out.push_back( boost::target( *it.first, m_graph ) );
 
-            //std::cerr << "SCHEDGRAPH: remove " << id << std::endl;
-            boost::clear_vertex( id, m_graph );
-            boost::remove_vertex( id, m_graph );
-
-            lock.unlock();
+            remove_event( id );
 
             // propagate
             for( EventID e : out )
@@ -247,17 +261,12 @@ public:
             return false;
     }
 
-    void finish_event( EventID id )
+    bool finish_event( EventID id )
     {
-        //std::cerr << "EVENT Finish " << id << std::endl;
-        {
-            auto cv_lock = events[id].lock();
-            std::lock_guard< std::mutex > graph_lock( mutex );
-            boost::remove_edge( null_id, id, m_graph );
-        }
+        std::unique_lock< std::mutex > lock( mutex );
+        events[ id ].ready = true;
 
-        if( notify_event( id ) )
-            notify();
+        return notify_event( id );
     }
 }; // class SchedulingGraph
     
