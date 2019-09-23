@@ -32,7 +32,6 @@ class RefinedGraph
 
     public:
         RefinedGraph()
-            : parent(nullptr)
         {}
 
         RefinedGraph(RefinedGraph&& g)
@@ -105,7 +104,7 @@ class RefinedGraph
                 trace.push_back(a);
 
                 if( this->parent )
-                    trace.push_back(this->parent);
+                    trace.push_back(*this->parent);
 
                 return trace;
             }
@@ -115,7 +114,7 @@ class RefinedGraph
                 if (std::experimental::optional<std::vector<ID>> trace = r.second->backtrace(a))
                 {
                     if( this->parent )
-                        (*trace).push_back(this->parent);
+                        (*trace).push_back(*this->parent);
 
                     return *trace;
                 }
@@ -129,7 +128,7 @@ class RefinedGraph
         make_refinement(ID parent)
         {
             auto l = lock();
-            Refinement * ptr = new Refinement();
+            Refinement * ptr = new Refinement( this );
             ptr->parent = parent;
             this->refinements[parent] = std::unique_ptr<RefinedGraph>(ptr);
             return ptr;
@@ -263,7 +262,7 @@ class RefinedGraph
     }
 
     public:
-        ID parent;
+        std::experimental::optional<ID> parent;
 
     private:
         std::atomic_flag uptodate;

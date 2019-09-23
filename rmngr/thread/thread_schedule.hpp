@@ -20,7 +20,6 @@ struct ThreadSchedule
 {
 public:
     ThreadSchedule()
-        : job_request(false)
     {}
 
     void set_request_hook( std::function<void()> const & r )
@@ -28,61 +27,48 @@ public:
         request_hook = r;
     }
 
-    void notify()
-    {
-        cv.notify_all();
-    }
-
-    bool needs_job()
-    {
-        return job_request && queue.empty();
-    }
-
     void push( Job const & job )
     {
         queue.push( job );
-        job_request = false;
-
         notify();
+    }
+
+    void notify()
+    {
+        std::lock_guard< std::mutex > lock( cv_mutex );
+        wakeup = true;
+        cv.notify_all();
     }
 
     void consume( std::function<bool(void)> const & pred )
     {
+        wakeup = false;
+        if( !pred() )
         {
-            std::unique_lock< std::mutex > lock( cv_mutex );
-            cv.wait(
-                lock,
-                [this, pred, &lock]
+            if( !queue.empty() )
+            {
+                Job job = queue.front();
+                queue.pop();
+
                 {
-                    if( request_hook && queue.empty() )
-                    {
-                        job_request = true;
-
-                        lock.unlock();
-                        request_hook();
-                        lock.lock();
-                    }
-
-                    return pred() || !queue.empty();
+                    std::lock_guard<std::mutex> lock(stack_mutex);
+                    current_jobs.push( job );
                 }
-            );
-        }
 
-        if( !queue.empty() && !pred() )
-        {
-            Job job = queue.front();
-            queue.pop();
+                job();
 
-            {
-                std::lock_guard<std::mutex> lock(stack_mutex);
-                current_jobs.push( job );
+                {
+                    std::lock_guard<std::mutex> lock(stack_mutex);
+                    current_jobs.pop();
+                }
             }
-
-            job();
-
+            else
             {
-                std::lock_guard<std::mutex> lock(stack_mutex);
-                current_jobs.pop();
+                if( request_hook )
+                    request_hook();
+
+                std::unique_lock< std::mutex > lock( cv_mutex );
+                cv.wait(lock, [this]{ return wakeup; });
             }
         }
     }
@@ -98,7 +84,7 @@ public:
     }
 
 private:
-    bool job_request;
+    bool wakeup;
     std::function<void()> request_hook;
     std::queue< Job > queue;
 

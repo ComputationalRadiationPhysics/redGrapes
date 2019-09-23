@@ -8,25 +8,33 @@
 #include <rmngr/graph/precedence_graph.hpp>
 #include <rmngr/graph/util.hpp>
 
-#include <rmngr/thread_schedule.hpp>
+#include <rmngr/thread/thread_schedule.hpp>
+#include <rmngr/task/task_container.hpp>
 
 namespace rmngr
 {
     
 template <
-    typename T_Task,
+    typename TaskProperties,
     typename T_Graph = boost::adjacency_list<
         boost::setS,
         boost::vecS,
         boost::bidirectionalS,
-        T_Task*
+        typename TaskContainer< TaskProperties >::TaskID
     >
 >
 class SchedulingGraph
 {
 public:
     using P_Graph = T_Graph;
-    using Task = T_Task;
+
+    using EventGraph = boost::adjacency_list<
+        boost::listS,
+        boost::listS,
+        boost::bidirectionalS
+    >;
+    using EventID = typename boost::graph_traits< EventGraph >::vertex_descriptor;
+    using TaskID = typename P_Graph::vertex_property_type;
 
     struct Event
     {
@@ -37,6 +45,7 @@ public:
 
     public:
         bool ready;
+        TaskID task_id;
 
         Event()
             : state( false )
@@ -67,46 +76,37 @@ public:
         }
     };
 
-    using EventGraph = boost::adjacency_list<
-        boost::listS,
-        boost::listS,
-        boost::bidirectionalS
-    >;
-    using EventID = typename boost::graph_traits< EventGraph >::vertex_descriptor;
-    using TaskID = typename boost::graph_traits< P_Graph >::vertex_descriptor;
+    struct Job
+    {
+        TaskContainer< TaskProperties > & tasks;
+        TaskID task_id;
+
+        void operator() ()
+        {
+            tasks.task_run( task_id );
+        }
+    };
 
     std::mutex mutex;
     EventGraph m_graph;
     std::unordered_map< EventID, Event > events;
-    std::unordered_map< Task* , EventID > before_events;
-    std::unordered_map< Task* , EventID > after_events;
-    std::unordered_map< EventID, Task* > event_tasks;
-
-    struct Job
-    {
-        Task * task;
-
-        void operator() ()
-        {
-            (*task)();
-        }
-    };
+    std::unordered_map< TaskID , EventID > before_events;
+    std::unordered_map< TaskID , EventID > after_events;
 
     using ThreadSchedule = rmngr::ThreadSchedule< Job >;
 
+    TaskContainer< TaskProperties > & tasks;
     RefinedGraph< T_Graph > & precedence_graph;
     std::vector< ThreadSchedule > schedule;
+    bool finishing;
 
-    EventID null_id;
-
-    SchedulingGraph( RefinedGraph< T_Graph > & precedence_graph, int n_threads )
+    SchedulingGraph( TaskContainer< TaskProperties > & tasks, RefinedGraph< T_Graph > & precedence_graph, int n_threads )
         : precedence_graph( precedence_graph )
         , schedule( n_threads )
         , finishing( false )
-    {
-    }
+        , tasks( tasks )
+    {}
 
-    bool finishing;
     void finish()
     {
         {
@@ -119,44 +119,40 @@ public:
     bool empty()
     {
         std::lock_guard< std::mutex > lock( mutex );
-        //std::cout << "empty? events remaining: " << boost::num_vertices( m_graph ) << std::endl;
         return finishing && (boost::num_vertices( m_graph ) == 0);
     }
 
-    Job make_job( Task * task )
+    void add_task( TaskID task_id )
     {
         std::lock_guard< std::mutex > lock( mutex );
-        EventID before_event = make_event();
-        EventID after_event = make_event();
+        EventID before_event = make_event( task_id );
+        EventID after_event = make_event( task_id );
 
-        before_events[ task ] = before_event;
-        after_events[ task ] = after_event;
-        event_tasks[ before_event ] = task;
-        event_tasks[ after_event ] = task;
+        before_events[ task_id ] = before_event;
+        after_events[ task_id ] = after_event;
 
-        auto ref = precedence_graph.find_refinement_containing( task );
+        auto ref = precedence_graph.find_refinement_containing( task_id );
         if( ref )
         {
             auto l = ref->lock();
-            if( auto task_id = graph_find_vertex( task, ref->graph() ) )
+            if( auto task_vertex = graph_find_vertex( task_id, ref->graph() ) )
             {
                 for(
-                    auto it = boost::in_edges( *task_id, ref->graph() );
+                    auto it = boost::in_edges( *task_vertex, ref->graph() );
                     it.first != it.second;
                     ++ it.first
                 )
                 {
-                    auto v_id = boost::source( *(it.first), ref->graph() );
-                    auto preceding_task = graph_get( v_id, ref->graph() );
-                    if( after_events.count(preceding_task) )
-                        boost::add_edge( after_events[ preceding_task ], before_event, m_graph );
+                    auto preceding_task_id = graph_get( boost::source( *(it.first), ref->graph() ), ref->graph() );
+                    if( after_events.count(preceding_task_id) )
+                        boost::add_edge( after_events[ preceding_task_id ], before_event, m_graph );
                 }
             }
 
             if( ref->parent )
             {
-                if( after_events.count( ref->parent ) )
-                    boost::add_edge( after_event, after_events[ ref->parent ], m_graph );
+                if( after_events.count( *ref->parent ) )
+                    boost::add_edge( after_event, after_events[ *ref->parent ], m_graph );
                 else
                     throw std::runtime_error("parent post-event doesn't exist!");
             }
@@ -164,32 +160,35 @@ public:
         else
             throw std::runtime_error("task not found in precedence graph!");
 
-        task->hook_before( [this, before_event, task]
+        tasks.task_hook_before(
+            task_id,
+            [this, before_event]
             {
                 if( !finish_event( before_event ) )
                     events[before_event].wait();
             });
-        task->hook_after( [this, after_event]
+
+        tasks.task_hook_after(
+            task_id,
+            [this, after_event]
             {
                 if( finish_event( after_event ) )
                     notify();
             });
-
-        return Job{ task };
     }
 
     template <typename Refinement>
-    void update_vertex( Task * task )
+    void update_vertex( TaskID task )
     {
         auto ref = dynamic_cast<Refinement*>(this->precedence_graph.find_refinement_containing( task ));
-        std::vector<Task*> selection = ref->update_vertex( task );
+        std::vector<TaskID> selection = ref->update_vertex( task );
 
         {
             std::lock_guard< std::mutex > lock( mutex );
-            for( Task * other_task : selection )
+            for( TaskID other_task : selection )
                 boost::remove_edge( after_events[task], before_events[other_task], m_graph );
 
-            for( Task * other_task : selection )
+            for( TaskID other_task : selection )
                 notify_event( before_events[other_task] );
         }
 
@@ -201,18 +200,19 @@ public:
         schedule[ thread::id ].consume( [this, pred]{ return pred() || empty(); } );
     }
 
-    std::experimental::optional<Task*> get_current_task()
+    std::experimental::optional<TaskID> get_current_task()
     {
         if( std::experimental::optional<Job> job = schedule[ thread::id ].get_current_job() )
-            return std::experimental::optional<Task*>( job->task );
+            return std::experimental::optional<TaskID>( job->task_id );
         else
             return std::experimental::nullopt;
     }
 
-    EventID make_event()
+    EventID make_event( TaskID task_id )
     {
         EventID event_id = boost::add_vertex( m_graph );
         events.emplace( std::piecewise_construct, std::forward_as_tuple(event_id), std::forward_as_tuple() );
+        events[event_id].task_id = task_id;
         return event_id;
     }
 
@@ -224,22 +224,19 @@ public:
 
     void remove_event( EventID id )
     {
+        TaskID task_id = events[id].task_id;
         boost::clear_vertex( id, m_graph );
         boost::remove_vertex( id, m_graph );
         events.erase( id );
 
-        Task * task = event_tasks[id];
-        if( before_events.count(task) && before_events[task] == id )
-            before_events.erase( task );
-        if( after_events.count(task) && after_events[task] == id )
-            after_events.erase(task);
-
-        event_tasks.erase( id );
+        if( before_events.count(task_id) && before_events[task_id] == id )
+            before_events.erase( task_id );
+        if( after_events.count(task_id) && after_events[task_id] == id )
+            after_events.erase( task_id );
     }
 
     bool notify_event( EventID id )
     {
-        //std::cout << "notify event " << id << std::endl;
         if( events[id].ready && boost::in_degree( id, m_graph ) == 0 )
         {
             events[ id ].notify();
