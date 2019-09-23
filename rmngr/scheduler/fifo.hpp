@@ -9,37 +9,47 @@
 namespace rmngr
 {
 
-template < typename SchedulingGraph >
+template <
+    typename TaskProperties,
+    typename SchedulingGraph
+>
 struct FIFOScheduler
     : SchedulerBase< SchedulingGraph >
 {
-    using typename SchedulerBase< SchedulingGraph >::Task;
+    using TaskID = typename TaskContainer<TaskProperties>::TaskID;
     using Job = typename SchedulingGraph::Job;
 
     enum TaskState { uninitialized, pending, ready, running, done };
 
     std::mutex states_mutex;
-    std::unordered_map< Task*, TaskState > states;
+    std::unordered_map< TaskID, TaskState > states;
 
     std::mutex queue_mutex;
     std::queue< Job > job_queue;
 
-    FIFOScheduler( SchedulingGraph & graph )
+    TaskContainer< TaskProperties > & tasks;
+
+    FIFOScheduler( TaskContainer< TaskProperties > & tasks, SchedulingGraph & graph )
         : SchedulerBase< SchedulingGraph >( graph )
+        , tasks( tasks )
     {
         for( auto & t : this->graph.schedule )
             t.set_request_hook( [this,&t]{ get_job(t); } );
     }
 
-    void new_task( Task * task )
+    void push( TaskID task )
     {
-        task->hook_before( [this, task]
+        tasks.task_hook_before(
+            task,
+            [this, task]
             {
                 std::lock_guard<std::mutex> lock(this->states_mutex);
                 states[ task ] = TaskState::running;
             });
 
-        task->hook_after( [this, task]
+        tasks.task_hook_after(
+            task,
+            [this, task]
             {
                 std::lock_guard<std::mutex> lock(this->states_mutex);
                 states[ task ] = TaskState::done;
@@ -47,7 +57,7 @@ struct FIFOScheduler
                 this->uptodate.clear();
             });
 
-        this->graph.make_job( task );
+        this->graph.add_task( task );
 
         {
             std::lock_guard<std::mutex> lock(this->states_mutex);
@@ -65,48 +75,44 @@ private:
 
     void get_job( typename SchedulingGraph::ThreadSchedule & thread )
     {
-        if( thread.needs_job() )
+        std::unique_lock< std::mutex > lock( queue_mutex );
+
+        if( job_queue.empty() )
         {
-            std::unique_lock< std::mutex > lock( queue_mutex );
+            bool u1 = this->uptodate.test_and_set();
+            bool u2 = this->graph.precedence_graph.test_and_set();
+            if( !u1 || !u2 )
+                update_graph();
+        }
 
-            if( job_queue.empty() )
-            {
-                bool u1 = this->uptodate.test_and_set();
-                bool u2 = this->graph.precedence_graph.test_and_set();
-                if( !u1 || !u2 )
-                    update_graph();
-            }
-
-            if( ! job_queue.empty() )
-            {
-                auto job = job_queue.front();
-                job_queue.pop();
-                thread.push( job );
-            }
+        if( ! job_queue.empty() )
+        {
+            auto job = job_queue.front();
+            job_queue.pop();
+            thread.push( job );
         }
     }
 
     void update_graph()
     {
+        auto l = this->graph.precedence_graph.lock();
         std::lock_guard<std::mutex> lock(this->states_mutex);
 
-        auto l = this->graph.precedence_graph.lock();
-
-        for( auto task : this->collect_tasks( [this](Task * task){ return this->states[ task ] == TaskState::done; }) )
+        for( auto task : this->collect_tasks( [this](TaskID task){ return this->states[ task ] == TaskState::done; }) )
         {
             if( this->graph.precedence_graph.finish( task ) )
             {
                 states.erase( task );
-                //delete task;
+                //tasks.erase( task );
             }
         }
 
-        for( auto task : this->collect_tasks( [this](Task * task){ return this->states[ task ] == TaskState::pending; }) )
+        for( auto task : this->collect_tasks( [this](TaskID task){ return this->states[ task ] == TaskState::pending; }) )
         {
             if( this->is_task_ready( task ) )
             {
                 states[task] = TaskState::ready;
-                job_queue.push( Job{ task } );
+                job_queue.push( Job{ tasks, task } );
             }
         }
     }

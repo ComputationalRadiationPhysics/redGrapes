@@ -15,15 +15,14 @@ struct SchedulerBase
 {
     SchedulingGraph & graph;
 
-    using Task = typename SchedulingGraph::Task;
-    using TaskID = typename boost::graph_traits< typename SchedulingGraph::P_Graph >::vertex_descriptor;
+    using TaskID = typename SchedulingGraph::P_Graph::vertex_property_type;
 
     SchedulerBase( SchedulingGraph & graph )
         : graph(graph)
     {
     }
 
-    bool is_task_ready( Task * task )
+    bool is_task_ready( TaskID task )
     {
         auto r = graph.precedence_graph.find_refinement_containing( task );
         if( r )
@@ -35,7 +34,7 @@ struct SchedulerBase
         return false;
     }
 
-    std::experimental::optional<Task*> find_task( std::function<bool(Task*)> pred = [](Task*){ return true; } )
+    std::experimental::optional<TaskID> find_task( std::function<bool(TaskID)> pred = [](TaskID){ return true; } )
     {
         for(
             auto it = graph.precedence_graph.vertices();
@@ -45,15 +44,15 @@ struct SchedulerBase
         {
             auto task = *(it.first);
             if( pred( task ) )
-                return std::experimental::optional<Task*>(task);
+                return std::experimental::optional<TaskID>(task);
         }
 
         return std::experimental::nullopt;
     }
 
-    std::vector<Task*> collect_tasks( std::function<bool(Task*)> pred = [](Task*){ return true; } )
+    std::vector<TaskID> collect_tasks( std::function<bool(TaskID)> pred = [](TaskID){ return true; } )
     {
-        std::vector<Task*> selection;
+        std::vector<TaskID> selection;
         for(
             auto it = graph.precedence_graph.vertices();
             it.first != it.second;
