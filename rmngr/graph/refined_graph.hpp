@@ -251,8 +251,11 @@ class RefinedGraph
     bool test_and_set()
     {
         bool u = uptodate.test_and_set();
+
+        auto l = lock();
         for( auto & r : refinements )
             u &= r.second->test_and_set();
+
         return u;
     }
 
@@ -260,6 +263,73 @@ class RefinedGraph
     {
         this->uptodate.clear();
     }
+
+
+    // Graphviz
+    void write_dot(
+        std::ostream & out,
+        std::function<std::string(ID)> const & label,
+        std::function<std::string(ID)> const & color
+    )
+    {
+        out << "digraph G {" << std::endl
+            << "compound = true;" << std::endl
+            << "graph [fontsize=10 fontname=\"Verdana\"];" << std::endl
+            << "node [shape=record fontsize=10 fontname=\"Verdana\"];" << std::endl;
+
+        this->write_refinement_dot( out, label, color );
+
+        out << "}" << std::endl;
+    }
+
+    void write_refinement_dot(
+        std::ostream & out,
+        std::function<std::string(ID)> const & label,
+        std::function<std::string(ID)> const & color
+    )
+    {
+        auto l = lock();
+        for( auto it = boost::vertices(graph()); it.first != it.second; ++it.first )
+        {
+            auto id = graph_get(*(it.first), graph());
+            if( refinements.count(id) )
+            {
+                out << "subgraph cluster_" << id << " {" << std::endl
+                    << "node [style = filled]" << std::endl
+                    << "label = \"" << label(id) << "\";" << std::endl
+                    << "color = " << color(id) << std::endl;
+
+                refinements[id]->write_refinement_dot( out, label, color );
+
+                out << "}" << std::endl;
+            }
+            else
+                out << id << " [label = \"" << label(id) << "\", color = " << color(id) << "];" << std::endl;   
+        }
+
+        for( auto it = boost::edges(graph()); it.first != it.second; ++it.first )
+        {
+            auto a = graph_get(boost::source( *(it.first), graph() ), graph() );
+            auto b = graph_get(boost::target( *(it.first), graph() ), graph() );
+
+            if( refinements.count(a) )
+            {
+                // choose a vertex which doesn't have a refinement
+                auto sub = refinements[a].get();
+                while( ! sub->refinements.empty() )
+                {
+                    sub = sub->refinements.begin()->second.get();
+                }
+                auto d = graph_get( *(boost::vertices(sub->graph()).first), sub->graph() );
+
+                out << d << " -> " << b << " [ltail = cluster_" << a << "];" << std::endl;
+            }
+            else
+                out << a << " -> " << b << std::endl;
+        }
+    }
+
+    
 
     public:
         std::experimental::optional<ID> parent;
