@@ -10,17 +10,20 @@
 namespace rmngr
 {
 
-template < typename SchedulingGraph >
+template < typename TaskProperties, typename SchedulingGraph >
 struct SchedulerBase
 {
+    TaskContainer< TaskProperties > & tasks;
     SchedulingGraph & graph;
 
-    using TaskID = typename SchedulingGraph::P_Graph::vertex_property_type;
+    std::atomic_flag uptodate;
 
-    SchedulerBase( SchedulingGraph & graph )
-        : graph(graph)
-    {
-    }
+    using TaskID = typename TaskContainer< TaskProperties >::TaskID;
+
+    SchedulerBase( TaskContainer< TaskProperties > & tasks, SchedulingGraph & graph )
+        : tasks(tasks)
+        , graph(graph)
+    {}
 
     bool is_task_ready( TaskID task )
     {
