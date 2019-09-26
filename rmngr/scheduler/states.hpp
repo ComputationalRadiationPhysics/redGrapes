@@ -9,6 +9,8 @@
 namespace rmngr
 {
 
+enum TaskState { uninitialized, pending, ready, running, done };
+    
 template <
     typename TaskProperties,
     typename SchedulingGraph
@@ -21,6 +23,12 @@ struct StateScheduler
     StateScheduler( TaskContainer< TaskProperties > & tasks, SchedulingGraph & graph )
         : SchedulerBase< TaskProperties, SchedulingGraph >( tasks, graph )
     {}
+
+    TaskState & task_state( TaskID id )
+    {
+        std::lock_guard<std::mutex> lock( states_mutex );
+        return states[ id ];
+    }
 
     void push( TaskID task )
     {
@@ -87,8 +95,6 @@ struct StateScheduler
     }
 
 private:
-    enum TaskState { uninitialized, pending, ready, running, done };
-
     std::mutex states_mutex;
     std::unordered_map< TaskID, TaskState > states;    
 };
