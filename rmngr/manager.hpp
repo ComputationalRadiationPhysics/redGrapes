@@ -111,6 +111,11 @@ public:
         thread_dispatcher.finish();
     }
 
+    auto & getScheduler()
+    {
+        return scheduler;
+    }
+
     template< typename NullaryCallable >
     auto emplace_task( NullaryCallable && impl, TaskProperties const & prop = TaskProperties{} )
     {
@@ -123,11 +128,13 @@ public:
     /**
      * Enqueue a Schedulable as child of the current task.
      */
-    void push( Task< TaskProperties > * task )
+    TaskID push( Task< TaskProperties > * task )
     {
         TaskID id = task_container.emplace( task );
         this->get_current_refinement().push( id );
         scheduler.push( id );
+
+        return id;
     }
 
     Refinement &
