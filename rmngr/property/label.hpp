@@ -28,7 +28,14 @@ struct LabelProperty
         }
     };
 
-    struct Patch {};
+    struct Patch
+    {
+        template <typename PatchBuilder>
+        struct Builder
+        {
+            Builder( PatchBuilder & ) {}
+        };
+    };
     void apply_patch( Patch const & ) {};
 };
 
