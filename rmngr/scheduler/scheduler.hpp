@@ -4,6 +4,7 @@
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/graph_traits.hpp>
 #include <akrzemi/optional.hpp>
+#include <rmngr/graph/util.hpp>
 
 #include <vector>
 
@@ -25,6 +26,11 @@ struct SchedulerBase
         , graph(graph)
     {}
 
+    void notify()
+    {
+        this->graph.notify();
+    }
+
     bool is_task_ready( TaskID task )
     {
         auto r = graph.precedence_graph.find_refinement_containing( task );
@@ -32,7 +38,7 @@ struct SchedulerBase
         {
             auto l = r->lock();
             if( auto task_id = graph_find_vertex( task, r->graph() ) )
-                return boost::in_degree( *task_id, graph.precedence_graph.graph() ) == 0;
+                return boost::in_degree( *task_id, r->graph() ) == 0;
         }
         return false;
     }
