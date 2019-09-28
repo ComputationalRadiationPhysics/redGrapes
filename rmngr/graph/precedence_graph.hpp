@@ -12,6 +12,7 @@
 #include <boost/graph/labeled_graph.hpp>
 #include <boost/graph/depth_first_search.hpp>
 #include <boost/graph/copy.hpp>
+#include <boost/graph/reverse_graph.hpp>
 
 #include <rmngr/graph/refined_graph.hpp>
 #include <iostream>
@@ -153,20 +154,22 @@ class QueuedPrecedenceGraph :
             using VertexID = typename boost::graph_traits<Graph>::vertex_descriptor;
             struct Visitor : boost::default_dfs_visitor
             {
+                Graph const & g;
                 std::unordered_set<ID>& discovered;
 
-                Visitor(std::unordered_set<ID>& d)
-                    : discovered(d)
+                Visitor(Graph const & g, std::unordered_set<ID>& d)
+                    : g(g)
+                    , discovered(d)
                 {}
 
-                void discover_vertex(VertexID v, Graph const& g)
+                void discover_vertex(VertexID v, boost::reverse_graph<Graph> const&)
                 {
                     this->discovered.insert(graph_get(v, g));
                 }
             };
 
             std::unordered_set<ID> indirect_dependencies;
-            Visitor vis(indirect_dependencies);
+            Visitor vis(this->graph(), indirect_dependencies);
 
             std::unordered_map<VertexID, boost::default_color_type> vertex2color;
             auto colormap = boost::make_assoc_property_map(vertex2color);
@@ -177,7 +180,7 @@ class QueuedPrecedenceGraph :
                 if( this->is_serial(b, a) && indirect_dependencies.count(b) == 0 )
                 {
                     this->add_edge(b, a);
-                    boost::depth_first_visit(this->graph(), i, vis, colormap);
+                    boost::depth_first_visit(boost::make_reverse_graph(this->graph()), i, vis, colormap);
                 }
             }
 
