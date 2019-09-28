@@ -42,7 +42,6 @@ public:
 
     void consume( std::function<bool(void)> const & pred )
     {
-        wakeup = false;
         if( !pred() )
         {
             if( !queue.empty() )
@@ -69,6 +68,7 @@ public:
 
                 std::unique_lock< std::mutex > lock( cv_mutex );
                 cv.wait(lock, [this]{ return wakeup; });
+                wakeup = false;
             }
         }
     }
