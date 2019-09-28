@@ -122,6 +122,16 @@ public:
         return finishing && (boost::num_vertices( m_graph ) == 0);
     }
 
+    EventID add_post_dependency( TaskID task_id )
+    {
+        std::lock_guard< std::mutex > lock( mutex );
+        EventID id = make_event( task_id );
+
+        boost::add_edge( id, after_events[ task_id ], m_graph );
+
+        return id;
+    }
+
     void add_task( TaskID task_id )
     {
         std::lock_guard< std::mutex > lock( mutex );
