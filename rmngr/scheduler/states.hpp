@@ -5,6 +5,7 @@
 #include <vector>
 #include <rmngr/task/task_container.hpp>
 #include <rmngr/scheduler/scheduler.hpp>
+#include <rmngr/thread/thread_dispatcher.hpp>
 
 namespace rmngr
 {
@@ -24,9 +25,18 @@ struct StateScheduler
         : SchedulerBase< TaskProperties, SchedulingGraph >( tasks, graph )
     {}
 
-    TaskState & task_state( TaskID id )
+    void set_task_state( TaskID id, TaskState state )
     {
-        std::lock_guard<std::mutex> lock( states_mutex );
+        std::lock_guard<std::mutex> lock(this->states_mutex);
+        states[ id ] = state;
+
+        this->uptodate.clear();
+        this->notify();
+    }
+
+    TaskState get_task_state( TaskID id )
+    {
+        std::lock_guard<std::mutex> lock(this->states_mutex);
         return states[ id ];
     }
 
@@ -36,33 +46,20 @@ struct StateScheduler
             task,
             [this, task]
             {
-                std::lock_guard<std::mutex> lock(this->states_mutex);
-                states[ task ] = TaskState::running;
+                this->set_task_state( task, TaskState::running );
             });
 
         this->tasks.task_hook_after(
             task,
             [this, task]
             {
-                std::lock_guard<std::mutex> lock(this->states_mutex);
-                states[ task ] = TaskState::done;
-
-                this->uptodate.clear();
+                this->set_task_state( task, TaskState::done );
             });
 
         this->graph.add_task( task );
-
-        {
-            std::lock_guard<std::mutex> lock(this->states_mutex);
-            states[task] = TaskState::pending;
-        }
-
-        this->uptodate.clear();
-
-        for( auto & t : this->graph.schedule )
-            t.notify();
+        this->set_task_state( task, TaskState::pending );
     }
-    
+
     /*
      * update task states and remove done tasks
      * @return ready tasks
