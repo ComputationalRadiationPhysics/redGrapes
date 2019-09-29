@@ -1,6 +1,9 @@
 
 #pragma once
 
+#include <mutex>
+#include <functional>
+
 namespace rmngr
 {
 
@@ -11,9 +14,15 @@ struct Task
         : properties( properties )
         , before_hook( []{} )
         , after_hook( []{} )
+        , done( false )
     {}
 
-    virtual ~Task() = default;
+    virtual ~Task()
+    {
+        std::unique_lock< std::mutex > lock( cv_mutex );
+        cv.wait( lock, [this]{ return done; } );
+    }
+
     virtual void run() = 0;
 
     void operator() ()
@@ -21,6 +30,10 @@ struct Task
         before_hook();
         run();
         after_hook();
+
+        std::lock_guard<std::mutex> lock( cv_mutex );
+        done = true;
+        cv.notify_all();
     }
 
     void hook_before( std::function<void(void)> const & hook )
@@ -32,6 +45,10 @@ struct Task
     {
         after_hook = [rest=std::move(after_hook), hook]{ rest(); hook(); };
     }
+
+    std::mutex cv_mutex;
+    std::condition_variable cv;
+    bool done;
 
     std::function<void(void)> before_hook, after_hook;
     TaskProperties properties;

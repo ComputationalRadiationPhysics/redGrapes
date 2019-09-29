@@ -20,6 +20,7 @@ struct ThreadSchedule
 {
 public:
     ThreadSchedule()
+        : wakeup(false)
     {}
 
     void set_request_hook( std::function<void()> const & r )
@@ -35,8 +36,10 @@ public:
 
     void notify()
     {
-        std::lock_guard< std::mutex > lock( cv_mutex );
-        wakeup = true;
+        {
+            std::lock_guard< std::mutex > lock( cv_mutex );
+            wakeup = true;
+        }
         cv.notify_all();
     }
 

@@ -10,8 +10,8 @@
 namespace rmngr
 {
 
-enum TaskState { uninitialized, pending, ready, running, done };
-    
+enum TaskState { uninitialized = 0, pending, ready, running, done };
+
 template <
     typename TaskProperties,
     typename SchedulingGraph
@@ -27,11 +27,11 @@ struct StateScheduler
 
     void set_task_state( TaskID id, TaskState state )
     {
-        std::lock_guard<std::mutex> lock(this->states_mutex);
-        states[ id ] = state;
-
+        {
+            std::lock_guard<std::mutex> lock(this->states_mutex);
+            states[ id ] = state;
+        }
         this->uptodate.clear();
-        this->notify();
     }
 
     TaskState get_task_state( TaskID id )
@@ -40,7 +40,8 @@ struct StateScheduler
         return states[ id ];
     }
 
-    void push( TaskID task )
+    template <typename Refinement>
+    void push( TaskID task, Refinement & ref )
     {
         this->tasks.task_hook_before(
             task,
@@ -56,8 +57,10 @@ struct StateScheduler
                 this->set_task_state( task, TaskState::done );
             });
 
-        this->graph.add_task( task );
+        this->graph.add_task( task, ref );
+
         this->set_task_state( task, TaskState::pending );
+        this->notify();
     }
 
     /*
@@ -66,10 +69,8 @@ struct StateScheduler
      */
     std::vector<TaskID> update_graph()
     {
-        auto l = this->graph.precedence_graph.lock();
         std::lock_guard<std::mutex> lock(this->states_mutex);
-
-        for( auto task : this->collect_tasks( [this](TaskID task){ return this->states[ task ] == TaskState::done; }) )
+        for( auto task : this->collect_tasks( [this](TaskID task){ return states[task] == TaskState::done; }) )
         {
             if( this->graph.precedence_graph.finish( task ) )
             {
@@ -79,7 +80,7 @@ struct StateScheduler
         }
 
         std::vector< TaskID > ready;
-        for( auto task : this->collect_tasks( [this](TaskID task){ return this->states[ task ] == TaskState::pending; }) )
+        for( auto task : this->collect_tasks( [this](TaskID task){ return states[task] == TaskState::pending; }) )
         {
             if( this->is_task_ready( task ) )
             {

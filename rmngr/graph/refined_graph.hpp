@@ -32,7 +32,9 @@ class RefinedGraph
 
     public:
         RefinedGraph()
-        {}
+        {
+            uptodate.clear();
+        }
 
         RefinedGraph(RefinedGraph&& g)
             : refinements(g.refinements)
@@ -54,7 +56,7 @@ class RefinedGraph
     bool empty()
     {
         auto l = lock();
-        return boost::num_vertices( graph() ) == 0;
+        return boost::num_vertices( graph() ) == 0 && this->refinements.empty();
     }
 
         RefinedGraph * /* should be std::optional<std::reference_wrapper<RefinedGraph>> */
@@ -138,6 +140,7 @@ class RefinedGraph
 	Refinement *
         refinement(ID parent)
         {
+            auto l = lock();
             auto ref = this->find_refinement(parent);
 
             if (! ref)
@@ -157,38 +160,28 @@ class RefinedGraph
         virtual bool finish(ID a)
         {
             auto l = lock();
-            if (this->refinements.count(a) == 0)
+
+            if ( refinements.count(a) > 0 )
             {
-                //std::cerr << "refined-graph: " << a << " hos no childs"<<std::endl;
+                if( refinements[a]->empty() )
+                    refinements.erase( a );
+            }
+
+            if( refinements.count(a) == 0 )
+            {
                 if ( auto v = graph_find_vertex(a, this->graph()) )
                 {
                     boost::clear_vertex(*v, this->graph());
                     boost::remove_vertex(*v, this->graph());
                     mark_dirty();
 
-                    //std::cerr << "removed VERTEX for task " << a << std::endl;
-
                     return true;
                 }
                 else
-                {
                     for(auto & r : this->refinements)
-                    {
-                        if ( r.second->finish(a) )
-                        {
-                            if (boost::num_vertices(r.second->graph()) == 0)
-                            {
-                                this->refinements.erase(r.first);
-                                this->mark_dirty();
-                            }
-
+                        if( r.second->finish(a) )
                             return true;
-                        }
-                    }
-                }
             }
-            //else
-            //    std::cerr << "refined-graph: "<<a << " has children" << std::endl;
 
             return false;
         }
@@ -316,9 +309,12 @@ class RefinedGraph
             {
                 // choose a vertex which doesn't have a refinement
                 auto sub = refinements[a].get();
+                auto sub_lock = sub->lock();
                 while( ! sub->refinements.empty() )
                 {
                     sub = sub->refinements.begin()->second.get();
+                    sub_lock.unlock();
+                    sub_lock = sub->lock();
                 }
                 auto d = graph_get( *(boost::vertices(sub->graph()).first), sub->graph() );
 
