@@ -46,10 +46,12 @@ public:
     public:
         bool ready;
         TaskID task_id;
+        std::atomic_int n_waiting;
 
         Event()
             : state( false )
             , ready( false )
+            , n_waiting( 0 )
         {}
 
         auto lock()
@@ -72,7 +74,9 @@ public:
         void wait()
         {
             auto l = lock();
+            ++ n_waiting;
             cv.wait( l, [this]{ return state; } );
+            -- n_waiting;
         }
     };
 
@@ -132,43 +136,44 @@ public:
         return id;
     }
 
-    void add_task( TaskID task_id )
+    template <typename Refinement>
+    void add_task( TaskID task_id, Refinement & ref )
     {
-        std::lock_guard< std::mutex > lock( mutex );
-        EventID before_event = make_event( task_id );
-        EventID after_event = make_event( task_id );
+        EventID before_event, after_event;
 
-        before_events[ task_id ] = before_event;
-        after_events[ task_id ] = after_event;
-
-        auto ref = precedence_graph.find_refinement_containing( task_id );
-        if( ref )
         {
-            auto l = ref->lock();
-            if( auto task_vertex = graph_find_vertex( task_id, ref->graph() ) )
-            {
-                for(
-                    auto it = boost::in_edges( *task_vertex, ref->graph() );
-                    it.first != it.second;
-                    ++ it.first
+            auto l = ref.lock();
+            auto task_vertex = ref.push( task_id );
+
+            std::lock_guard< std::mutex > lock( mutex );
+            before_event = make_event( task_id );
+            after_event = make_event( task_id );
+
+            before_events[ task_id ] = before_event;
+            after_events[ task_id ] = after_event;
+
+            for(
+                auto it = boost::in_edges( task_vertex, ref.graph() );
+                it.first != it.second;
+                ++ it.first
                 )
+            {
+                auto preceding_task_id = graph_get( boost::source( *(it.first), ref.graph() ), ref.graph() );
+                if( after_events.count(preceding_task_id) )
+                    boost::add_edge( after_events[ preceding_task_id ], before_event, m_graph );
+            }
+
+            if( ref.parent )
+            {
+                if( after_events.count( *ref.parent ) )
+                    boost::add_edge( after_event, after_events[ *ref.parent ], m_graph );
+                else
                 {
-                    auto preceding_task_id = graph_get( boost::source( *(it.first), ref->graph() ), ref->graph() );
-                    if( after_events.count(preceding_task_id) )
-                        boost::add_edge( after_events[ preceding_task_id ], before_event, m_graph );
+                    std::cerr << "parent = " << *ref.parent << std::endl;
+                    throw std::runtime_error("parent post-event doesn't exist!");
                 }
             }
-
-            if( ref->parent )
-            {
-                if( after_events.count( *ref->parent ) )
-                    boost::add_edge( after_event, after_events[ *ref->parent ], m_graph );
-                else
-                    throw std::runtime_error("parent post-event doesn't exist!");
-            }
         }
-        else
-            throw std::runtime_error("task not found in precedence graph!");
 
         tasks.task_hook_before(
             task_id,
@@ -185,6 +190,7 @@ public:
                 if( finish_event( after_event ) )
                     notify();
             });
+
     }
 
     template <typename Refinement>
@@ -256,6 +262,7 @@ public:
             for( auto it = boost::out_edges( id, m_graph ); it.first != it.second; it.first++ )
                 out.push_back( boost::target( *it.first, m_graph ) );
 
+            while( events[id].n_waiting != 0 );
             remove_event( id );
 
             // propagate

@@ -24,7 +24,9 @@ struct SchedulerBase
     SchedulerBase( TaskContainer< TaskProperties > & tasks, SchedulingGraph & graph )
         : tasks(tasks)
         , graph(graph)
-    {}
+    {
+        uptodate.clear();
+    }
 
     void notify()
     {

@@ -50,11 +50,13 @@ class PrecedenceGraph : public RefinedGraph<Graph>
         using ID = typename Graph::vertex_property_type;
 
     public:
-        void add_vertex(ID a)
+        auto add_vertex(ID a)
         {
             auto l = this->lock();
-            boost::add_vertex(a, this->graph());
+            auto v = boost::add_vertex(a, this->graph());
             this->mark_dirty();
+
+            return v;
         }
 
         /// a precedes b
@@ -110,7 +112,8 @@ class QueuedPrecedenceGraph :
     public PrecedenceGraph<Graph>
 {
     private:
-        using ID = typename Graph::vertex_property_type;
+        using ID = typename Graph::vertex_property_type;    
+        using VertexID = typename boost::graph_traits<Graph>::vertex_descriptor;
         std::experimental::optional<EnqueuePolicy> policy;
 
         bool is_serial( ID a, ID b )
@@ -141,17 +144,18 @@ class QueuedPrecedenceGraph :
         auto parent = dynamic_cast<QueuedPrecedenceGraph<T_Graph, EnqueuePolicy>*>(p);
         if( parent )
             this->policy = parent->policy;
+        else
+            this->policy = std::experimental::nullopt;
     }
 
-        void push(ID a)
+        VertexID push(ID a)
         {
             auto l = this->lock();
             if( this->parent )
                 this->assert_superset( *this->parent, a );
 
-            this->add_vertex(a);
+            VertexID v = this->add_vertex(a);
 
-            using VertexID = typename boost::graph_traits<Graph>::vertex_descriptor;
             struct Visitor : boost::default_dfs_visitor
             {
                 Graph const & g;
@@ -185,6 +189,8 @@ class QueuedPrecedenceGraph :
             }
 
             this->queue.insert(this->queue.begin(), a);
+
+            return v;
         }
 
         auto update_vertex(ID a)

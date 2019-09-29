@@ -4,6 +4,8 @@
 #include <rmngr/task/task.hpp>
 #include <unordered_map>
 
+#include <rmngr/thread/thread_dispatcher.hpp>
+
 namespace rmngr
 {
 

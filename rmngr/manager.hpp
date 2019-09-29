@@ -131,8 +131,7 @@ public:
     TaskID push( Task< TaskProperties > * task )
     {
         TaskID id = task_container.emplace( task );
-        this->get_current_refinement().push( id );
-        scheduler.push( id );
+        scheduler.push( id, this->get_current_refinement() );
 
         return id;
     }
@@ -165,12 +164,17 @@ public:
         scheduling_graph.template update_vertex< Refinement >( id );
     }
 
-    auto backtrace()
+    std::experimental::optional<std::vector<TaskID>> backtrace()
     {
         if( std::experimental::optional< TaskID > task_id = scheduling_graph.get_current_task() )
             return precedence_graph.backtrace( *task_id );
         else
             return std::experimental::nullopt;
+    }
+
+    TaskProperties const & task_properties( TaskID id )
+    {
+        return task_container.task_properties( id );
     }
 
     template< typename ImplCallable, typename PropCallable >
