@@ -7,6 +7,7 @@
 
 #include <stdexcept>
 #include <cstdarg>
+#include <sstream>
 #include <rmngr/resource/resource_user.hpp>
 
 namespace rmngr
