@@ -1,3 +1,9 @@
+/* Copyright 2019 Michael Sippel, Sergei Bastrakov
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 
 /**
  * @file examples/game_of_life.cpp
@@ -119,8 +125,8 @@ main( int, char * [] )
                 for ( auto const & row : buf.data )
                 {
                     for ( Cell cell : row )
-                        std::cout << ( ( cell == ALIVE ) ? "\x1b[47m" : "\x1b[100m" ) << "  ";
-                    std::cout << "\x1b[0m" << std::endl;
+                        std::cout << ( ( cell == ALIVE ) ? "[47m" : "[100m" ) << "  ";
+                    std::cout << "[0m" << std::endl;
                 }
                 std::cout << std::endl;    
             },
@@ -156,5 +162,4 @@ main( int, char * [] )
     delete mgr;
 
     return 0;
-}
-
+} done
