@@ -1,3 +1,9 @@
+/* Copyright 2019 Michael Sippel
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
 
 /**
  * @file rmngr/dependency_manager.hpp
@@ -156,5 +162,4 @@ class StaticDependencyManager : public DependencyManager<Graph>
 template<typename Graph, typename Init, size_t N>
 bool StaticDependencyManager<Graph, Init, N>::init = false;
 
-} // namespace rmngr
-
+} // namespace rmngr done
