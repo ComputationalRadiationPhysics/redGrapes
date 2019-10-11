@@ -132,4 +132,4 @@ struct TaskProperties
     }
 };
 
-}; done
+};
