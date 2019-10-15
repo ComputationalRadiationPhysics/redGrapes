@@ -16,9 +16,48 @@
 #include <vector>
 #include <atomic>
 #include <iostream>
+#include <functional>
 
 namespace rmngr
 {
+
+class ResourceBase
+{
+protected:
+    static std::atomic_int & id_counter()
+    {
+        static std::atomic_int x;
+        return x;
+    }
+
+    static int getID()
+    {
+        return id_counter() ++;
+    }
+
+    static unsigned int get_scope_level()
+    {
+        return (scope_level_fn())();
+    }
+
+public:
+    unsigned int const id;
+    unsigned int const scope_level;
+
+    /**
+     * Create a new resource with an unused ID.
+     */
+    ResourceBase()
+        : id( getID() )
+        , scope_level( get_scope_level() )
+    {}
+
+    static std::function<unsigned int ()> & scope_level_fn()
+    {
+        static std::function<unsigned int()> f([]{ return 0; });
+        return f;
+    }
+};
 
 template <typename AccessPolicy>
 class Resource;
@@ -31,20 +70,28 @@ class ResourceAccess
   private:
     struct AccessBase
     {
-        AccessBase( boost::typeindex::type_index access_type_ )
+        AccessBase( boost::typeindex::type_index access_type_, ResourceBase resource )
             : access_type( access_type_ )
+            , resource( resource )
         {
         }
 
         virtual ~AccessBase() {};
         virtual bool operator==( AccessBase const & r ) const = 0;
-        virtual bool is_same_resource( AccessBase const & r ) const = 0;
+
+        bool
+        is_same_resource( ResourceAccess::AccessBase const & a ) const
+        {
+            return this->resource.id == a.resource.id;
+        }
+
         virtual bool is_serial( AccessBase const & r ) const = 0;
         virtual bool is_superset_of( AccessBase const & r ) const = 0;
         virtual AccessBase * clone( void ) const = 0;
         virtual std::ostream& write(std::ostream&) = 0;
 
         boost::typeindex::type_index access_type;
+        ResourceBase resource;
     }; // AccessBase
 
     std::unique_ptr<AccessBase> obj;
@@ -73,7 +120,9 @@ class ResourceAccess
     bool
     is_superset_of( ResourceAccess const & a ) const
     {
-        if ( this->obj->access_type == a.obj->access_type )
+        if ( this->obj->resource.scope_level < a.obj->resource.scope_level )
+            return true;
+        else if ( this->obj->access_type == a.obj->access_type )
             return this->obj->is_superset_of( *a.obj );
         else
             return false;
@@ -134,14 +183,6 @@ struct DefaultAccessPolicy
  * @}
  */
 
-    struct ResourceIDGenerator {
-        static std::atomic_int id_counter;
-        static int getID() {
-            return id_counter ++;
-        }
-    };
-    std::atomic_int ResourceIDGenerator::id_counter;
-    
 /**
  * @class Resource
  * @tparam AccessPolicy Defines the access-modes (e.g. read/write) that are possible
@@ -151,36 +192,28 @@ struct DefaultAccessPolicy
  * Copied objects represent the same resource.
  */
 template <typename AccessPolicy = DefaultAccessPolicy>
-class Resource
+class Resource : public ResourceBase
 {
-  protected:
+protected:
     struct Access : public ResourceAccess::AccessBase
     {
-        Access( Resource<AccessPolicy> resource_, AccessPolicy policy_ )
+        Access( ResourceBase resource_, AccessPolicy policy_ )
             : ResourceAccess::AccessBase(
-                  boost::typeindex::type_id<AccessPolicy>() ),
-              resource( resource_ ),
-              policy( policy_ )
-        {
-        }
+                  boost::typeindex::type_id<AccessPolicy>(),
+                  resource_
+              )
+            , policy( policy_ )
+        {}
 
         ~Access() {}
-
-        bool
-        is_same_resource( ResourceAccess::AccessBase const & a_ ) const
-        {
-            Access const & a = *static_cast<Access const *>(
-                &a_ ); // no dynamic cast needed, type checked in ResourceAccess
-            return ( this->resource.id == a.resource.id );
-        }
 
         bool
         is_serial( ResourceAccess::AccessBase const & a_ ) const
         {
             Access const & a = *static_cast<Access const *>(
                 &a_ ); // no dynamic cast needed, type checked in ResourceAccess
-            return ( this->is_same_resource( a ) ) &&
-                   ( AccessPolicy::is_serial( this->policy, a.policy ) );
+            return this->is_same_resource( a ) &&
+                   AccessPolicy::is_serial( this->policy, a.policy );
         }
 
         bool
@@ -188,7 +221,7 @@ class Resource
         {
             Access const & a = *static_cast<Access const *>(
                 &a_ ); // no dynamic cast needed, type checked in ResourceAccess
-            return ( this->is_same_resource( a ) ) &&
+            return this->is_same_resource( a ) &&
                    this->policy.is_superset_of( a.policy );
         }
 
@@ -209,25 +242,15 @@ class Resource
 
         std::ostream& write(std::ostream& out)
         {
-            out << "Resource(" << resource.id << ")::";
+            out << "Resource(" << this->resource.id << " [" << this->resource.scope_level << "])::";
 	    out << policy;
             return out;
         }
 
-        Resource<AccessPolicy> resource;
         AccessPolicy policy;
     }; // struct ThisResourceAccess
 
-    unsigned int const id;
-
   public:
-    /**
-     * Create a new resource with an unused ID.
-     */
-    Resource()
-        : id( ResourceIDGenerator::getID() )
-    {}
-
     /**
      * Create an ResourceAccess, which represents an concrete
      * access configuration associated with this resource.
@@ -242,4 +265,4 @@ class Resource
     }
 }; // class Resource
 
-} // namespace rmngr done
+} // namespace rmngr

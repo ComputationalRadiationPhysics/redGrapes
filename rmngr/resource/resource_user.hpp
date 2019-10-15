@@ -44,7 +44,7 @@ class ResourceUser
         {
             bool found = false;
             for ( ResourceAccess const & r : this->access_list )
-                if ( r.is_same_resource( ra ) && r.is_superset_of( ra ) )
+                if ( r.is_superset_of( ra ) )
                     found = true;
 
             if ( !found )
@@ -72,4 +72,4 @@ class ResourceUser
     }
 }; // class ResourceUser
 
-} // namespace rmngr done
+} // namespace rmngr

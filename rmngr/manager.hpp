@@ -178,6 +178,14 @@ public:
             return std::experimental::nullopt;
     }
 
+    unsigned int scope_level()
+    {
+        if( auto bt = backtrace() )
+            return bt->size();
+        else
+            return 0;
+    }
+
     TaskProperties const & task_properties( TaskID id )
     {
         return task_container.task_properties( id );
@@ -216,4 +224,4 @@ public:
     }
 };
 
-} // namespace rmngr done
+} // namespace rmngr
