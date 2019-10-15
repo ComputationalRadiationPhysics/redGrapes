@@ -15,6 +15,7 @@ set(EXAMPLE_NAMES
     4_refinements
     5_access_demotion
     6_dynamic_properties
+    7_resource_scope
     game_of_life
 )
 
