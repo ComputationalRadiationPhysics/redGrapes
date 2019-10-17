@@ -291,19 +291,21 @@ class RefinedGraph
         for( auto it = boost::vertices(graph()); it.first != it.second; ++it.first )
         {
             auto id = graph_get(*(it.first), graph());
-            if( refinements.count(id) )
+            if( refinements.count(id) && !refinements[id]->empty() )
             {
                 out << "subgraph cluster_" << id << " {" << std::endl
-                    << "node [style = filled]" << std::endl
+                    << "node [style = filled];" << std::endl
                     << "label = \"" << label(id) << "\";" << std::endl
-                    << "color = " << color(id) << std::endl;
+                    << "color = " << color(id) << ";" << std::endl;
 
                 refinements[id]->write_refinement_dot( out, label, color );
 
-                out << "}" << std::endl;
+                out << "root_" << id << "[style=invis];" << std::endl;
+
+                out << "};" << std::endl;
             }
             else
-                out << id << " [label = \"" << label(id) << "\", color = " << color(id) << "];" << std::endl;   
+                out << id << " [label = \"" << label(id) << "\", color = " << color(id) << "];" << std::endl;
         }
 
         for( auto it = boost::edges(graph()); it.first != it.second; ++it.first )
@@ -311,23 +313,12 @@ class RefinedGraph
             auto a = graph_get(boost::source( *(it.first), graph() ), graph() );
             auto b = graph_get(boost::target( *(it.first), graph() ), graph() );
 
-            if( refinements.count(a) )
+            if( refinements.count(a) && !refinements[a]->empty() )
             {
-                // choose a vertex which doesn't have a refinement
-                auto sub = refinements[a].get();
-                auto sub_lock = sub->lock();
-                while( ! sub->refinements.empty() )
-                {
-                    sub = sub->refinements.begin()->second.get();
-                    sub_lock.unlock();
-                    sub_lock = sub->lock();
-                }
-                auto d = graph_get( *(boost::vertices(sub->graph()).first), sub->graph() );
-
-                out << d << " -> " << b << " [ltail = cluster_" << a << "];" << std::endl;
+                out << "root_" << a << " -> " << b << " [ltail = cluster_" << a << "];" << std::endl;
             }
             else
-                out << a << " -> " << b << std::endl;
+                out << a << " -> " << b << ";" << std::endl;
         }
     }
 
