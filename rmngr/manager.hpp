@@ -137,6 +137,7 @@ public:
     TaskID push( Task< TaskProperties > * task )
     {
         TaskID id = task_container.emplace( task );
+        task_container.task_hook_before(id, [this]{ thread::scope_level = this->scope_level(); });
         scheduler.push( id, this->get_current_refinement() );
 
         return id;

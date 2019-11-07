@@ -18,6 +18,8 @@
 #include <iostream>
 #include <functional>
 
+#include <rmngr/thread/thread_dispatcher.hpp>
+
 namespace rmngr
 {
 
@@ -35,11 +37,6 @@ protected:
         return id_counter() ++;
     }
 
-    static unsigned int get_scope_level()
-    {
-        return (scope_level_fn())();
-    }
-
 public:
     unsigned int const id;
     unsigned int const scope_level;
@@ -49,14 +46,8 @@ public:
      */
     ResourceBase()
         : id( getID() )
-        , scope_level( get_scope_level() )
+        , scope_level( thread::scope_level )
     {}
-
-    static std::function<unsigned int ()> & scope_level_fn()
-    {
-        static std::function<unsigned int()> f([]{ return 0; });
-        return f;
-    }
 };
 
 template <typename AccessPolicy>
