@@ -50,7 +50,7 @@ graph_find_vertex(
     for (boost::tie(it, end) = boost::vertices(graph); it != end; ++it)
     {
         if (graph_get(*it, graph) == a)
-            return std::experimental::optional< decltype(*it) >( *it );
+            return std::experimental::optional< typename boost::graph_traits<Graph>::vertex_descriptor >( *it );
     }
 
     return std::experimental::nullopt;
