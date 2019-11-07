@@ -24,7 +24,7 @@ template <
     typename TaskProperties,
     typename T_Graph = boost::adjacency_list<
         boost::setS,
-        boost::vecS,
+        boost::listS,
         boost::bidirectionalS,
         typename TaskContainer< TaskProperties >::TaskID
     >
@@ -174,10 +174,7 @@ public:
                 if( after_events.count( *ref.parent ) )
                     boost::add_edge( after_event, after_events[ *ref.parent ], m_graph );
                 else
-                {
-                    std::cerr << "parent = " << *ref.parent << std::endl;
                     throw std::runtime_error("parent post-event doesn't exist!");
-                }
             }
         }
 
@@ -196,7 +193,6 @@ public:
                 if( finish_event( after_event ) )
                     notify();
             });
-
     }
 
     template <typename Refinement>
