@@ -21,14 +21,13 @@ int main()
         rmngr::ResourceEnqueuePolicy
     > mgr( 4 );
 
-    rmngr::ResourceBase::scope_level_fn() = [&mgr] { return mgr.scope_level(); };
-
     rmngr::IOResource a; // scope-level=0
     rmngr::IOResource b; // scope-level=0
 
     mgr.emplace_task(
         [&mgr]
         {
+            std::cout << "scope = " << rmngr::thread::scope_level << std::endl;
             rmngr::IOResource c; // scope-level=1
 
             mgr.emplace_task(

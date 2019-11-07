@@ -19,6 +19,7 @@ namespace rmngr
 namespace thread
 {
 static thread_local std::size_t id;
+static thread_local unsigned int scope_level;
 }
 
 /**
