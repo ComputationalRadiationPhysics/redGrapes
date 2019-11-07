@@ -77,7 +77,7 @@ public:
     using Refinement = QueuedPrecedenceGraph<
         boost::adjacency_list<
             boost::setS,
-            boost::vecS,
+            boost::listS,
             boost::bidirectionalS,
             TaskID
         >,
