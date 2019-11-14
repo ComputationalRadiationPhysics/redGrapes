@@ -220,6 +220,9 @@ public:
 
     std::experimental::optional<TaskID> get_current_task()
     {
+        if( thread::id >= schedule.size() )
+            return std::experimental::nullopt;
+
         if( std::experimental::optional<Job> job = schedule[ thread::id ].get_current_job() )
             return std::experimental::optional<TaskID>( job->task_id );
         else
