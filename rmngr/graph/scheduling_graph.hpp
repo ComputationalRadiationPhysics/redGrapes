@@ -142,6 +142,12 @@ public:
         return id;
     }
 
+    bool is_task_finished( TaskID task_id )
+    {
+        std::lock_guard< std::mutex > lock( mutex );
+        return after_events.count(task_id) == 0;
+    }
+
     template <typename Refinement>
     void add_task( TaskID task_id, Refinement & ref )
     {
