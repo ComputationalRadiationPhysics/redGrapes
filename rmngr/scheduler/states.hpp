@@ -78,7 +78,7 @@ struct StateScheduler
         std::lock_guard<std::mutex> lock(this->states_mutex);
         for( auto task : this->collect_tasks( [this](TaskID task){ return states[task] == TaskState::done; }) )
         {
-            if( this->graph.precedence_graph.finish( task ) )
+            if( this->graph.is_task_finished(task) && this->graph.precedence_graph.finish( task ) )
             {
                 states.erase( task );
                 this->tasks.erase( task );
