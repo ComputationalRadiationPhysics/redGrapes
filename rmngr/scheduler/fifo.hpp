@@ -61,4 +61,4 @@ private:
 
 };
 
-} // namespace rmngr done
+} // namespace rmngr

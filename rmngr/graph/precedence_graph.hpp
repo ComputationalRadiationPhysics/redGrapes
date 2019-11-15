@@ -223,4 +223,4 @@ class QueuedPrecedenceGraph :
         std::list<ID> queue;
 }; // class QueuedPrecedenceGraph
 
-} // namespace rmngr done
+} // namespace rmngr

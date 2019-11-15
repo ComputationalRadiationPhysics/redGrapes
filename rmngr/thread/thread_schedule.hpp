@@ -104,4 +104,4 @@ private:
     std::condition_variable cv;
 }; // class ThreadSchedule
 
-} // namespace rmngr done
+} // namespace rmngr

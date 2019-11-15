@@ -45,4 +45,4 @@ struct LabelProperty
     void apply_patch( Patch const & ) {};
 };
 
-} // namespace rmngr done
+} // namespace rmngr

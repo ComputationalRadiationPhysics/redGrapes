@@ -163,4 +163,4 @@ struct CombineAccess : std::pair<Acc1, Acc2>
 
 } // namespace access
 
-} // namespace rmngr done
+} // namespace rmngr

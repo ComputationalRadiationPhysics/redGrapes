@@ -39,4 +39,5 @@ int main(int, char*[])
     std::cout << "is_serial(user2,user3) = " << rmngr::ResourceUser::is_serial(user2,user3) << std::endl;
 
     return 0;
-} done
+}
+

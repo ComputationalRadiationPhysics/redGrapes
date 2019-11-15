@@ -83,4 +83,4 @@ struct FieldResource : Resource< access::FieldAccess<dimension_t> >
 #undef OP
 }; // struct FieldResource
 
-}; // namespace rmngr done
+}; // namespace rmngr

@@ -57,4 +57,4 @@ auto make_delayed_functor( NullaryCallable && f )
     return DelayedFunctor< NullaryCallable >(std::move(f));
 }
 
-} // namespace rmngr done
+} // namespace rmngr

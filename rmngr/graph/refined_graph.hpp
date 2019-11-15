@@ -334,4 +334,4 @@ class RefinedGraph
         Graph m_graph;
 }; // class RefinedGraph
 
-} // namespace rmngr done
+} // namespace rmngr

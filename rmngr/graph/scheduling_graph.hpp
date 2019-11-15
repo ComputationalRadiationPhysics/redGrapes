@@ -243,8 +243,13 @@ public:
         return event_id;
     }
 
+    std::function<void()> notify_hook;
+
     void notify()
     {
+        if( notify_hook )
+            notify_hook();
+
         for( auto & thread : schedule )
             thread.notify();
     }
@@ -295,4 +300,4 @@ public:
     }
 }; // class SchedulingGraph
     
-} // namespace rmngr done
+} // namespace rmngr

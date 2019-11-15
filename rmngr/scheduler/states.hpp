@@ -103,4 +103,4 @@ private:
     std::unordered_map< TaskID, TaskState > states;    
 };
 
-} // namespace rmngr done
+} // namespace rmngr
