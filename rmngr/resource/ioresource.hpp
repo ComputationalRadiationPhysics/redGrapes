@@ -31,4 +31,4 @@ struct IOResource : public Resource< access::IOAccess >
 #undef OP
 }; // struct IOResource
 
-} // namespace rmngr done
+} // namespace rmngr

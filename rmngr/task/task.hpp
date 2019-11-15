@@ -77,4 +77,4 @@ private:
     NullaryCallable impl;
 };
 
-} // namespace rmngr done
+} // namespace rmngr

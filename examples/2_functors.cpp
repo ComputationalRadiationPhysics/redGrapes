@@ -22,4 +22,5 @@ int main()
     std::cout << "fun(2) = " << fun(2).get() << std::endl;
 
     return 0;
-} done
+}
+

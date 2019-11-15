@@ -67,4 +67,4 @@ struct AreaAccess : std::array<int, 2>
 
 } // namespace access
 
-} // namespace rmngr done
+} // namespace rmngr

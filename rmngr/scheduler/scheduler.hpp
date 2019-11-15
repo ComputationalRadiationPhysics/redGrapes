@@ -32,6 +32,7 @@ struct SchedulerBase
         , graph(graph)
     {
         uptodate.clear();
+        graph.notify_hook = [this]{ uptodate.clear(); };
     }
 
     void notify()
@@ -85,4 +86,4 @@ struct SchedulerBase
     }
 };
 
-} // namespace rmngr done
+} // namespace rmngr

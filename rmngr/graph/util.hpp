@@ -56,4 +56,4 @@ graph_find_vertex(
     return std::experimental::nullopt;
 }
 
-} // namespace rmngr done
+} // namespace rmngr

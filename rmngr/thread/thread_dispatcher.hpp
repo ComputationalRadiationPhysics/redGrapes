@@ -80,4 +80,4 @@ private:
     std::vector< Thread > threads;
 }; // class ThreadDispatcher
 
-} // namespace rmngr done
+} // namespace rmngr

@@ -162,4 +162,5 @@ main( int, char * [] )
     delete mgr;
 
     return 0;
-} done
+}
+

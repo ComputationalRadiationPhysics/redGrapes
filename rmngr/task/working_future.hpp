@@ -58,4 +58,4 @@ WorkingFuture<T, Worker> make_working_future(std::future<T>&& future, Worker & w
     return WorkingFuture<T, Worker>( std::move(future), work );
 }
 
-} // namespace rmngr done
+} // namespace rmngr

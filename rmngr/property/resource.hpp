@@ -134,4 +134,4 @@ struct ResourceEnqueuePolicy
     }
 };
 
-} // namespace rmngr done
+} // namespace rmngr

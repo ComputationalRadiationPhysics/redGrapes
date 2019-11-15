@@ -162,4 +162,4 @@ class StaticDependencyManager : public DependencyManager<Graph>
 template<typename Graph, typename Init, size_t N>
 bool StaticDependencyManager<Graph, Init, N>::init = false;
 
-} // namespace rmngr done
+} // namespace rmngr
