@@ -34,6 +34,11 @@ public:
         request_hook = r;
     }
 
+    void set_wait_hook( std::function<void()> const & r )
+    {
+        wait_hook = r;
+    }
+
     void push( Job const & job )
     {
         queue.push( job );
@@ -75,8 +80,15 @@ public:
                 if( request_hook )
                     request_hook();
 
-                std::unique_lock< std::mutex > lock( cv_mutex );
-                cv.wait(lock, [this]{ return wakeup; });
+                if( wait_hook )
+                    while( ! wakeup )
+                        wait_hook();
+                else
+                {
+                    std::unique_lock< std::mutex > lock( cv_mutex );
+                    cv.wait(lock, [this]{ return wakeup; });
+                }
+
                 wakeup = false;
             }
         }
@@ -95,6 +107,7 @@ public:
 private:
     bool wakeup;
     std::function<void()> request_hook;
+    std::function<void()> wait_hook;
     std::queue< Job > queue;
 
     std::mutex stack_mutex;
