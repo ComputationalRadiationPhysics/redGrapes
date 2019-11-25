@@ -9,35 +9,35 @@
 #include <chrono>
 #include <iostream>
 
-#include <rmngr/property/resource.hpp>
-#include <rmngr/property/inherit.hpp>
-#include <rmngr/manager.hpp>
+#include <redGrapes/property/resource.hpp>
+#include <redGrapes/property/inherit.hpp>
+#include <redGrapes/manager.hpp>
 
-using Properties = rmngr::TaskProperties<
-    rmngr::ResourceProperty
+using Properties = redGrapes::TaskProperties<
+    redGrapes::ResourceProperty
 >;
 
 int main( int, char*[] )
 {
-    rmngr::Manager<
+    redGrapes::Manager<
         Properties,
-        rmngr::ResourceEnqueuePolicy
+        redGrapes::ResourceEnqueuePolicy
     > mgr( 4 );
 
     auto fun1 = mgr.make_functor(
         [&mgr]
         {
-            std::cout << "f1 on thread " << rmngr::thread::id << "..." << std::endl;
+            std::cout << "f1 on thread " << redGrapes::thread::id << "..." << std::endl;
 
             mgr.emplace_task(
                 []{
-                    std::cout << "Refinement 1 on thread " << rmngr::thread::id << std::endl;
+                    std::cout << "Refinement 1 on thread " << redGrapes::thread::id << std::endl;
                     std::this_thread::sleep_for( std::chrono::seconds(1) );
                 });
 
             mgr.emplace_task(
                 []{
-                    std::cout << "Refinement 2 on thread " << rmngr::thread::id << std::endl;
+                    std::cout << "Refinement 2 on thread " << redGrapes::thread::id << std::endl;
                     std::this_thread::sleep_for( std::chrono::seconds(1) );
                 });
         }

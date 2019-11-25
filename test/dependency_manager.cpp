@@ -2,11 +2,11 @@
 #include <catch/catch.hpp>
 
 #include <boost/graph/adjacency_matrix.hpp>
-#include <rmngr/access/dependency_manager.hpp>
+#include <redGrapes/access/dependency_manager.hpp>
 
 TEST_CASE("dependency_manager")
 {
-    rmngr::DependencyManager< boost::adjacency_matrix<boost::undirectedS> > m(5);
+    redGrapes::DependencyManager< boost::adjacency_matrix<boost::undirectedS> > m(5);
 
     enum { root, read, write, aadd, amul };
     boost::add_edge(root, read, m.graph());

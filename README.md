@@ -27,13 +27,13 @@ The resulting task-graph can then be easily scheduled across parallel threads.
 See [examples](examples) for examples covering more features.
 
 ```c++
-#include <red_grapes/manager.hpp>
-#include <red_grapes/resource/ioresource.hpp>
-#include <red_grapes/property/inherit.hpp>
-#include <red_grapes/property/resource.hpp>
-#include <red_grapes/property/label.hpp>
+#include <redGrapes/manager.hpp>
+#include <redGrapes/resource/ioresource.hpp>
+#include <redGrapes/property/inherit.hpp>
+#include <redGrapes/property/resource.hpp>
+#include <redGrapes/property/label.hpp>
 
-namespace rg = red_grapes;
+namespace rg = redGrapes;
 
 using TaskProperties =
     rg::TaskProperties<

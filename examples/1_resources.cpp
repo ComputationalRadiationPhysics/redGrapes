@@ -5,17 +5,17 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-#include <rmngr/resource/ioresource.hpp>
-#include <rmngr/resource/fieldresource.hpp>
-#include <rmngr/resource/resource_user.hpp>
+#include <redGrapes/resource/ioresource.hpp>
+#include <redGrapes/resource/fieldresource.hpp>
+#include <redGrapes/resource/resource_user.hpp>
 
 int main(int, char*[])
 {
-    rmngr::FieldResource<2> a;
-    rmngr::IOResource b;
-    rmngr::IOResource c;
+    redGrapes::FieldResource<2> a;
+    redGrapes::IOResource b;
+    redGrapes::IOResource c;
 
-    rmngr::ResourceUser user1({
+    redGrapes::ResourceUser user1({
         a.read(), // complete resource
         a.write({{
             {0, 20}, // area of 1st dimension
@@ -24,19 +24,19 @@ int main(int, char*[])
         b.write()
     });
 
-    rmngr::ResourceUser user2({
+    redGrapes::ResourceUser user2({
         b.read()
     });
 
-    rmngr::ResourceUser user3({
+    redGrapes::ResourceUser user3({
         b.read(),
         c.write()
     });
 
-    std::cout << "is_serial(user1,user1) = " << rmngr::ResourceUser::is_serial(user1,user1) << std::endl;
-    std::cout << "is_serial(user1,user2) = " << rmngr::ResourceUser::is_serial(user1,user2) << std::endl;
-    std::cout << "is_serial(user1,user3) = " << rmngr::ResourceUser::is_serial(user1,user3) << std::endl;
-    std::cout << "is_serial(user2,user3) = " << rmngr::ResourceUser::is_serial(user2,user3) << std::endl;
+    std::cout << "is_serial(user1,user1) = " << redGrapes::ResourceUser::is_serial(user1,user1) << std::endl;
+    std::cout << "is_serial(user1,user2) = " << redGrapes::ResourceUser::is_serial(user1,user2) << std::endl;
+    std::cout << "is_serial(user1,user3) = " << redGrapes::ResourceUser::is_serial(user1,user3) << std::endl;
+    std::cout << "is_serial(user2,user3) = " << redGrapes::ResourceUser::is_serial(user2,user3) << std::endl;
 
     return 0;
 }

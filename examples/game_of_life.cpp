@@ -14,14 +14,14 @@
 #include <iostream>
 #include <random>
 #include <thread>
-#include <rmngr/resource/fieldresource.hpp>
-#include <rmngr/resource/ioresource.hpp>
-#include <rmngr/property/resource.hpp>
-#include <rmngr/property/inherit.hpp>
-#include <rmngr/manager.hpp>
+#include <redGrapes/resource/fieldresource.hpp>
+#include <redGrapes/resource/ioresource.hpp>
+#include <redGrapes/property/resource.hpp>
+#include <redGrapes/property/inherit.hpp>
+#include <redGrapes/manager.hpp>
 
-using Properties = rmngr::TaskProperties<
-    rmngr::ResourceProperty
+using Properties = redGrapes::TaskProperties<
+    redGrapes::ResourceProperty
 >;
 
 struct Vec2 { int x, y; };
@@ -29,7 +29,7 @@ static constexpr size_t size_x = 16;
 static constexpr size_t size_y = 16;
 
 enum Cell { DEAD, ALIVE };
-struct Buffer : rmngr::FieldResource<2>
+struct Buffer : redGrapes::FieldResource<2>
 {
     Cell (&data)[size_y+2][size_x+2];
 
@@ -70,9 +70,9 @@ main( int, char * [] )
     size_t n_threads = std::thread::hardware_concurrency();
     std::cout << "using " << n_threads << " threads." << std::endl;
 
-    auto mgr = new rmngr::Manager<
+    auto mgr = new redGrapes::Manager<
         Properties,
-        rmngr::ResourceEnqueuePolicy
+        redGrapes::ResourceEnqueuePolicy
     >( n_threads );
 
     Vec2 const chunk_size { 4, 4 };

@@ -7,7 +7,7 @@
 
 #include <iostream>
 
-#include <rmngr/manager.hpp>
+#include <redGrapes/manager.hpp>
 
 int fun1_impl (int x)
 {
@@ -16,7 +16,7 @@ int fun1_impl (int x)
 
 int main()
 {
-    rmngr::Manager<> mgr( 1 /* number of threads */ );
+    redGrapes::Manager<> mgr( 1 /* number of threads */ );
 
     auto fun = mgr.make_functor(&fun1_impl);
     std::cout << "fun(2) = " << fun(2).get() << std::endl;
