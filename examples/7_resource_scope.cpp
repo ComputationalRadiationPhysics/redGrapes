@@ -5,30 +5,30 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-#include <rmngr/resource/ioresource.hpp>
-#include <rmngr/property/resource.hpp>
-#include <rmngr/property/inherit.hpp>
-#include <rmngr/manager.hpp>
+#include <redGrapes/resource/ioresource.hpp>
+#include <redGrapes/property/resource.hpp>
+#include <redGrapes/property/inherit.hpp>
+#include <redGrapes/manager.hpp>
 
-using Properties = rmngr::TaskProperties<
-    rmngr::ResourceProperty
+using Properties = redGrapes::TaskProperties<
+    redGrapes::ResourceProperty
 >;
 
 int main()
 {
-    rmngr::Manager<
+    redGrapes::Manager<
         Properties,
-        rmngr::ResourceEnqueuePolicy
+        redGrapes::ResourceEnqueuePolicy
     > mgr( 4 );
 
-    rmngr::IOResource a; // scope-level=0
-    rmngr::IOResource b; // scope-level=0
+    redGrapes::IOResource a; // scope-level=0
+    redGrapes::IOResource b; // scope-level=0
 
     mgr.emplace_task(
         [&mgr]
         {
-            std::cout << "scope = " << rmngr::thread::scope_level << std::endl;
-            rmngr::IOResource c; // scope-level=1
+            std::cout << "scope = " << redGrapes::thread::scope_level << std::endl;
+            redGrapes::IOResource c; // scope-level=1
 
             mgr.emplace_task(
                 []{},

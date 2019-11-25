@@ -1,12 +1,12 @@
 
 #include <catch/catch.hpp>
 
-#include <rmngr/access/io.hpp>
-#include <rmngr/access/area.hpp>
-#include <rmngr/access/combine.hpp>
-#include <rmngr/access/field.hpp>
+#include <redGrapes/access/io.hpp>
+#include <redGrapes/access/area.hpp>
+#include <redGrapes/access/combine.hpp>
+#include <redGrapes/access/field.hpp>
 
-using namespace rmngr::access;
+using namespace redGrapes::access;
 
 TEST_CASE("IOAccess")
 {

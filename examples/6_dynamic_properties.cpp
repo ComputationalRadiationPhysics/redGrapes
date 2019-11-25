@@ -9,24 +9,24 @@
 #include <thread>
 #include <chrono>
 
-#include <rmngr/resource/fieldresource.hpp>
-#include <rmngr/resource/ioresource.hpp>
-#include <rmngr/property/resource.hpp>
-#include <rmngr/property/inherit.hpp>
-#include <rmngr/manager.hpp>
+#include <redGrapes/resource/fieldresource.hpp>
+#include <redGrapes/resource/ioresource.hpp>
+#include <redGrapes/property/resource.hpp>
+#include <redGrapes/property/inherit.hpp>
+#include <redGrapes/manager.hpp>
 
-using Properties = rmngr::TaskProperties<
-    rmngr::ResourceProperty
+using Properties = redGrapes::TaskProperties<
+    redGrapes::ResourceProperty
 >;
 
 int main( int, char*[] )
 {
-    rmngr::Manager<
+    redGrapes::Manager<
         Properties,
-        rmngr::ResourceEnqueuePolicy
+        redGrapes::ResourceEnqueuePolicy
     > mgr( 4 );
 
-    rmngr::FieldResource<1> field;
+    redGrapes::FieldResource<1> field;
 
     auto fun1 = mgr.make_functor(
         []( int x )

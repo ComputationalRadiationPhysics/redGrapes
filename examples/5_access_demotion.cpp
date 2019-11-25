@@ -9,23 +9,23 @@
 #include <chrono>
 
 #include <iostream>
-#include <rmngr/resource/ioresource.hpp>
-#include <rmngr/property/resource.hpp>
-#include <rmngr/property/inherit.hpp>
-#include <rmngr/manager.hpp>
+#include <redGrapes/resource/ioresource.hpp>
+#include <redGrapes/property/resource.hpp>
+#include <redGrapes/property/inherit.hpp>
+#include <redGrapes/manager.hpp>
 
-using Properties = rmngr::TaskProperties<
-    rmngr::ResourceProperty
+using Properties = redGrapes::TaskProperties<
+    redGrapes::ResourceProperty
 >;
 
 int main( int, char*[] )
 {
-    rmngr::Manager<
+    redGrapes::Manager<
         Properties,
-        rmngr::ResourceEnqueuePolicy
+        redGrapes::ResourceEnqueuePolicy
     > mgr( 4 );
 
-    rmngr::IOResource a;
+    redGrapes::IOResource a;
 
     mgr.emplace_task(
         [&mgr, a]

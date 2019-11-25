@@ -5,7 +5,7 @@
 #include <deque>
 #include <functional>
 #include <atomic>
-#include <rmngr/thread_dispatcher.hpp>
+#include <redGrapes/thread_dispatcher.hpp>
 
 #include <iostream>
 
@@ -52,7 +52,7 @@ TEST_CASE("ThreadDispatcher")
         for( int n_jobs = 0; n_jobs < 50; ++n_jobs )
 	{
    	    TestSelector selector( n_jobs );
-	    rmngr::ThreadDispatcher<TestSelector> dispatcher( selector, n_threads );
+	    redGrapes::ThreadDispatcher<TestSelector> dispatcher( selector, n_threads );
 	}
     }
 }
