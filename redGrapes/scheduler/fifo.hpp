@@ -15,28 +15,27 @@ namespace redGrapes
 {
 
 template <
-    typename SchedulingGraph,
+    typename TaskID,
+    typename TaskPtr,
     typename PrecedenceGraph
 >
 struct FIFOScheduler
-    : StateScheduler< SchedulingGraph, PrecedenceGraph >
+    : StateScheduler< TaskID, TaskPtr, PrecedenceGraph >
 {
-    using TaskID = typename SchedulingGraph::TaskID;
-    using TaskPtr = typename SchedulingGraph::TaskPtr;
-    using Job = typename SchedulingGraph::Job;
+    using Job = typename SchedulingGraph<TaskID, TaskPtr>::Job;
 
-    std::mutex queue_mutex;
-    std::queue< Job > job_queue;
-
-    FIFOScheduler( std::unordered_map<TaskID, TaskPtr> & tasks, std::shared_mutex & m, SchedulingGraph & graph, std::shared_ptr<PrecedenceGraph> & pg )
-        : StateScheduler< SchedulingGraph, PrecedenceGraph >( tasks, m, graph, pg )
+    FIFOScheduler( std::unordered_map<TaskID, TaskPtr> & tasks, std::shared_mutex & m, std::shared_ptr<PrecedenceGraph> & pg, size_t n_threads )
+        : StateScheduler< TaskID, TaskPtr, PrecedenceGraph >( tasks, m, pg, n_threads )
     {
-        for( auto & t : this->graph.schedule )
+        for( auto & t : this->scheduling_graph.schedule )
             t.set_request_hook( [this,&t]{ get_job(t); } );
     }
 
 private:
-    void get_job( typename SchedulingGraph::ThreadSchedule & thread )
+    std::mutex queue_mutex;
+    std::queue< Job > job_queue;
+
+    void get_job( typename SchedulingGraph<TaskID, TaskPtr>::ThreadSchedule & thread )
     {
         std::unique_lock< std::mutex > lock( queue_mutex );
 

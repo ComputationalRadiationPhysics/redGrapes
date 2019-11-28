@@ -41,7 +41,7 @@ struct DefaultEnqueuePolicy
 template <
     typename TaskProperties = DefaultTaskProperties,
     typename EnqueuePolicy = DefaultEnqueuePolicy< TaskProperties >,
-    template <typename, typename> class Scheduler = FIFOScheduler
+    template <typename, typename, typename> class Scheduler = FIFOScheduler
 >
 class Manager
 {
@@ -95,36 +95,19 @@ private:
     std::unordered_map< TaskID, TaskPtr > tasks;
 
     std::shared_ptr<PrecedenceGraph> main_graph;
-    SchedulingGraph< TaskID, TaskPtr > scheduling_graph;
-    ThreadDispatcher< SchedulingGraph<TaskID, TaskPtr> > thread_dispatcher;
-    Scheduler< SchedulingGraph< TaskID, TaskPtr >, PrecedenceGraph > scheduler;
-
-    struct Worker
-    {
-        SchedulingGraph< TaskID, TaskPtr > & scheduling_graph;
-        void operator() ( std::function<bool()> const & pred )
-        {
-            auto l = thread::scope_level;
-            while( !pred() )
-                scheduling_graph.consume_job( pred );
-            thread::scope_level = l;
-        }
-    };
-
-    Worker worker;
+    Scheduler< TaskID, TaskPtr, PrecedenceGraph > scheduler;
+    ThreadDispatcher< Scheduler<TaskID, TaskPtr, PrecedenceGraph> > thread_dispatcher;
 
 public:
     Manager( int n_threads = std::thread::hardware_concurrency() )
         : main_graph( std::make_shared<PrecedenceGraph>() )
-        , scheduling_graph( n_threads )
-        , scheduler( tasks, tasks_mutex, scheduling_graph, main_graph )
-        , thread_dispatcher( scheduling_graph, n_threads )
-        , worker{ scheduling_graph }
+        , scheduler( tasks, tasks_mutex, main_graph, n_threads )
+        , thread_dispatcher( scheduler, n_threads )
     {}
 
     ~Manager()
     {
-        scheduling_graph.finish();
+        scheduler.finish();
         thread_dispatcher.finish();
     }
 
@@ -137,7 +120,7 @@ public:
     auto emplace_task( NullaryCallable && impl, TaskProperties const & prop = TaskProperties{} )
     {
         auto delayed = make_delayed_functor( std::move(impl) );
-        auto result = make_working_future( std::move(delayed.get_future()), worker );
+        auto result = make_working_future( std::move(delayed.get_future()), scheduler );
         this->push( Task(std::move(delayed), prop ) );
         return result;
     }
@@ -147,7 +130,7 @@ public:
      */
     void push( Task && task )
     {
-        task.parent_id = scheduling_graph.get_current_task();
+        task.parent_id = scheduler.get_current_task();
 
         unsigned int scope_level = thread::scope_level + 1;
         task.hook_before([scope_level]{ thread::scope_level = scope_level; });
@@ -163,7 +146,7 @@ public:
     std::shared_ptr<PrecedenceGraph>
     get_current_graph( void )
     {
-        if( auto task_id = scheduling_graph.get_current_task() )
+        if( auto task_id = scheduler.get_current_task() )
         {
             std::shared_lock<std::shared_mutex> lock( tasks_mutex );
             auto parent_graph = tasks[*task_id].graph;
@@ -178,11 +161,11 @@ public:
 
     void update_properties( typename TaskProperties::Patch const & patch )
     {
-        if( auto task_id = scheduling_graph.get_current_task() )
+        if( auto task_id = scheduler.get_current_task() )
         {            
             std::shared_lock<std::shared_mutex> lock( tasks_mutex );
             tasks[*task_id].get().apply_patch( patch );
-            scheduling_graph.update_vertex( tasks[*task_id] );
+            scheduler.update_vertex( tasks[*task_id] );
         }
         else
             throw std::runtime_error("update_properties: currently no task running");
@@ -192,7 +175,7 @@ public:
     {
         std::vector<TaskID> bt;
 
-        auto task_id = scheduling_graph.get_current_task();
+        auto task_id = scheduler.get_current_task();
         while( task_id )
         {
             bt.push_back( *task_id );
