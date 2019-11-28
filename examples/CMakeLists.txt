@@ -1,10 +1,10 @@
 
 cmake_minimum_required(VERSION 3.10.0)
 
-project(rmngrExamples)
+project(redGrapesExamples)
 
-find_package(rmngr REQUIRED CONFIG PATHS "${CMAKE_CURRENT_LIST_DIR}/..")
-include_directories(SYSTEM ${rmngr_INCLUDE_DIRS})
+find_package(redGrapes REQUIRED CONFIG PATHS "${CMAKE_CURRENT_LIST_DIR}/..")
+include_directories(SYSTEM ${redGrapes_INCLUDE_DIRS})
 
 find_package(Threads REQUIRED)
 
@@ -21,7 +21,7 @@ set(EXAMPLE_NAMES
 
 foreach(examplename ${EXAMPLE_NAMES})
     add_executable(${examplename} ${examplename}.cpp)
-    target_link_libraries(${examplename} PRIVATE rmngr)
+    target_link_libraries(${examplename} PRIVATE redGrapes)
     target_link_libraries(${examplename} PRIVATE Threads::Threads)
 endforeach()
 

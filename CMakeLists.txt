@@ -1,22 +1,22 @@
 
 cmake_minimum_required(VERSION 3.10.0)
 
-project(rmngr)
+project(redGrapes)
 
 find_package(Boost 1.62.0 REQUIRED COMPONENTS graph)
 
-add_library(rmngr INTERFACE)
-target_compile_features(rmngr INTERFACE
+add_library(redGrapes INTERFACE)
+target_compile_features(redGrapes INTERFACE
     cxx_std_14
 )
-target_include_directories(rmngr INTERFACE
-    $<BUILD_INTERFACE:${rmngr_SOURCE_DIR}>
-    $<INSTALL_INTERFACE:${rmngr_INSTALL_PREFIX}>
+target_include_directories(redGrapes INTERFACE
+    $<BUILD_INTERFACE:${redGrapes_SOURCE_DIR}>
+    $<INSTALL_INTERFACE:${redGrapes_INSTALL_PREFIX}>
 )
 
-option(rmngr_BUILD_EXAMPLES "Build the examples" ON)
+option(redGrapes_BUILD_EXAMPLES "Build the examples" ON)
 
-if(rmngr_BUILD_EXAMPLES)
+if(redGrapes_BUILD_EXAMPLES)
     add_subdirectory("examples/")
 endif()
 
