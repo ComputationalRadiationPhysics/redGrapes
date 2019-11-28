@@ -9,7 +9,7 @@
 #pragma once
 
 #include <vector>
-#include <redGrapes/task/task_container.hpp>
+#include <redGrapes/task/task.hpp>
 #include <redGrapes/scheduler/scheduler.hpp>
 #include <redGrapes/thread/thread_dispatcher.hpp>
 
@@ -19,16 +19,26 @@ namespace redGrapes
 enum TaskState { uninitialized = 0, pending, ready, running, done };
 
 template <
-    typename TaskProperties,
-    typename SchedulingGraph
+    typename SchedulingGraph,
+    typename PrecedenceGraph
 >
 struct StateScheduler
-    : SchedulerBase< TaskProperties, SchedulingGraph >
+    : SchedulerBase< SchedulingGraph >
 {
-    using TaskID = typename TaskContainer<TaskProperties>::TaskID;
+    using TaskID = typename SchedulingGraph::TaskID;
+    using TaskPtr = typename SchedulingGraph::TaskPtr;
+    using Job = typename SchedulingGraph::Job;
 
-    StateScheduler( TaskContainer< TaskProperties > & tasks, SchedulingGraph & graph )
-        : SchedulerBase< TaskProperties, SchedulingGraph >( tasks, graph )
+    std::shared_ptr<PrecedenceGraph> precedence_graph;
+
+    std::unordered_map<TaskID, TaskPtr> & tasks;
+    std::shared_mutex & tasks_mutex;
+
+    StateScheduler( std::unordered_map<TaskID, TaskPtr> & tasks, std::shared_mutex & m, SchedulingGraph & graph, std::shared_ptr<PrecedenceGraph> & pg )
+        : SchedulerBase< SchedulingGraph >( graph )
+        , precedence_graph(pg)
+        , tasks( tasks )
+        , tasks_mutex( m )
     {}
 
     void set_task_state( TaskID id, TaskState state )
@@ -46,54 +56,74 @@ struct StateScheduler
         return states[ id ];
     }
 
-    template <typename Refinement>
-    void push( TaskID task, Refinement & ref )
+    template <typename Task, typename Graph>
+    auto add_task( Task && task, Graph & g )
     {
-        this->tasks.task_hook_before(
-            task,
-            [this, task]
-            {
-                this->set_task_state( task, TaskState::running );
-            });
+        auto task_id = task.task_id;
+        task.hook_before([this, task_id]{ this->set_task_state( task_id, TaskState::running ); });
+        task.hook_after([this, task_id]{ this->set_task_state( task_id, TaskState::done ); });
+        auto v = this->graph.add_task( std::move(task), g );
 
-        this->tasks.task_hook_after(
-            task,
-            [this, task]
-            {
-                this->set_task_state( task, TaskState::done );
-            });
-
-        this->graph.add_task( task, ref );
-
-        this->set_task_state( task, TaskState::pending );
+        this->set_task_state( task_id, TaskState::pending );
         this->notify();
+
+        return v;
     }
 
     /*
      * update task states and remove done tasks
      * @return ready tasks
      */
-    std::vector<TaskID> update_graph()
+    std::vector<Job> update_graph()
     {
         std::lock_guard<std::mutex> lock(this->states_mutex);
-        for( auto task : this->collect_tasks( [this](TaskID task){ return states[task] == TaskState::done; }) )
+
+        std::vector<TaskID> sel;
+
+        this->precedence_graph->template collect_vertices<TaskID>(
+            sel,
+            [this](auto const & task) -> std::experimental::optional<TaskID> {
+                if( states[task.task_id] == TaskState::done )
+                    return task.task_id;
+                else
+                    return std::experimental::nullopt;
+            });
+
+        for( TaskID task_id : sel )
         {
-            if( this->graph.is_task_finished(task) && this->graph.precedence_graph.finish( task ) )
+            if( this->graph.is_task_finished( task_id ) )
             {
-                states.erase( task );
-                this->tasks.erase( task );
+                TaskPtr p;
+                {
+                    std::shared_lock<std::shared_mutex> lock( tasks_mutex );
+                    p = this->tasks[task_id];
+                }
+                p.graph->finish( p.vertex );
+                states.erase( task_id );
+
+                {
+                    std::unique_lock<std::shared_mutex> lock( tasks_mutex );
+                    this->tasks.erase( task_id );
+                }
             }
         }
 
-        std::vector< TaskID > ready;
-        for( auto task : this->collect_tasks( [this](TaskID task){ return states[task] == TaskState::pending; }) )
-        {
-            if( this->is_task_ready( task ) )
-            {
-                states[task] = TaskState::ready;
-                ready.push_back( task );
-            }
-        }
+        std::vector< Job > ready;
+        this->precedence_graph->template collect_vertices<Job>(
+            ready,
+            [this](auto const & task) -> std::experimental::optional< Job > {
+                if( states[task.task_id] == TaskState::pending )
+                {
+                    std::shared_lock<std::shared_mutex> lock( tasks_mutex );
+                    if( this->tasks.count(task.task_id) )
+                        if( this->is_task_ready(this->tasks[task.task_id]) )
+                            return Job{ task.impl, task.task_id };
+                }
+                return std::experimental::nullopt;
+            });
+
+        for( auto job : ready )
+            states[job.task_id] = TaskState::ready;
 
         return ready;
     }

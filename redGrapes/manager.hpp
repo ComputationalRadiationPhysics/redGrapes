@@ -7,6 +7,8 @@
 
 #pragma once
 
+#include <shared_mutex>
+#include <unordered_map>
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/graph_traits.hpp>
 
@@ -15,7 +17,6 @@
 #include <redGrapes/task/delayed_functor.hpp>
 #include <redGrapes/task/working_future.hpp>
 #include <redGrapes/task/task.hpp>
-#include <redGrapes/task/task_container.hpp>
 #include <redGrapes/graph/refined_graph.hpp>
 #include <redGrapes/graph/precedence_graph.hpp>
 #include <redGrapes/graph/util.hpp>
@@ -37,66 +38,76 @@ struct DefaultEnqueuePolicy
     static void assert_superset(T const & super, T const & sub) {}
 };
 
-template< typename TaskProperties >
-struct DefaultScheduler
-{
-    template < typename SchedulingGraph >
-    using type = FIFOScheduler< TaskProperties, SchedulingGraph >;
-};
-
 template <
     typename TaskProperties = DefaultTaskProperties,
     typename EnqueuePolicy = DefaultEnqueuePolicy< TaskProperties >,
-    template <typename> class Scheduler = DefaultScheduler< TaskProperties >::template type
+    template <typename, typename> class Scheduler = FIFOScheduler
 >
 class Manager
 {
-public:
-    using TaskID = typename TaskContainer< TaskProperties >::TaskID;
-    struct TaskEnqueuePolicy
+private:
+    using TaskID = unsigned int;
+    static TaskID gen_task_id()
     {
-        TaskContainer< TaskProperties > * task_container;
+        static TaskID id =123;
+        return id++;
+    }
 
-        bool is_serial(TaskID a, TaskID b)
+    struct Task : TaskProperties
+    {
+        std::shared_ptr< TaskImplBase > impl;
+        TaskID task_id;
+        std::experimental::optional<TaskID> parent_id;
+
+        template <typename F>
+        Task( F && f, TaskProperties prop )
+            : TaskProperties(prop)
+            , impl( new FunctorTask<F>(std::move(f)) )
+            , task_id(gen_task_id())
+        {}
+
+        void hook_before( std::function<void()> hook )
         {
-            return EnqueuePolicy::is_serial(
-                       task_container->task_properties(a),
-                       task_container->task_properties(b)
-                   );
+            impl->before_hooks.push_back( hook );
         }
 
-        void assert_superset(TaskID super, TaskID sub)
+        void hook_after( std::function<void()> hook )
         {
-            EnqueuePolicy::assert_superset(
-                task_container->task_properties(super),
-                task_container->task_properties(sub)
-            );
+            impl->after_hooks.push_back( hook );
         }
     };
 
-    using Refinement = QueuedPrecedenceGraph<
-        boost::adjacency_list<
-            boost::setS,
-            boost::listS,
-            boost::bidirectionalS,
-            TaskID
-        >,
-        TaskEnqueuePolicy
-    >;
+    using PrecedenceGraph = QueuedPrecedenceGraph<Task, EnqueuePolicy>;
 
-    TaskContainer< TaskProperties > task_container;
-    Refinement precedence_graph;
-    SchedulingGraph< TaskProperties > scheduling_graph;
-    ThreadDispatcher< SchedulingGraph< TaskProperties > > thread_dispatcher;
-    Scheduler< SchedulingGraph< TaskProperties > > scheduler;
+    struct TaskPtr
+    {
+        std::shared_ptr< PrecedenceGraph > graph;
+        typename PrecedenceGraph::VertexID vertex;
+
+        Task & get() const
+        {
+            //auto l = graph->shared_lock();
+            return graph_get(vertex, graph->graph()).first;
+        }
+    };
+
+    std::shared_mutex tasks_mutex;
+    std::unordered_map< TaskID, TaskPtr > tasks;
+
+    std::shared_ptr<PrecedenceGraph> main_graph;
+    SchedulingGraph< TaskID, TaskPtr > scheduling_graph;
+    ThreadDispatcher< SchedulingGraph<TaskID, TaskPtr> > thread_dispatcher;
+    Scheduler< SchedulingGraph< TaskID, TaskPtr >, PrecedenceGraph > scheduler;
 
     struct Worker
     {
-        SchedulingGraph< TaskProperties > & scheduling_graph;
+        SchedulingGraph< TaskID, TaskPtr > & scheduling_graph;
         void operator() ( std::function<bool()> const & pred )
         {
+            auto l = thread::scope_level;
             while( !pred() )
                 scheduling_graph.consume_job( pred );
+            thread::scope_level = l;
         }
     };
 
@@ -104,9 +115,9 @@ public:
 
 public:
     Manager( int n_threads = std::thread::hardware_concurrency() )
-        : precedence_graph( TaskEnqueuePolicy{ &task_container } )
-        , scheduling_graph( task_container, precedence_graph, n_threads )
-        , scheduler( task_container, scheduling_graph )
+        : main_graph( std::make_shared<PrecedenceGraph>() )
+        , scheduling_graph( n_threads )
+        , scheduler( tasks, tasks_mutex, scheduling_graph, main_graph )
         , thread_dispatcher( scheduling_graph, n_threads )
         , worker{ scheduling_graph }
     {}
@@ -127,69 +138,70 @@ public:
     {
         auto delayed = make_delayed_functor( std::move(impl) );
         auto result = make_working_future( std::move(delayed.get_future()), worker );
-        this->push( new FunctorTask< TaskProperties, decltype(delayed) >( std::move(delayed), prop ) );
+        this->push( Task(std::move(delayed), prop ) );
         return result;
     }
 
     /**
      * Enqueue a Schedulable as child of the current task.
      */
-    TaskID push( Task< TaskProperties > * task )
+    void push( Task && task )
     {
-        TaskID id = task_container.emplace( task );
-        task_container.task_hook_before(id, [this]{ thread::scope_level = this->scope_level(); });
-        scheduler.push( id, this->get_current_refinement() );
+        task.parent_id = scheduling_graph.get_current_task();
 
-        return id;
+        unsigned int scope_level = thread::scope_level + 1;
+        task.hook_before([scope_level]{ thread::scope_level = scope_level; });
+
+        TaskPtr p;
+        p.graph = this->get_current_graph();
+        p.vertex = scheduler.add_task( std::move(task), *p.graph );
+
+        std::unique_lock<std::shared_mutex> lock( tasks_mutex );
+        tasks[ task.task_id ] = p;
     }
 
-    Refinement &
-    get_current_refinement( void )
+    std::shared_ptr<PrecedenceGraph>
+    get_current_graph( void )
     {
-        if( std::experimental::optional< TaskID > task_id = scheduling_graph.get_current_task() )
+        if( auto task_id = scheduling_graph.get_current_task() )
         {
-            auto r = this->precedence_graph.template refinement<Refinement>( *task_id );
-
-            if(r)
-                return *r;
+            std::shared_lock<std::shared_mutex> lock( tasks_mutex );
+            auto parent_graph = tasks[*task_id].graph;
+            auto parent_vertex = tasks[*task_id].vertex;
+            auto & g = graph_get(parent_vertex, parent_graph->graph()).second;
+            if( !g )
+                g = std::make_shared<PrecedenceGraph>( parent_graph, parent_vertex );
         }
 
-        return this->precedence_graph;
+        return this->main_graph;
     }
 
     void update_properties( typename TaskProperties::Patch const & patch )
     {
-        if( std::experimental::optional< TaskID > task_id = scheduling_graph.get_current_task() )
-            update_properties( *task_id, patch );
+        if( auto task_id = scheduling_graph.get_current_task() )
+        {            
+            std::shared_lock<std::shared_mutex> lock( tasks_mutex );
+            tasks[*task_id].get().apply_patch( patch );
+            scheduling_graph.update_vertex( tasks[*task_id] );
+        }
         else
             throw std::runtime_error("update_properties: currently no task running");
     }
 
-    void update_properties( TaskID id, typename TaskProperties::Patch const & patch )
+    std::vector<TaskID> backtrace()
     {
-        task_container.task_properties(id).apply_patch( patch );
-        scheduling_graph.template update_vertex< Refinement >( id );
-    }
+        std::vector<TaskID> bt;
 
-    std::experimental::optional<std::vector<TaskID>> backtrace()
-    {
-        if( std::experimental::optional< TaskID > task_id = scheduling_graph.get_current_task() )
-            return precedence_graph.backtrace( *task_id );
-        else
-            return std::experimental::nullopt;
-    }
+        auto task_id = scheduling_graph.get_current_task();
+        while( task_id )
+        {
+            bt.push_back( *task_id );
 
-    unsigned int scope_level()
-    {
-        if( auto bt = backtrace() )
-            return bt->size();
-        else
-            return 0;
-    }
+            std::shared_lock<std::shared_mutex> lock( tasks_mutex );
+            task_id = tasks[task_id].get().parent_id;
+        }
 
-    TaskProperties const & task_properties( TaskID id )
-    {
-        return task_container.task_properties( id );
+        return bt;
     }
 
     template< typename ImplCallable, typename PropCallable >

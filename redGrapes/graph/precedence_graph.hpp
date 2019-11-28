@@ -49,58 +49,35 @@ struct AllParallel
 /**
  * Base class
  */
-template <typename Graph>
-class PrecedenceGraph : public RefinedGraph<Graph>
+template <
+    typename T,
+    template <class> typename Graph = DefaultGraph
+>
+class PrecedenceGraph : public RecursiveGraph<T, Graph>
 {
-    private:
-        using ID = typename Graph::vertex_property_type;
-
     public:
-        auto add_vertex(ID a)
-        {
-            auto l = this->lock();
-            auto v = boost::add_vertex(a, this->graph());
-            this->mark_dirty();
-
-            return v;
-        }
-
-        /// a precedes b
-        void add_edge(ID a, ID b)
-        {
-            auto l = this->lock();
-            boost::add_edge(
-                *graph_find_vertex(a, this->graph()),
-                *graph_find_vertex(b, this->graph()),
-                this->graph()
-            );
-            this->mark_dirty();
-        }
+        using typename RecursiveGraph<T, Graph>::VertexID;
 
         /// remove edges which don't satisfy the precedence policy
-        std::vector<ID> remove_out_edges(ID id, std::function<bool(ID)> const & pred)
+        auto remove_out_edges(VertexID vertex, std::function<bool(T const&)> const & pred)
         {
-            auto l = this->lock();
-            auto v = *graph_find_vertex(id, this->graph());
+            std::vector<std::reference_wrapper<T>> selection;
+            std::vector<VertexID> vertices;
 
-            std::vector<ID> selection;
-            std::vector<typename boost::graph_traits<Graph>::vertex_descriptor> vertices;
-
-            for(auto it = boost::out_edges(v, this->graph()); it.first != it.second; ++it.first)
+            auto l = this->unique_lock();
+            for(auto it = boost::out_edges(vertex, this->graph()); it.first != it.second; ++it.first)
             {
                 auto other_vertex = boost::target(*(it.first), this->graph());
-                auto other_id = graph_get(other_vertex, this->graph());
-                if( pred( other_id ) )
+                auto & other = graph_get(other_vertex, this->graph()).first;
+                if( pred( other ) )
                 {
-                    selection.push_back( other_id );
                     vertices.push_back( other_vertex );
+                    selection.push_back( other );
                 }
             }
 
             for( auto other_vertex : vertices )
-                boost::remove_edge(v, other_vertex, this->graph());
-
-            this->mark_dirty();
+                boost::remove_edge(vertex, other_vertex, this->graph());
 
             return selection;
         }
@@ -111,116 +88,94 @@ class PrecedenceGraph : public RefinedGraph<Graph>
  * using an enqueue-policy
  */
 template<
-    typename Graph,
-    typename EnqueuePolicy
+    typename T,
+    typename EnqueuePolicy,
+    template <class> typename Graph = DefaultGraph
 >
-class QueuedPrecedenceGraph :
-    public PrecedenceGraph<Graph>
+class QueuedPrecedenceGraph
+    : public PrecedenceGraph<T, Graph>
 {
-    private:
-        using ID = typename Graph::vertex_property_type;    
-        using VertexID = typename boost::graph_traits<Graph>::vertex_descriptor;
-        std::experimental::optional<EnqueuePolicy> policy;
+    public:
+        using VertexID = typename PrecedenceGraph<T, Graph>::VertexID;
 
-        bool is_serial( ID a, ID b )
+        QueuedPrecedenceGraph()
+        {}
+
+        QueuedPrecedenceGraph( std::weak_ptr<RecursiveGraph<T, Graph>> parent_graph, VertexID parent_vertex )
         {
-            if( policy )
-                return policy->is_serial( a, b );
-            return true;
+            this->parent_graph = parent_graph;
+            this->parent_vertex = parent_vertex;
         }
 
-    void assert_superset( ID super, ID sub )
-    {
-        if( policy )
-            policy->assert_superset( super, sub );
-    }
-
-    public:
-        QueuedPrecedenceGraph()
-            : policy( std::experimental::nullopt )
-        {}
-
-        QueuedPrecedenceGraph( EnqueuePolicy const & policy )
-            : policy( policy )
-        {}
-
-    template < typename T_Graph >
-    QueuedPrecedenceGraph( RefinedGraph<T_Graph> * p )
-    {
-        auto parent = dynamic_cast<QueuedPrecedenceGraph<T_Graph, EnqueuePolicy>*>(p);
-        if( parent )
-            this->policy = parent->policy;
-        else
-            this->policy = std::experimental::nullopt;
-    }
-
-        VertexID push(ID a)
+        VertexID push(T && a)
         {
-            auto l = this->lock();
-            if( this->parent )
-                this->assert_superset( *this->parent, a );
+            if( auto graph = this->parent_graph.lock() )
+            {
+                auto parent_lock = graph->shared_lock();
+                EnqueuePolicy::assert_superset( graph_get(this->parent_vertex, graph->graph()).first, a );
+            }
 
-            VertexID v = this->add_vertex(a);
+            auto l = this->unique_lock();
+            VertexID v = boost::add_vertex( std::make_pair(a, std::shared_ptr<RecursiveGraph<T,Graph>>(nullptr)), this->graph() );
 
             struct Visitor : boost::default_dfs_visitor
             {
-                Graph const & g;
-                std::unordered_set<ID>& discovered;
+                using G = Graph<std::pair<T,std::shared_ptr<RecursiveGraph<T,Graph>>>>;
+                G const & g;
+                std::unordered_set<VertexID>& discovered;
 
-                Visitor(Graph const & g, std::unordered_set<ID>& d)
+                Visitor(G const & g, std::unordered_set<VertexID>& d)
                     : g(g)
                     , discovered(d)
                 {}
 
-                void discover_vertex(VertexID v, boost::reverse_graph<Graph> const&)
+                void discover_vertex(VertexID v, boost::reverse_graph<G> const&)
                 {
-                    this->discovered.insert(graph_get(v, g));
+                    this->discovered.insert(v);
                 }
             };
 
-            std::unordered_set<ID> indirect_dependencies;
+            std::unordered_set<VertexID> indirect_dependencies;
             Visitor vis(this->graph(), indirect_dependencies);
 
             std::unordered_map<VertexID, boost::default_color_type> vertex2color;
             auto colormap = boost::make_assoc_property_map(vertex2color);
 
-            VertexID i = *graph_find_vertex(a, this->graph());
             for(auto b : this->queue)
             {
-                if( this->is_serial(b, a) && indirect_dependencies.count(b) == 0 )
+                T const & prop = graph_get(b, this->graph()).first;
+                if( EnqueuePolicy::is_serial(prop, a) && indirect_dependencies.count(b) == 0 )
                 {
-                    this->add_edge(b, a);
-                    boost::depth_first_visit(boost::make_reverse_graph(this->graph()), i, vis, colormap);
+                    boost::add_edge(b, v, this->graph());
+                    boost::depth_first_visit(boost::make_reverse_graph(this->graph()), b, vis, colormap);
                 }
             }
 
-            this->queue.insert(this->queue.begin(), a);
+            this->queue.insert(this->queue.begin(), v);
 
             return v;
         }
 
-        auto update_vertex(ID a)
+        auto update_vertex(VertexID a)
         {
-            return this->remove_out_edges( a, [this,a](ID b){ return !this->is_serial(a, b); } );
+            return this->remove_out_edges(a, [this,a](T const & b){ return !EnqueuePolicy::is_serial(graph_get(a, this->graph()).first, b); } );
 	}
 
-        bool finish(ID a)
+        void finish(VertexID vertex)
         {
-            auto l = this->lock();
-            if( this->PrecedenceGraph<Graph>::finish(a) )
-            {
-                auto it = std::find(this->queue.begin(), this->queue.end(), a);
-                if (it != this->queue.end())
-                    this->queue.erase(it);
+            auto l = this->unique_lock();
+            boost::clear_vertex( vertex, this->graph() );
+            boost::remove_vertex( vertex, this->graph() );
 
-                return true;
-            }
+            auto it = std::find(this->queue.begin(), this->queue.end(), vertex);
+            if (it != this->queue.end())
+                this->queue.erase(it);
             else
-                return false;
+                throw std::runtime_error("Queuedprecedencegraph: removed element not in queue");
         }
 
-    private:
-        std::list<ID> queue;
+private:
+    std::list<VertexID> queue;
 }; // class QueuedPrecedenceGraph
 
 } // namespace redGrapes

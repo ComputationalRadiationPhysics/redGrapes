@@ -15,20 +15,21 @@ namespace redGrapes
 {
 
 template <
-    typename TaskProperties,
-    typename SchedulingGraph
+    typename SchedulingGraph,
+    typename PrecedenceGraph
 >
 struct FIFOScheduler
-    : StateScheduler< TaskProperties, SchedulingGraph >
+    : StateScheduler< SchedulingGraph, PrecedenceGraph >
 {
-    using TaskID = typename TaskContainer<TaskProperties>::TaskID;
+    using TaskID = typename SchedulingGraph::TaskID;
+    using TaskPtr = typename SchedulingGraph::TaskPtr;
     using Job = typename SchedulingGraph::Job;
 
     std::mutex queue_mutex;
     std::queue< Job > job_queue;
 
-    FIFOScheduler( TaskContainer< TaskProperties > & tasks, SchedulingGraph & graph )
-        : StateScheduler< TaskProperties, SchedulingGraph >( tasks, graph )
+    FIFOScheduler( std::unordered_map<TaskID, TaskPtr> & tasks, std::shared_mutex & m, SchedulingGraph & graph, std::shared_ptr<PrecedenceGraph> & pg )
+        : StateScheduler< SchedulingGraph, PrecedenceGraph >( tasks, m, graph, pg )
     {
         for( auto & t : this->graph.schedule )
             t.set_request_hook( [this,&t]{ get_job(t); } );
@@ -41,13 +42,11 @@ private:
 
         if( job_queue.empty() )
         {
-            bool u1 = this->uptodate.test_and_set();
-            bool u2 = this->graph.precedence_graph.test_and_set();
-            if( !u1 || !u2 )
+            if( ! this->uptodate.test_and_set() )
             {
                 auto ready_tasks = this->update_graph();
-                for( TaskID t : ready_tasks )
-                    job_queue.push( Job{ this->tasks, t } );
+                for( auto job : ready_tasks )
+                    job_queue.push( job );
             }
         }
 
