@@ -198,9 +198,9 @@ public:
                     << "label = \"" << label(v.first) << "\";" << std::endl
                     << "color = " << color(v.first) << ";" << std::endl;
 
-                v.second->write_refinement_dot( out, label, color );
+                v.second->write_refinement_dot( out, id, label, color );
 
-                out << "root_" << id << "[style=invis];" << std::endl;
+                out << "root_" << id(v.first) << "[style=invis];" << std::endl;
 
                 out << "};" << std::endl;
             }
