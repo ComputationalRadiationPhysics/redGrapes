@@ -14,7 +14,9 @@
 #include <redGrapes/graph/precedence_graph.hpp>
 #include <redGrapes/graph/util.hpp>
 #include <redGrapes/task/task.hpp>
+
 #include <redGrapes/thread/thread_schedule.hpp>
+#include <redGrapes/thread/thread_dispatcher.hpp>
 
 namespace redGrapes
 {

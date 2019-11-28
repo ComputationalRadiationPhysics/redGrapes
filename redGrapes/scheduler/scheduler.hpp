@@ -11,6 +11,7 @@
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/graph_traits.hpp>
 #include <akrzemi/optional.hpp>
+#include <redGrapes/graph/scheduling_graph.hpp>
 #include <redGrapes/graph/util.hpp>
 
 #include <vector>
