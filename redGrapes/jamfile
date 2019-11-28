@@ -1,7 +1,0 @@
-
-alias rmngr : : : :
-	<include>$(BOOST_ROOT)
-	<include>$(TOP)
-	<cxxflags>-std=c++11
-	;
-
