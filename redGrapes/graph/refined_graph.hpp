@@ -11,17 +11,30 @@
 
 #pragma once
 
-#include <unordered_map>
+#include <limits>
 #include <vector>
 #include <memory> // std::unique_ptr<>
-#include <mutex>
+#include <shared_mutex>
 
 #include <akrzemi/optional.hpp>
-#include <boost/graph/copy.hpp>
 #include <redGrapes/graph/util.hpp>
+
+namespace std
+{
+using shared_mutex = shared_timed_mutex;
+}
 
 namespace redGrapes
 {
+
+template <typename T>
+using DefaultGraph =
+    boost::adjacency_list<
+        boost::setS,
+        boost::listS,
+        boost::bidirectionalS,
+        T
+    >;
 
 /**
  * Boost-Graph adaptor storing a tree of subgraphs
@@ -29,191 +42,74 @@ namespace redGrapes
  * Every vertex of a refinement has an edge to the
  * refinements root node.
  */
-template <typename Graph>
-class RefinedGraph
+template <
+    typename T,
+    template <class> typename T_Graph = DefaultGraph
+>
+class RecursiveGraph
 {
-    private:
-        using ID = typename Graph::vertex_property_type;
-        using VertexID = typename boost::graph_traits<Graph>::vertex_descriptor;
+public:
+    using Graph = T_Graph< std::pair<T, std::shared_ptr<RecursiveGraph>> >;
+    using VertexID = typename boost::graph_traits<Graph>::vertex_descriptor;
 
-    public:
-        RefinedGraph()
-        {
-            uptodate.clear();
-        }
+    auto shared_lock()
+    {
+        return std::shared_lock<std::shared_mutex>( mutex );
+    }
 
-        RefinedGraph(RefinedGraph&& g)
-            : refinements(g.refinements)
-            , m_graph(g.m_graph)
-            , parent(g.parent)
-        {}
+    auto unique_lock()
+    {
+        return std::unique_lock<std::shared_mutex>( mutex );
+    }
 
-        auto lock()
-        {
-            return std::unique_lock<std::recursive_mutex>( mutex );
-        }
-
-        /// get graph object
-        Graph & graph(void)
-        {
-            return this->m_graph;
-        }
+    /// get graph object
+    Graph & graph(void)
+    {
+        return this->m_graph;
+    }
 
     bool empty()
     {
-        auto l = lock();
-        return boost::num_vertices( graph() ) == 0 && this->refinements.empty();
+        auto l = shared_lock();
+        return boost::num_vertices( m_graph ) == 0;
     }
 
-        RefinedGraph * /* should be std::optional<std::reference_wrapper<RefinedGraph>> */
-        find_refinement(ID parent)
-        {
-            auto l = lock();
-            auto it = this->refinements.find(parent);
+    void add_subgraph(VertexID vertex, std::shared_ptr<RecursiveGraph> subgraph)
+    {
+        auto l = unique_lock();
+        graph_get( vertex, m_graph ).second = subgraph;
+    }
 
-            if (it != this->refinements.end())
-                return it->second.get();
-            else
-            {
-                for (auto & r : this->refinements)
-                {
-                    auto found = r.second->find_refinement(parent);
-                    if (found)
-                        return found;
-                }
-
-                return nullptr;
-            }
-        }
-
-        RefinedGraph *
-        find_refinement_containing(ID a)
-        {
-            auto l = lock();
-            if ( auto d = graph_find_vertex(a, this->graph()) )
-                return this;
-
-            for (auto & r : this->refinements)
-            {
-                auto found = r.second->find_refinement_containing(a);
-                if (found)
-                    return found;
-            }
-
-            return nullptr;
-        }
-
-        std::experimental::optional<std::vector<ID>> backtrace(ID a)
-        {
-            auto l = lock();
-            if ( auto d = graph_find_vertex(a, this->graph()) )
-            {
-                std::vector<ID> trace;
-                trace.push_back(a);
-
-                if( this->parent )
-                    trace.push_back(*this->parent);
-
-                return trace;
-            }
-
-            for (auto & r : this->refinements)
-            {
-                if (std::experimental::optional<std::vector<ID>> trace = r.second->backtrace(a))
-                {
-                    if( this->parent )
-                        (*trace).push_back(*this->parent);
-
-                    return *trace;
-                }
-            }
-
-            return std::experimental::nullopt;
-        }
-
-        template <typename Refinement>
-        Refinement *
-        make_refinement(ID parent)
-        {
-            auto l = lock();
-            Refinement * ptr = new Refinement( this );
-            ptr->parent = parent;
-            this->refinements[parent] = std::unique_ptr<RefinedGraph>(ptr);
-            return ptr;
-        }
-
-        template <typename Refinement>
-	Refinement *
-        refinement(ID parent)
-        {
-            auto l = lock();
-            auto ref = this->find_refinement(parent);
-
-            if (! ref)
-            {
-                auto base = this->find_refinement_containing(parent);
-                if (base)
-                    return base->template make_refinement<Refinement>(parent);
-
-                // else: parent doesnt exist, return nullptr
-            }
-
-            return dynamic_cast<Refinement*>((RefinedGraph*)ref);
-        }
-
-        /// recursively remove a vertex
-        /// does it belong here?
-        virtual bool finish(ID a)
-        {
-            auto l = lock();
-
-            if ( refinements.count(a) > 0 )
-            {
-                if( refinements[a]->empty() )
-                    refinements.erase( a );
-            }
-
-            if( refinements.count(a) == 0 )
-            {
-                if ( auto v = graph_find_vertex(a, this->graph()) )
-                {
-                    boost::clear_vertex(*v, this->graph());
-                    boost::remove_vertex(*v, this->graph());
-                    mark_dirty();
-
-                    return true;
-                }
-                else
-                    for(auto & r : this->refinements)
-                        if( r.second->finish(a) )
-                            return true;
-            }
-
-            return false;
-        }
+    void remove_vertex(VertexID vertex)
+    {
+        auto l = unique_lock();
+        std::cout << "remove vertex "<<vertex<<std::endl;
+        boost::clear_vertex(vertex, m_graph);
+        boost::remove_vertex(vertex, m_graph);
+    }
 
     struct Iterator
     {
-        RefinedGraph & r;
+        RecursiveGraph & r;
         typename boost::graph_traits< Graph >::vertex_iterator g_it;
         std::unique_ptr< std::pair< Iterator, Iterator > > sub;
-        std::unique_lock< std::recursive_mutex > lock;
+        std::shared_lock< std::shared_mutex > lock;
 
-        ID operator* ()
+        T const & operator* ()
         {
             if( !sub )
             {
-                auto id = graph_get( *g_it, r.graph() );
-                if( r.refinements.count(id) )
-                    sub.reset( new std::pair<Iterator,Iterator>( r.refinements[id]->vertices() ) );
+                auto child = graph_get( *g_it, r.graph() );
+                if( child.second )
+                    sub.reset( new std::pair<Iterator,Iterator>( child.second->vertices() ) );
                 else
-                    return id;
+                    return child.first;
             }
 
             if( sub->first == sub->second )
             {
                 sub.reset(nullptr);
-                return graph_get( *g_it, r.graph() );
+                return graph_get( *g_it, r.graph() ).first;
             }
             else
                 return *(sub->first);
@@ -242,33 +138,36 @@ class RefinedGraph
     {
         auto g_it = boost::vertices( graph() );
         return std::make_pair(
-                   Iterator{*this, g_it.first, nullptr, this->lock()},
+                   Iterator{*this, g_it.first, nullptr, this->shared_lock()},
                    Iterator{*this, g_it.second, nullptr}
                );
     }
 
-    bool test_and_set()
+    template <typename Result>
+    void collect_vertices(
+        std::vector<Result> & collection,
+        std::function<std::experimental::optional<Result>(T const &)> const & filter_map,
+        size_t limit = std::numeric_limits<size_t>::max()
+    )
     {
-        bool u = uptodate.test_and_set();
+        auto l = shared_lock();
+        for(auto it = boost::vertices(m_graph); it.first != it.second && collection.size() < limit; ++it.first)
+        {
+            auto w = graph_get(*it.first, m_graph);
+            if( auto element = filter_map(w.first) )
+                collection.push_back(*element);
 
-        auto l = lock();
-        for( auto & r : refinements )
-            u &= r.second->test_and_set();
-
-        return u;
+            if( w.second )
+                w.second->collect_vertices(collection, filter_map, limit);
+        }
     }
-
-    void mark_dirty()
-    {
-        this->uptodate.clear();
-    }
-
 
     // Graphviz
     void write_dot(
         std::ostream & out,
-        std::function<std::string(ID)> const & label,
-        std::function<std::string(ID)> const & color
+        std::function<unsigned int(T const&)> const & id,
+        std::function<std::string(T const&)> const & label,
+        std::function<std::string(T const&)> const & color
     )
     {
         out << "digraph G {" << std::endl
@@ -276,36 +175,37 @@ class RefinedGraph
             << "graph [fontsize=10 fontname=\"Verdana\"];" << std::endl
             << "node [shape=record fontsize=10 fontname=\"Verdana\"];" << std::endl;
 
-        this->write_refinement_dot( out, label, color );
+        this->write_refinement_dot( out, id, label, color );
 
         out << "}" << std::endl;
     }
 
     void write_refinement_dot(
         std::ostream & out,
-        std::function<std::string(ID)> const & label,
-        std::function<std::string(ID)> const & color
+        std::function<unsigned int(T const&)> const & id,
+        std::function<std::string(T const&)> const & label,
+        std::function<std::string(T const&)> const & color
     )
     {
-        auto l = lock();
+        auto l = shared_lock();
         for( auto it = boost::vertices(graph()); it.first != it.second; ++it.first )
         {
-            auto id = graph_get(*(it.first), graph());
-            if( refinements.count(id) && !refinements[id]->empty() )
+            auto v = graph_get(*(it.first), graph());
+            if( v.second )
             {
-                out << "subgraph cluster_" << id << " {" << std::endl
+                out << "subgraph cluster_" << id(v.first) << " {" << std::endl
                     << "node [style = filled];" << std::endl
-                    << "label = \"" << label(id) << "\";" << std::endl
-                    << "color = " << color(id) << ";" << std::endl;
+                    << "label = \"" << label(v.first) << "\";" << std::endl
+                    << "color = " << color(v.first) << ";" << std::endl;
 
-                refinements[id]->write_refinement_dot( out, label, color );
+                v.second->write_refinement_dot( out, label, color );
 
                 out << "root_" << id << "[style=invis];" << std::endl;
 
                 out << "};" << std::endl;
             }
             else
-                out << id << " [label = \"" << label(id) << "\", color = " << color(id) << "];" << std::endl;
+                out << id(v.first) << " [label = \"" << label(v.first) << "\", color = " << color(v.first) << "];" << std::endl;
         }
 
         for( auto it = boost::edges(graph()); it.first != it.second; ++it.first )
@@ -313,25 +213,21 @@ class RefinedGraph
             auto a = graph_get(boost::source( *(it.first), graph() ), graph() );
             auto b = graph_get(boost::target( *(it.first), graph() ), graph() );
 
-            if( refinements.count(a) && !refinements[a]->empty() )
+            if( a.second )
             {
-                out << "root_" << a << " -> " << b << " [ltail = cluster_" << a << "];" << std::endl;
+                out << "root_" << id(a.first) << " -> " << id(b.first) << " [ltail = cluster_" << id(a.first) << "];" << std::endl;
             }
             else
-                out << a << " -> " << b << ";" << std::endl;
+                out << id(a.first) << " -> " << id(b.first) << ";" << std::endl;
         }
     }
 
-    
+protected:
+    VertexID parent_vertex;
+    std::weak_ptr<RecursiveGraph> parent_graph;
 
-    public:
-        std::experimental::optional<ID> parent;
-
-    private:
-        std::atomic_flag uptodate;
-        std::recursive_mutex mutex;
-        std::unordered_map<ID, std::unique_ptr<RefinedGraph>> refinements;
-        Graph m_graph;
+    Graph m_graph;
+    std::shared_mutex mutex;
 }; // class RefinedGraph
 
 } // namespace redGrapes

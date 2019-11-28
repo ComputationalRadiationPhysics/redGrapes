@@ -13,26 +13,18 @@
 #include <redGrapes/graph/refined_graph.hpp>
 #include <redGrapes/graph/precedence_graph.hpp>
 #include <redGrapes/graph/util.hpp>
-
+#include <redGrapes/task/task.hpp>
 #include <redGrapes/thread/thread_schedule.hpp>
-#include <redGrapes/task/task_container.hpp>
 
 namespace redGrapes
 {
-    
-template <
-    typename TaskProperties,
-    typename T_Graph = boost::adjacency_list<
-        boost::setS,
-        boost::listS,
-        boost::bidirectionalS,
-        typename TaskContainer< TaskProperties >::TaskID
-    >
->
+
+template < typename T_TaskID, typename T_TaskPtr >
 class SchedulingGraph
 {
 public:
-    using P_Graph = T_Graph;
+    using TaskID = T_TaskID;
+    using TaskPtr = T_TaskPtr;
 
     using EventGraph = boost::adjacency_list<
         boost::listS,
@@ -40,7 +32,6 @@ public:
         boost::bidirectionalS
     >;
     using EventID = typename boost::graph_traits< EventGraph >::vertex_descriptor;
-    using TaskID = typename P_Graph::vertex_property_type;
 
     struct Event
     {
@@ -88,12 +79,12 @@ public:
 
     struct Job
     {
-        TaskContainer< TaskProperties > & tasks;
+        std::shared_ptr< TaskImplBase > f;
         TaskID task_id;
 
         void operator() ()
         {
-            tasks.task_run( task_id );
+            (*f)();
         }
     };
 
@@ -105,16 +96,12 @@ public:
 
     using ThreadSchedule = redGrapes::ThreadSchedule< Job >;
 
-    TaskContainer< TaskProperties > & tasks;
-    RefinedGraph< T_Graph > & precedence_graph;
     std::vector< ThreadSchedule > schedule;
     bool finishing;
 
-    SchedulingGraph( TaskContainer< TaskProperties > & tasks, RefinedGraph< T_Graph > & precedence_graph, int n_threads )
-        : precedence_graph( precedence_graph )
-        , schedule( n_threads )
+    SchedulingGraph( int n_threads )
+        : schedule( n_threads )
         , finishing( false )
-        , tasks( tasks )
     {}
 
     void finish()
@@ -148,72 +135,63 @@ public:
         return after_events.count(task_id) == 0;
     }
 
-    template <typename Refinement>
-    void add_task( TaskID task_id, Refinement & ref )
+    template <typename Task, typename PrecedenceGraph>
+    auto add_task( Task && task, PrecedenceGraph & g )
     {
-        EventID before_event, after_event;
+        std::unique_lock< std::mutex > lock( mutex );
+        EventID pre_event = make_event( task.task_id );
+        EventID post_event = make_event( task.task_id );
+        before_events[ task.task_id ] = pre_event;
+        after_events[ task.task_id ] = post_event;
 
-        {
-            auto l = ref.lock();
-            auto task_vertex = ref.push( task_id );
-
-            std::lock_guard< std::mutex > lock( mutex );
-            before_event = make_event( task_id );
-            after_event = make_event( task_id );
-
-            before_events[ task_id ] = before_event;
-            after_events[ task_id ] = after_event;
-
-            for(
-                auto it = boost::in_edges( task_vertex, ref.graph() );
-                it.first != it.second;
-                ++ it.first
-                )
+        task.hook_before([this, pre_event]
             {
-                auto preceding_task_id = graph_get( boost::source( *(it.first), ref.graph() ), ref.graph() );
-                if( after_events.count(preceding_task_id) )
-                    boost::add_edge( after_events[ preceding_task_id ], before_event, m_graph );
-            }
-
-            if( ref.parent )
-            {
-                if( after_events.count( *ref.parent ) )
-                    boost::add_edge( after_event, after_events[ *ref.parent ], m_graph );
-                else
-                    throw std::runtime_error("parent post-event doesn't exist!");
-            }
-        }
-
-        tasks.task_hook_before(
-            task_id,
-            [this, before_event]
-            {
-                if( !finish_event( before_event ) )
-                    events[before_event].wait();
+                if( !finish_event( pre_event ) )
+                    events[pre_event].wait();
             });
-
-        tasks.task_hook_after(
-            task_id,
-            [this, after_event]
+        task.hook_after([this, post_event]
             {
-                if( finish_event( after_event ) )
+                if( finish_event( post_event ) )
                     notify();
             });
+
+        auto vertex = g.push( std::move(task) );
+        auto l = g.unique_lock();
+
+        for(
+            auto it = boost::in_edges( vertex, g.graph() );
+            it.first != it.second;
+            ++ it.first
+        )
+        {
+            auto & preceding_task = graph_get( boost::source( *(it.first), g.graph() ), g.graph() ).first;
+            if( after_events.count(preceding_task.task_id) )
+                boost::add_edge( after_events[ preceding_task.task_id ], pre_event, m_graph );
+        }
+
+        if( task.parent_id )
+        {
+            if( after_events.count( *task.parent_id ) )
+                boost::add_edge( post_event, after_events[ *task.parent_id ], m_graph );
+            else
+                throw std::runtime_error("parent post-event doesn't exist!");
+        }
+
+        return vertex;
     }
 
-    template <typename Refinement>
-    void update_vertex( TaskID task )
+    void update_vertex( TaskPtr const & task_ptr )
     {
-        auto ref = dynamic_cast<Refinement*>(this->precedence_graph.find_refinement_containing( task ));
-        std::vector<TaskID> selection = ref->update_vertex( task );
+        auto selection = task_ptr.graph->update_vertex( task_ptr.vertex );
+        auto task_id = task_ptr.get().task_id;
 
         {
             std::lock_guard< std::mutex > lock( mutex );
-            for( TaskID other_task : selection )
-                boost::remove_edge( after_events[task], before_events[other_task], m_graph );
+            for( auto other_task : selection )
+                boost::remove_edge( after_events[task_id], before_events[other_task.get().task_id], m_graph );
 
-            for( TaskID other_task : selection )
-                notify_event( before_events[other_task] );
+            for( auto other_task : selection )
+                notify_event( before_events[ other_task.get().task_id ] );
         }
 
         notify();
