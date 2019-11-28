@@ -1,29 +1,29 @@
 
 cmake_minimum_required(VERSION 3.10.0)
 
-project(rmngrTest)
+project(redGrapesTest)
 
-find_package(rmngr REQUIRED CONFIG PATHS "${CMAKE_CURRENT_LIST_DIR}/..")
-include_directories(SYSTEM ${rmngr_INCLUDE_DIRS})
+find_package(redGrapes REQUIRED CONFIG PATHS "${CMAKE_CURRENT_LIST_DIR}/..")
+include_directories(SYSTEM ${redGrapes_INCLUDE_DIRS})
 
 find_package(Threads REQUIRED)
 
 find_package(Catch2 2.2.1 CONFIG)
 
-option(rmngr_USE_INTERNAL_CATCH "Use internally stored Catch2" ON)
-option(rmngr_DOWNLOAD_CATCH "Download Catch2 if not found" ON)
+option(redGrapes_USE_INTERNAL_CATCH "Use internally stored Catch2" ON)
+option(redGrapes_DOWNLOAD_CATCH "Download Catch2 if not found" ON)
 
 include(CTest)
 enable_testing()
 
 if(Catch2_FOUND)
     message(STATUS "Catch2: Found version ${Catch2_VERSION}")
-elseif(rmngr_USE_INTERNAL_CATCH)
-    set(Catch2_DIR ${rmngr_SOURCE_DIR}/share/thirdParty/catch2)
+elseif(redGrapes_USE_INTERNAL_CATCH)
+    set(Catch2_DIR ${redGrapes_SOURCE_DIR}/share/thirdParty/catch2)
     if(EXISTS ${Catch2_DIR})
         message(STATUS "Catch2: found INTERNAL version")
     else()
-        if(rmngr_DOWNLOAD_CATCH)
+        if(redGrapes_DOWNLOAD_CATCH)
             message(STATUS "Catch2: Downloading latest version...")
             execute_process(COMMAND mkdir -p "${Catch2_DIR}/include/catch")
             execute_process(
@@ -34,7 +34,7 @@ elseif(rmngr_USE_INTERNAL_CATCH)
         endif()
     endif()
 
-    target_include_directories(rmngr SYSTEM INTERFACE
+    target_include_directories(redGrapes SYSTEM INTERFACE
         $<BUILD_INTERFACE:${Catch2_DIR}/include>
     )
 else()
@@ -109,10 +109,10 @@ set(TEST_SOURCES
     resource_user.cpp
     thread_dispatcher.cpp)
 
-set(TEST_TARGET rmngr_test)
+set(TEST_TARGET redGrapes_test)
 
 add_executable(${TEST_TARGET} ${TEST_SOURCES})
-target_link_libraries(${TEST_TARGET} PRIVATE rmngr)
+target_link_libraries(${TEST_TARGET} PRIVATE redGrapes)
 target_link_libraries(${TEST_TARGET} PRIVATE Threads::Threads)
 add_test(NAME unittest COMMAND ${TEST_TARGET})
 
