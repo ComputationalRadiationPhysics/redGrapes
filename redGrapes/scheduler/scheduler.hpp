@@ -18,27 +18,55 @@
 namespace redGrapes
 {
 
-template < typename SchedulingGraph >
+template <
+    typename TaskID,
+    typename TaskPtr,
+    typename PrecedenceGraph
+>
 struct SchedulerBase
 {
-    using TaskID = typename SchedulingGraph::TaskID;
-    using TaskPtr = typename SchedulingGraph::TaskPtr;
-    SchedulingGraph & graph;
+    std::shared_ptr<PrecedenceGraph> precedence_graph;
+    SchedulingGraph<TaskID, TaskPtr> scheduling_graph;
 
     std::atomic_flag uptodate;
 
-    SchedulerBase( SchedulingGraph & graph )
-        : graph(graph)
+    SchedulerBase( std::shared_ptr<PrecedenceGraph> precedence_graph, size_t n_threads )
+        : precedence_graph( precedence_graph )
+        , scheduling_graph( n_threads )
     {
         uptodate.clear();
-        graph.notify_hook = [this]{ uptodate.clear(); };
+        scheduling_graph.notify_hook = [this]{ uptodate.clear(); };
     }
 
     void notify()
     {
-        this->graph.notify();
+        this->scheduling_graph.notify();
     }
 
+    void finish()
+    {
+        scheduling_graph.finish();
+    }
+
+    auto get_current_task()
+    {
+        return scheduling_graph.get_current_task();
+    }
+
+    void update_vertex( TaskPtr p )
+    {
+        scheduling_graph.update_vertex( p );
+    }
+
+    void operator() ( std::function<bool()> const & pred = []{ return false; } )
+    {
+        auto l = thread::scope_level;
+        while( !pred() && !scheduling_graph.empty() )
+            scheduling_graph.consume_job( pred );
+        thread::scope_level = l;
+    }
+
+protected:
     bool is_task_ready( TaskPtr & task )
     {
         return boost::in_degree( task.vertex, task.graph->graph() ) == 0;

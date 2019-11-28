@@ -39,14 +39,14 @@ static thread_local unsigned int scope_level;
  * @tparam Thread must satisfy @ref Thread
  */    
 template <
-    typename JobSelector,
+    typename Scheduler,
     typename Thread = std::thread
 >
 class ThreadDispatcher
 {
 public:
-    ThreadDispatcher( JobSelector & job_selector, std::size_t n_threads = 1 )
-        : job_selector( job_selector )
+    ThreadDispatcher( Scheduler & scheduler, std::size_t n_threads = 1 )
+        : scheduler( scheduler )
     {
         // set id for main thread
         thread::id = 0;
@@ -57,27 +57,21 @@ public:
                 [this, i]
                 {
                     thread::id = i;
-                    this->work();
+                    this->scheduler();
                 }
             );
     }
 
     void finish()
     {
-        this->work();
+        this->scheduler();
 
         for ( Thread & thread : this->threads )
             thread.join();
     }
 
 private:
-    void work()
-    {
-        while( ! job_selector.empty() )
-            job_selector.consume_job();
-    }
-
-    JobSelector & job_selector;
+    Scheduler & scheduler;
     std::vector< Thread > threads;
 }; // class ThreadDispatcher
 

@@ -19,24 +19,17 @@ namespace redGrapes
 enum TaskState { uninitialized = 0, pending, ready, running, done };
 
 template <
-    typename SchedulingGraph,
+    typename TaskID,
+    typename TaskPtr,
     typename PrecedenceGraph
 >
 struct StateScheduler
-    : SchedulerBase< SchedulingGraph >
+    : SchedulerBase< TaskID, TaskPtr, PrecedenceGraph >
 {
-    using TaskID = typename SchedulingGraph::TaskID;
-    using TaskPtr = typename SchedulingGraph::TaskPtr;
-    using Job = typename SchedulingGraph::Job;
+    using Job = typename SchedulingGraph<TaskID, TaskPtr>::Job;
 
-    std::shared_ptr<PrecedenceGraph> precedence_graph;
-
-    std::unordered_map<TaskID, TaskPtr> & tasks;
-    std::shared_mutex & tasks_mutex;
-
-    StateScheduler( std::unordered_map<TaskID, TaskPtr> & tasks, std::shared_mutex & m, SchedulingGraph & graph, std::shared_ptr<PrecedenceGraph> & pg )
-        : SchedulerBase< SchedulingGraph >( graph )
-        , precedence_graph(pg)
+    StateScheduler( std::unordered_map<TaskID, TaskPtr> & tasks, std::shared_mutex & m, std::shared_ptr<PrecedenceGraph> & pg, size_t n_threads )
+        : SchedulerBase< TaskID, TaskPtr, PrecedenceGraph >( pg, n_threads )
         , tasks( tasks )
         , tasks_mutex( m )
     {}
@@ -62,7 +55,7 @@ struct StateScheduler
         auto task_id = task.task_id;
         task.hook_before([this, task_id]{ this->set_task_state( task_id, TaskState::running ); });
         task.hook_after([this, task_id]{ this->set_task_state( task_id, TaskState::done ); });
-        auto v = this->graph.add_task( std::move(task), g );
+        auto v = this->scheduling_graph.add_task( std::move(task), g );
 
         this->set_task_state( task_id, TaskState::pending );
         this->notify();
@@ -91,7 +84,7 @@ struct StateScheduler
 
         for( TaskID task_id : sel )
         {
-            if( this->graph.is_task_finished( task_id ) )
+            if( this->scheduling_graph.is_task_finished( task_id ) )
             {
                 TaskPtr p;
                 {
@@ -127,6 +120,10 @@ struct StateScheduler
 
         return ready;
     }
+
+protected:
+    std::unordered_map<TaskID, TaskPtr> & tasks;
+    std::shared_mutex & tasks_mutex;
 
 private:
     std::mutex states_mutex;
