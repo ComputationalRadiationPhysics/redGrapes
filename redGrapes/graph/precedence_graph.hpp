@@ -107,7 +107,7 @@ class QueuedPrecedenceGraph
             this->parent_vertex = parent_vertex;
         }
 
-        VertexID push(T && a)
+        auto push(T a)
         {
             if( auto graph = this->parent_graph.lock() )
             {
@@ -151,9 +151,11 @@ class QueuedPrecedenceGraph
                 }
             }
 
+            graph_get(v, this->graph()).first.in_degree = boost::in_degree(v, this->graph());
+
             this->queue.insert(this->queue.begin(), v);
 
-            return v;
+            return std::make_pair(v, std::move(l));
         }
 
         auto update_vertex(VertexID a)

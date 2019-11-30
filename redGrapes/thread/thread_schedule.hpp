@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <deque>
 #include <queue>
 #include <stack>
@@ -16,6 +17,7 @@
 #include <algorithm>
 #include <functional>
 
+#include <redGrapes/thread/thread_dispatcher.hpp>
 #include <akrzemi/optional.hpp>
 
 namespace redGrapes
@@ -56,6 +58,7 @@ public:
 
     void consume( std::function<bool(void)> const & pred )
     {
+        wakeup = false;
         if( !pred() )
         {
             if( !queue.empty() )
@@ -81,15 +84,15 @@ public:
                     request_hook();
 
                 if( wait_hook )
+                {
                     while( ! wakeup )
                         wait_hook();
+                }
                 else
                 {
                     std::unique_lock< std::mutex > lock( cv_mutex );
-                    cv.wait(lock, [this]{ return wakeup; });
+                    cv.wait(lock, [this]{ return bool(wakeup); });
                 }
-
-                wakeup = false;
             }
         }
     }
@@ -105,7 +108,7 @@ public:
     }
 
 private:
-    bool wakeup;
+    std::atomic_bool wakeup;
     std::function<void()> request_hook;
     std::function<void()> wait_hook;
     std::queue< Job > queue;

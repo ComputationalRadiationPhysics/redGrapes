@@ -50,17 +50,26 @@ struct StateScheduler
     }
 
     template <typename Task, typename Graph>
-    auto add_task( Task && task, Graph & g )
+    auto add_task( Task task, std::shared_ptr<Graph> g )
     {
         auto task_id = task.task_id;
         task.hook_before([this, task_id]{ this->set_task_state( task_id, TaskState::running ); });
         task.hook_after([this, task_id]{ this->set_task_state( task_id, TaskState::done ); });
-        auto v = this->scheduling_graph.add_task( std::move(task), g );
+        auto pair = this->scheduling_graph.add_task( task, *g );
+        auto vertex = pair.first;
+
+        {
+            std::unique_lock<std::shared_mutex> lock( tasks_mutex );
+            tasks[ task.task_id ] = TaskPtr{ g, vertex };
+        }
+        pair.second.unlock();
+
+        task.hook_after([this] { this->notify(); });
 
         this->set_task_state( task_id, TaskState::pending );
         this->notify();
 
-        return v;
+        return vertex;
     }
 
     /*
@@ -91,6 +100,16 @@ struct StateScheduler
                     std::shared_lock<std::shared_mutex> lock( tasks_mutex );
                     p = this->tasks[task_id];
                 }
+
+                {
+                    auto l = p.graph->shared_lock();
+                    for(auto it = boost::out_edges(p.vertex, p.graph->graph()); it.first != it.second; ++it.first)
+                    {
+                        auto t_vertex = boost::target(*it.first, p.graph->graph());
+                        graph_get(t_vertex, p.graph->graph()).first.in_degree --;
+                    }
+                }
+
                 p.graph->finish( p.vertex );
                 states.erase( task_id );
 
@@ -105,14 +124,10 @@ struct StateScheduler
         this->precedence_graph->template collect_vertices<Job>(
             ready,
             [this](auto const & task) -> std::experimental::optional< Job > {
-                if( states[task.task_id] == TaskState::pending )
-                {
-                    std::shared_lock<std::shared_mutex> lock( tasks_mutex );
-                    if( this->tasks.count(task.task_id) )
-                        if( this->is_task_ready(this->tasks[task.task_id]) )
-                            return Job{ task.impl, task.task_id };
-                }
-                return std::experimental::nullopt;
+                if( states[task.task_id] == TaskState::pending && task.in_degree == 0 )
+                    return Job{ task.impl, task.task_id };
+                else
+                    return std::experimental::nullopt;
             });
 
         for( auto job : ready )
