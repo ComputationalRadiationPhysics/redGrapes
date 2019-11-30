@@ -63,15 +63,12 @@ struct SchedulerBase
     {
         auto l = thread::scope_level;
         while( !pred() && !scheduling_graph.empty() )
-            scheduling_graph.consume_job( pred );
+        {
+                scheduling_graph.consume_job( pred );
+        }
         thread::scope_level = l;
     }
 
-protected:
-    bool is_task_ready( TaskPtr & task )
-    {
-        return boost::in_degree( task.vertex, task.graph->graph() ) == 0;
-    }
 };
 
 } // namespace redGrapes

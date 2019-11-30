@@ -45,11 +45,13 @@ template <
 >
 class Manager
 {
-private:
+public:
     using TaskID = unsigned int;
     static TaskID gen_task_id()
     {
-        static TaskID id =123;
+        static TaskID id = 0;
+        static std::mutex m;
+        std::unique_lock<std::mutex> l(m);
         return id++;
     }
 
@@ -58,12 +60,14 @@ private:
         std::shared_ptr< TaskImplBase > impl;
         TaskID task_id;
         std::experimental::optional<TaskID> parent_id;
+        unsigned int in_degree;
 
         template <typename F>
         Task( F && f, TaskProperties prop )
             : TaskProperties(prop)
             , impl( new FunctorTask<F>(std::move(f)) )
             , task_id(gen_task_id())
+            , in_degree(0)
         {}
 
         void hook_before( std::function<void()> hook )
@@ -135,12 +139,7 @@ public:
         unsigned int scope_level = thread::scope_level + 1;
         task.hook_before([scope_level]{ thread::scope_level = scope_level; });
 
-        TaskPtr p;
-        p.graph = this->get_current_graph();
-        p.vertex = scheduler.add_task( std::move(task), *p.graph );
-
-        std::unique_lock<std::shared_mutex> lock( tasks_mutex );
-        tasks[ task.task_id ] = p;
+        scheduler.add_task( task, this->get_current_graph() );
     }
 
     std::shared_ptr<PrecedenceGraph>
@@ -151,9 +150,17 @@ public:
             std::shared_lock<std::shared_mutex> lock( tasks_mutex );
             auto parent_graph = tasks[*task_id].graph;
             auto parent_vertex = tasks[*task_id].vertex;
-            auto & g = graph_get(parent_vertex, parent_graph->graph()).second;
+            lock.unlock();
+
+            auto g = graph_get(parent_vertex, parent_graph->graph()).second;
             if( !g )
-                g = std::make_shared<PrecedenceGraph>( parent_graph, parent_vertex );
+            {
+                auto new_graph = std::make_shared<PrecedenceGraph>( parent_graph, parent_vertex );
+                parent_graph->add_subgraph( parent_vertex, new_graph );
+                return new_graph;
+            }
+            else
+                return std::dynamic_pointer_cast<PrecedenceGraph>(g);
         }
 
         return this->main_graph;
@@ -162,10 +169,12 @@ public:
     void update_properties( typename TaskProperties::Patch const & patch )
     {
         if( auto task_id = scheduler.get_current_task() )
-        {            
-            std::shared_lock<std::shared_mutex> lock( tasks_mutex );
+        {
+            std::unique_lock<std::shared_mutex> lock( tasks_mutex );
             tasks[*task_id].get().apply_patch( patch );
-            scheduler.update_vertex( tasks[*task_id] );
+            TaskPtr task_ptr = tasks[*task_id];
+            lock.unlock();
+            scheduler.update_vertex( task_ptr );
         }
         else
             throw std::runtime_error("update_properties: currently no task running");

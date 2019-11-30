@@ -138,7 +138,7 @@ public:
     }
 
     template <typename Task, typename PrecedenceGraph>
-    auto add_task( Task && task, PrecedenceGraph & g )
+    auto add_task( Task task, PrecedenceGraph & g )
     {
         std::unique_lock< std::mutex > lock( mutex );
         EventID pre_event = make_event( task.task_id );
@@ -157,8 +157,8 @@ public:
                     notify();
             });
 
-        auto vertex = g.push( std::move(task) );
-        auto l = g.unique_lock();
+        auto pair = g.push( task );
+        auto vertex = pair.first;
 
         for(
             auto it = boost::in_edges( vertex, g.graph() );
@@ -179,7 +179,7 @@ public:
                 throw std::runtime_error("parent post-event doesn't exist!");
         }
 
-        return vertex;
+        return pair;
     }
 
     void update_vertex( TaskPtr const & task_ptr )

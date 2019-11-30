@@ -52,6 +52,8 @@ public:
     using Graph = T_Graph< std::pair<T, std::shared_ptr<RecursiveGraph>> >;
     using VertexID = typename boost::graph_traits<Graph>::vertex_descriptor;
 
+    virtual ~RecursiveGraph() {}
+
     auto shared_lock()
     {
         return std::shared_lock<std::shared_mutex>( mutex );
@@ -83,7 +85,6 @@ public:
     void remove_vertex(VertexID vertex)
     {
         auto l = unique_lock();
-        std::cout << "remove vertex "<<vertex<<std::endl;
         boost::clear_vertex(vertex, m_graph);
         boost::remove_vertex(vertex, m_graph);
     }
@@ -153,7 +154,7 @@ public:
         auto l = shared_lock();
         for(auto it = boost::vertices(m_graph); it.first != it.second && collection.size() < limit; ++it.first)
         {
-            auto w = graph_get(*it.first, m_graph);
+            auto & w = graph_get(*it.first, m_graph);
             if( auto element = filter_map(w.first) )
                 collection.push_back(*element);
 
@@ -200,7 +201,7 @@ public:
 
                 v.second->write_refinement_dot( out, id, label, color );
 
-                out << "root_" << id(v.first) << "[style=invis];" << std::endl;
+                out << "root_" << id(v.first) << " [style=invis];" << std::endl;
 
                 out << "};" << std::endl;
             }
