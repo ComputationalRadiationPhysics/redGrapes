@@ -90,7 +90,6 @@ public:
 
         Task & get() const
         {
-            //auto l = graph->shared_lock();
             return graph_get(vertex, graph->graph()).first;
         }
     };

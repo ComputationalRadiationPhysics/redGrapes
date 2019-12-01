@@ -30,23 +30,27 @@ struct SchedulerBase
     SchedulingGraph<TaskID, TaskPtr> scheduling_graph;
 
     std::atomic_flag uptodate;
+    std::atomic_bool finishing;
 
     SchedulerBase( std::shared_ptr<PrecedenceGraph> precedence_graph, size_t n_threads )
         : precedence_graph( precedence_graph )
         , scheduling_graph( n_threads )
+        , finishing( false )
     {
         uptodate.clear();
-        scheduling_graph.notify_hook = [this]{ uptodate.clear(); };
     }
 
     void notify()
     {
-        this->scheduling_graph.notify();
+        uptodate.clear();
+        for( auto & thread : scheduling_graph.schedule )
+            thread.notify();
     }
 
     void finish()
     {
-        scheduling_graph.finish();
+        finishing = true;
+        notify();
     }
 
     auto get_current_task()
@@ -57,18 +61,16 @@ struct SchedulerBase
     void update_vertex( TaskPtr p )
     {
         scheduling_graph.update_vertex( p );
+        notify();
     }
 
     void operator() ( std::function<bool()> const & pred = []{ return false; } )
     {
         auto l = thread::scope_level;
-        while( !pred() && !scheduling_graph.empty() )
-        {
-                scheduling_graph.consume_job( pred );
-        }
+        while( !pred() && !( finishing && scheduling_graph.empty() ) )
+            scheduling_graph.consume_job( pred );
         thread::scope_level = l;
     }
-
 };
 
 } // namespace redGrapes

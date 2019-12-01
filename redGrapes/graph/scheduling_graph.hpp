@@ -106,19 +106,10 @@ public:
         , finishing( false )
     {}
 
-    void finish()
-    {
-        {
-            std::lock_guard< std::mutex > lock( mutex );
-            finishing = true;
-        }
-        notify();
-    }
-
     bool empty()
     {
         std::lock_guard< std::mutex > lock( mutex );
-        return finishing && (boost::num_vertices( m_graph ) == 0);
+        return boost::num_vertices( m_graph ) == 0;
     }
 
     EventID add_post_dependency( TaskID task_id )
@@ -146,16 +137,8 @@ public:
         before_events[ task.task_id ] = pre_event;
         after_events[ task.task_id ] = post_event;
 
-        task.hook_before([this, pre_event]
-            {
-                if( !finish_event( pre_event ) )
-                    events[pre_event].wait();
-            });
-        task.hook_after([this, post_event]
-            {
-                if( finish_event( post_event ) )
-                    notify();
-            });
+        task.hook_before([this, pre_event] { if( !finish_event( pre_event ) ) events[pre_event].wait(); });
+        task.hook_after([this, post_event]{ finish_event( post_event ); });
 
         auto pair = g.push( task );
         auto vertex = pair.first;
@@ -195,8 +178,6 @@ public:
             for( auto other_task : selection )
                 notify_event( before_events[ other_task.get().task_id ] );
         }
-
-        notify();
     }
 
     void consume_job( std::function<bool()> const & pred = []{ return false; } )
@@ -221,17 +202,6 @@ public:
         events.emplace( std::piecewise_construct, std::forward_as_tuple(event_id), std::forward_as_tuple() );
         events[event_id].task_id = task_id;
         return event_id;
-    }
-
-    std::function<void()> notify_hook;
-
-    void notify()
-    {
-        if( notify_hook )
-            notify_hook();
-
-        for( auto & thread : schedule )
-            thread.notify();
     }
 
     void remove_event( EventID id )
