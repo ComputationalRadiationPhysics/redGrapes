@@ -1,6 +1,10 @@
 # RedGrapes
 **Re**source-based, **D**eclarative task-**Gra**phs for **P**arallel, **E**vent-driven **S**cheduling
 
+[![Language](https://img.shields.io/badge/language-C%2B%2B14-lightgrey)](https://isocpp.org/)
+[![License](https://img.shields.io/badge/license-MPL--2.0-blue.svg)](https://www.mozilla.org/en-US/MPL/2.0/)
+<hr>
+
 RedGrapes is a C++14 framework for declaratively creating and scheduling task-graphs, based on high-level resource descriptions.
 
 ### Motivation
@@ -66,3 +70,12 @@ RedGrapes is documented using in-code doxygen comments and reStructured-Text-fil
 
 ## License
 This Project is free software, licensed under the [Mozilla MPL 2.0 license](LICENSE).
+
+## Authors
+RedGrapes is based on the high-level ideas described in a [whitepaper by Huebl, Widera, Matthes](docs/2017_02_ResourceManagerDraft.pdf), members of the [Computational Radiation Physics Group](https://hzdr.de/crp) at [HZDR](https://www.hzdr.de/).
+
+* [Michael Sippel](https://github.com/michaelsippel): library design & implementation
+* [Dr. Sergei Bastrakov](https://github.com/sbastrakov): supervision
+* [Dr. Axel Huebl](https://github.com/ax3l): whitepaper, supervision
+* [René Widera](https://github.com/psychocoderHPC): whitepaper, supervision
+* [Alexander Matthes](https://github.com/theZiz): whitepaper
