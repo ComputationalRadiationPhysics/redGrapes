@@ -21,18 +21,19 @@
 namespace redGrapes
 {
 
-template < typename T_TaskID, typename T_TaskPtr >
+template <
+    typename TaskID,
+    typename TaskPtr,
+    typename EventGraph =
+        boost::adjacency_list<
+            boost::listS,
+            boost::listS,
+            boost::bidirectionalS
+        >
+>
 class SchedulingGraph
 {
 public:
-    using TaskID = T_TaskID;
-    using TaskPtr = T_TaskPtr;
-
-    using EventGraph = boost::adjacency_list<
-        boost::listS,
-        boost::listS,
-        boost::bidirectionalS
-    >;
     using EventID = typename boost::graph_traits< EventGraph >::vertex_descriptor;
 
     struct Event
@@ -79,32 +80,11 @@ public:
         }
     };
 
-    struct Job
-    {
-        std::shared_ptr< TaskImplBase > f;
-        TaskID task_id;
-
-        void operator() ()
-        {
-            (*f)();
-        }
-    };
-
     std::mutex mutex;
     EventGraph m_graph;
     std::unordered_map< EventID, Event > events;
     std::unordered_map< TaskID , EventID > before_events;
     std::unordered_map< TaskID , EventID > after_events;
-
-    using ThreadSchedule = redGrapes::ThreadSchedule< Job >;
-
-    std::vector< ThreadSchedule > schedule;
-    bool finishing;
-
-    SchedulingGraph( int n_threads )
-        : schedule( n_threads )
-        , finishing( false )
-    {}
 
     bool empty()
     {
@@ -178,22 +158,6 @@ public:
             for( auto other_task : selection )
                 notify_event( before_events[ other_task.get().task_id ] );
         }
-    }
-
-    void consume_job( std::function<bool()> const & pred = []{ return false; } )
-    {
-        schedule[ thread::id ].consume( [this, pred]{ return pred() || empty(); } );
-    }
-
-    std::experimental::optional<TaskID> get_current_task()
-    {
-        if( thread::id >= schedule.size() )
-            return std::experimental::nullopt;
-
-        if( std::experimental::optional<Job> job = schedule[ thread::id ].get_current_job() )
-            return std::experimental::optional<TaskID>( job->task_id );
-        else
-            return std::experimental::nullopt;
     }
 
     EventID make_event( TaskID task_id )

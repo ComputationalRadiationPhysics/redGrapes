@@ -26,15 +26,27 @@ template <
 >
 struct SchedulerBase
 {
-    std::shared_ptr<PrecedenceGraph> precedence_graph;
-    SchedulingGraph<TaskID, TaskPtr> scheduling_graph;
+    struct Job
+    {
+        std::shared_ptr< TaskImplBase > f;
+        TaskID task_id;
+
+        void operator() ()
+        {
+            (*f)();
+        }
+    };
+
+    std::shared_ptr< PrecedenceGraph > precedence_graph;
+    SchedulingGraph< TaskID, TaskPtr > scheduling_graph;
+    std::vector< ThreadSchedule<Job> > schedule;
 
     std::atomic_flag uptodate;
     std::atomic_bool finishing;
 
     SchedulerBase( std::shared_ptr<PrecedenceGraph> precedence_graph, size_t n_threads )
         : precedence_graph( precedence_graph )
-        , scheduling_graph( n_threads )
+        , schedule( n_threads )
         , finishing( false )
     {
         uptodate.clear();
@@ -43,7 +55,7 @@ struct SchedulerBase
     void notify()
     {
         uptodate.clear();
-        for( auto & thread : scheduling_graph.schedule )
+        for( auto & thread : schedule )
             thread.notify();
     }
 
@@ -51,11 +63,6 @@ struct SchedulerBase
     {
         finishing = true;
         notify();
-    }
-
-    auto get_current_task()
-    {
-        return scheduling_graph.get_current_task();
     }
 
     void update_vertex( TaskPtr p )
@@ -68,8 +75,19 @@ struct SchedulerBase
     {
         auto l = thread::scope_level;
         while( !pred() && !( finishing && scheduling_graph.empty() ) )
-            scheduling_graph.consume_job( pred );
+            schedule[ thread::id ].consume( [this, pred]{ return (finishing && scheduling_graph.empty()) || pred(); } );
         thread::scope_level = l;
+    }
+
+    std::experimental::optional<TaskID> get_current_task()
+    {
+        if( thread::id >= schedule.size() )
+            return std::experimental::nullopt;
+
+        if( std::experimental::optional<Job> job = schedule[ thread::id ].get_current_job() )
+            return std::experimental::optional<TaskID>( job->task_id );
+        else
+            return std::experimental::nullopt;
     }
 };
 

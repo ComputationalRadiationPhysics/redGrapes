@@ -22,12 +22,12 @@ template <
 struct FIFOScheduler
     : StateScheduler< TaskID, TaskPtr, PrecedenceGraph >
 {
-    using Job = typename SchedulingGraph<TaskID, TaskPtr>::Job;
+    using typename StateScheduler<TaskID, TaskPtr, PrecedenceGraph>::Job;
 
     FIFOScheduler( std::unordered_map<TaskID, TaskPtr> & tasks, std::shared_mutex & m, std::shared_ptr<PrecedenceGraph> & pg, size_t n_threads )
         : StateScheduler< TaskID, TaskPtr, PrecedenceGraph >( tasks, m, pg, n_threads )
     {
-        for( auto & t : this->scheduling_graph.schedule )
+        for( auto & t : this->schedule )
             t.set_request_hook( [this,&t]{ get_job(t); } );
     }
 
@@ -35,7 +35,7 @@ private:
     std::mutex queue_mutex;
     std::queue< Job > job_queue;
 
-    void get_job( typename SchedulingGraph<TaskID, TaskPtr>::ThreadSchedule & thread )
+    void get_job( ThreadSchedule< Job > & thread )
     {
         std::unique_lock< std::mutex > lock( queue_mutex );
 
@@ -56,7 +56,6 @@ private:
             thread.push( job );
         }
     }
-
 };
 
 } // namespace redGrapes

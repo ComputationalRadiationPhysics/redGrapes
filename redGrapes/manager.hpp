@@ -52,6 +52,7 @@ public:
         static TaskID id = 0;
         static std::mutex m;
         std::unique_lock<std::mutex> l(m);
+        std::cout << "task id = " << id << std::endl;
         return id++;
     }
 
