@@ -6,7 +6,7 @@
  */
 
 /*
- * @file redGrapes/refined_graph.hpp
+ * @file redGrapes/recursive_graph.hpp
  */
 
 #pragma once

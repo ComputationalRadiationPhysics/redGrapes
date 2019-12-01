@@ -20,7 +20,7 @@
 #include <boost/graph/copy.hpp>
 #include <boost/graph/reverse_graph.hpp>
 
-#include <redGrapes/graph/refined_graph.hpp>
+#include <redGrapes/graph/recursive_graph.hpp>
 #include <iostream>
 
 namespace redGrapes
