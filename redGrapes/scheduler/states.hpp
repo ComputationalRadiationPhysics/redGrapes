@@ -26,7 +26,7 @@ template <
 struct StateScheduler
     : SchedulerBase< TaskID, TaskPtr, PrecedenceGraph >
 {
-    using Job = typename SchedulingGraph<TaskID, TaskPtr>::Job;
+    using typename SchedulerBase<TaskID, TaskPtr, PrecedenceGraph>::Job;
 
     StateScheduler( std::unordered_map<TaskID, TaskPtr> & tasks, std::shared_mutex & m, std::shared_ptr<PrecedenceGraph> & pg, size_t n_threads )
         : SchedulerBase< TaskID, TaskPtr, PrecedenceGraph >( pg, n_threads )
