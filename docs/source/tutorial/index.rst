@@ -3,12 +3,10 @@
     Getting Started
 #######################
 
-This Section shows exemplary how to use the Resource-Manager.
+This Section shows exemplary how to use RedGrapes.
 
 .. toctree::
-  building
   resources
-  functors
-  dynamic_properties
+  tasks
   refinements
   access_demotion

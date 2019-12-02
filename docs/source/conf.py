@@ -21,9 +21,9 @@ sys.path.insert(0, os.path.abspath('.'))
 
 # -- Project information -----------------------------------------------------
 
-project = 'rmngr'
-copyright = '2018, authors'
-author = 'authors'
+project = 'redGrapes'
+copyright = '2018-2019, Michael Sippel'
+author = 'Michael Sippel'
 
 # The short X.Y version
 version = ''
@@ -40,8 +40,8 @@ release = ''
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-breathe_projects = { 'rmngr':'../doxyxml/' }
-breathe_default_project = 'rmngr'
+breathe_projects = { 'redGrapes':'../doxyxml/' }
+breathe_default_project = 'redGrapes'
 
 extensions = [
     'breathe'
@@ -107,7 +107,7 @@ html_static_path = ['_static']
 # -- Options for HTMLHelp output ---------------------------------------------
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'rmngrdoc'
+htmlhelp_basename = 'redgrapesdoc'
 
 
 # -- Options for LaTeX output ------------------------------------------------
@@ -134,8 +134,8 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'rmngr.tex', 'rmngr Documentation',
-     'authors', 'manual'),
+    (master_doc, 'redGrapes.tex', 'RedGrapes Documentation',
+     'Michael Sippel', 'manual'),
 ]
 
 
@@ -144,7 +144,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'rmngr', 'rmngr Documentation',
+    (master_doc, 'redGrapes', 'RedGrapes Documentation',
      [author], 1)
 ]
 
@@ -155,7 +155,7 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'rmngr', 'rmngr Documentation',
-     author, 'rmngr', 'One line description of project.',
+    (master_doc, 'redGrapes', 'RedGrapes Documentation',
+     author, 'redGrapes', 'Resource-based, Declarative task-Graphs for Parallel, Event-driven Scheduling',
      'Miscellaneous'),
 ]
