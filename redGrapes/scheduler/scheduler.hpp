@@ -29,7 +29,7 @@ struct SchedulerBase
     struct Job
     {
         std::shared_ptr< TaskImplBase > f;
-        TaskID task_id;
+        TaskPtr task_ptr;
 
         void operator() ()
         {
@@ -79,13 +79,13 @@ struct SchedulerBase
         thread::scope_level = l;
     }
 
-    std::experimental::optional<TaskID> get_current_task()
+    std::experimental::optional<TaskPtr> get_current_task()
     {
         if( thread::id >= schedule.size() )
             return std::experimental::nullopt;
 
         if( std::experimental::optional<Job> job = schedule[ thread::id ].get_current_job() )
-            return std::experimental::optional<TaskID>( job->task_id );
+            return std::experimental::optional<TaskPtr>( job->task_ptr );
         else
             return std::experimental::nullopt;
     }

@@ -24,8 +24,8 @@ struct FIFOScheduler
 {
     using typename StateScheduler<TaskID, TaskPtr, PrecedenceGraph>::Job;
 
-    FIFOScheduler( std::unordered_map<TaskID, TaskPtr> & tasks, std::shared_mutex & m, std::shared_ptr<PrecedenceGraph> & pg, size_t n_threads )
-        : StateScheduler< TaskID, TaskPtr, PrecedenceGraph >( tasks, m, pg, n_threads )
+    FIFOScheduler( std::shared_ptr<PrecedenceGraph> & pg, size_t n_threads )
+        : StateScheduler< TaskID, TaskPtr, PrecedenceGraph >(  pg, n_threads )
     {
         for( auto & t : this->schedule )
             t.set_request_hook( [this,&t]{ get_job(t); } );
