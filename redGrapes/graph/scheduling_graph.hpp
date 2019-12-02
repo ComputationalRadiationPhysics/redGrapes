@@ -108,9 +108,10 @@ public:
         return after_events.count(task_id) == 0;
     }
 
-    template <typename Task, typename PrecedenceGraph>
-    auto add_task( Task task, PrecedenceGraph & g )
+    void add_task( TaskPtr task_ptr )
     {
+        auto & task = task_ptr.get();
+
         std::unique_lock< std::mutex > lock( mutex );
         EventID pre_event = make_event( task.task_id );
         EventID post_event = make_event( task.task_id );
@@ -120,16 +121,13 @@ public:
         task.hook_before([this, pre_event] { if( !finish_event( pre_event ) ) events[pre_event].wait(); });
         task.hook_after([this, post_event]{ finish_event( post_event ); });
 
-        auto pair = g.push( task );
-        auto vertex = pair.first;
-
         for(
-            auto it = boost::in_edges( vertex, g.graph() );
+            auto it = boost::in_edges( task_ptr.vertex, task_ptr.graph->graph() );
             it.first != it.second;
             ++ it.first
         )
         {
-            auto & preceding_task = graph_get( boost::source( *(it.first), g.graph() ), g.graph() ).first;
+            auto & preceding_task = graph_get( boost::source( *(it.first), task_ptr.graph->graph() ), task_ptr.graph->graph() ).first;
             if( after_events.count(preceding_task.task_id) )
                 boost::add_edge( after_events[ preceding_task.task_id ], pre_event, m_graph );
         }
@@ -141,8 +139,6 @@ public:
             else
                 throw std::runtime_error("parent post-event doesn't exist!");
         }
-
-        return pair;
     }
 
     void update_vertex( TaskPtr const & task_ptr )

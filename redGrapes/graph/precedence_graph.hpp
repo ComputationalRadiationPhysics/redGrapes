@@ -64,7 +64,6 @@ class PrecedenceGraph : public RecursiveGraph<T, Graph>
             std::vector<std::reference_wrapper<T>> selection;
             std::vector<VertexID> vertices;
 
-            auto l = this->unique_lock();
             for(auto it = boost::out_edges(vertex, this->graph()); it.first != it.second; ++it.first)
             {
                 auto other_vertex = boost::target(*(it.first), this->graph());
@@ -115,7 +114,6 @@ class QueuedPrecedenceGraph
                 EnqueuePolicy::assert_superset( graph_get(this->parent_vertex, graph->graph()).first, a );
             }
 
-            auto l = this->unique_lock();
             VertexID v = boost::add_vertex( std::make_pair(a, std::shared_ptr<RecursiveGraph<T,Graph>>(nullptr)), this->graph() );
 
             struct Visitor : boost::default_dfs_visitor
@@ -151,11 +149,9 @@ class QueuedPrecedenceGraph
                 }
             }
 
-            graph_get(v, this->graph()).first.in_degree = boost::in_degree(v, this->graph());
-
             this->queue.insert(this->queue.begin(), v);
 
-            return std::make_pair(v, std::move(l));
+            return v;
         }
 
         auto update_vertex(VertexID a)
@@ -165,7 +161,6 @@ class QueuedPrecedenceGraph
 
         void finish(VertexID vertex)
         {
-            auto l = this->unique_lock();
             boost::clear_vertex( vertex, this->graph() );
             boost::remove_vertex( vertex, this->graph() );
 

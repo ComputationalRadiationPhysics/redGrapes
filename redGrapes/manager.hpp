@@ -52,7 +52,7 @@ public:
         static TaskID id = 0;
         static std::mutex m;
         std::unique_lock<std::mutex> l(m);
-        std::cout << "task id = " << id << std::endl;
+        //        std::cout << "task id = " << id << std::endl;
         return id++;
     }
 
@@ -61,14 +61,12 @@ public:
         std::shared_ptr< TaskImplBase > impl;
         TaskID task_id;
         std::experimental::optional<TaskID> parent_id;
-        unsigned int in_degree;
 
         template <typename F>
         Task( F && f, TaskProperties prop )
             : TaskProperties(prop)
             , impl( new FunctorTask<F>(std::move(f)) )
             , task_id(gen_task_id())
-            , in_degree(0)
         {}
 
         void hook_before( std::function<void()> hook )
@@ -105,7 +103,7 @@ public:
 public:
     Manager( int n_threads = std::thread::hardware_concurrency() )
         : main_graph( std::make_shared<PrecedenceGraph>() )
-        , scheduler( tasks, tasks_mutex, main_graph, n_threads )
+        , scheduler( main_graph, n_threads )
         , thread_dispatcher( scheduler, n_threads )
     {}
 
@@ -134,29 +132,49 @@ public:
      */
     void push( Task && task )
     {
-        task.parent_id = scheduler.get_current_task();
+        task.parent_id = get_current_task();
 
         unsigned int scope_level = thread::scope_level + 1;
         task.hook_before([scope_level]{ thread::scope_level = scope_level; });
 
-        scheduler.add_task( task, this->get_current_graph() );
+        task.hook_after([this, task_id=task.task_id]
+        {
+            std::unique_lock<std::shared_mutex> lock( tasks_mutex );
+            this->tasks.erase( task_id );
+        });
+
+
+        auto task_ptr = scheduler.add_task( task, this->get_current_graph() );
+
+        std::unique_lock<std::shared_mutex> lock( tasks_mutex );
+        this->tasks[ task.task_id ] = task_ptr;
+
+    }
+
+    std::experimental::optional<TaskID> get_current_task( void )
+    {
+        if( auto task_ptr = scheduler.get_current_task() )
+        {
+            auto l = task_ptr->graph->shared_lock();
+            return task_ptr->get().task_id;
+        }
+        else
+            return std::experimental::nullopt;
     }
 
     std::shared_ptr<PrecedenceGraph>
     get_current_graph( void )
     {
-        if( auto task_id = scheduler.get_current_task() )
+        if( auto task_ptr = scheduler.get_current_task() )
         {
-            std::shared_lock<std::shared_mutex> lock( tasks_mutex );
-            auto parent_graph = tasks[*task_id].graph;
-            auto parent_vertex = tasks[*task_id].vertex;
-            lock.unlock();
+            auto l = task_ptr->graph->shared_lock();
+            auto g = graph_get(task_ptr->vertex, task_ptr->graph->graph()).second;
+            l.unlock();
 
-            auto g = graph_get(parent_vertex, parent_graph->graph()).second;
             if( !g )
             {
-                auto new_graph = std::make_shared<PrecedenceGraph>( parent_graph, parent_vertex );
-                parent_graph->add_subgraph( parent_vertex, new_graph );
+                auto new_graph = std::make_shared<PrecedenceGraph>( task_ptr->graph, task_ptr->vertex );
+                task_ptr->graph->add_subgraph( task_ptr->vertex, new_graph );
                 return new_graph;
             }
             else
@@ -168,13 +186,11 @@ public:
 
     void update_properties( typename TaskProperties::Patch const & patch )
     {
-        if( auto task_id = scheduler.get_current_task() )
+        if( auto task_ptr = scheduler.get_current_task() )
         {
-            std::unique_lock<std::shared_mutex> lock( tasks_mutex );
-            tasks[*task_id].get().apply_patch( patch );
-            TaskPtr task_ptr = tasks[*task_id];
-            lock.unlock();
-            scheduler.update_vertex( task_ptr );
+            auto l = task_ptr->graph->shared_lock();
+            task_ptr->get().apply_patch( patch );
+            scheduler.update_vertex( *task_ptr );
         }
         else
             throw std::runtime_error("update_properties: currently no task running");
@@ -183,16 +199,16 @@ public:
     std::vector<TaskID> backtrace()
     {
         std::vector<TaskID> bt;
-
-        auto task_id = scheduler.get_current_task();
+        /*
+        auto task_id = get_current_task();
         while( task_id )
         {
             bt.push_back( *task_id );
 
-            std::shared_lock<std::shared_mutex> lock( tasks_mutex );
-            task_id = tasks[task_id].get().parent_id;
+            auto l = task_ptr.graph->shared_lock();
+            task_ptr = tasks[task_id].get().parent_id;
         }
-
+        */
         return bt;
     }
 
