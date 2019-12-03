@@ -5,23 +5,37 @@
 
 A very cool feature is that functors can modify their own properties while runnig.
 This allows us for example to demote resource accesses so that other functors can start earlier.
-Of course the possible changes at runtime have to be well constrained (the SchedulingPolicy must implement that).
-In the case of the ResourceUserPolicy it is only possible to **demote** the access, i.e. the new access has to be a subset of the old (e.g. we can change a write to read).
+Of course the possible changes at runtime have to be well constrained, similarly to :ref:`creating sub-tasks <tutorial_property_constraints>`.
 
-To do this actually, the scheduler has the `update_property` function.
+This is done by creating a **patch** in the same manner with builders as the initial properties. This patch is then applied to the current task by the manager method ``update_properties()``. This method must be called inside of a task and applies for exactly the task it is called in.
+This call also automatically triggers the scheduler to reevaluate outgoing edges in the task-graph.
+
+The builder :ref:`ResourceProperty <class_ResourceProperty>` provides in its builder interface the methods ``add_resources()`` and ``remove_resources`` for changing the resource access information.
+
+.. note::
+    In the case of :ref:`ResourceProperty <class_ResourceProperty>` it is only possible to **demote** the access, i.e. the new access has to be a subset of the old (e.g. we can change a write to read).
+
 
 .. code-block:: c++
 
-    auto fun = scheduler.make_functor(
-        [&]( MyContainer& x ) {
-            // write on x
-            scheduler.update_property< rmngr::ResourceUserPolicy >(
-                { x.read() }    
-            )
-            // now only read x
-	},
-	[&]( Scheduler::SchedulablePtr s, MyContainer& x ) {
-            s->proto_propery< rmngr::ResourceUserPolicy >()
-                .access_list = { x.write() };
-	}
+    rg::IOResource r1, r2;
+
+    mgr.emplace_task(
+        [&mgr]
+        {
+            // OK.
+            mgr.update_properties(
+                TaskProperties::Patch::Builder()
+                    .remove_resources({ r1.write() })
+                    .add_resources({ r1.read() })
+            );
+
+	    // throws runtime error
+            mgr.update_properties(
+                TaskProperties::Patch::Builder()
+                    .add_resources({ r2.read() })
+            );
+        },
+        TaskProperties::Builder()
+            .resources({ r1.write() })
     );

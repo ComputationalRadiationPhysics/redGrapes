@@ -5,6 +5,4 @@
     Writing Custom Schedulers
 #################################
 
-Concepts
-========
-
+TODO
