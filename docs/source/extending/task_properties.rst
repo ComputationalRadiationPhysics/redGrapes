@@ -5,8 +5,4 @@
     Extending Task Properties
 #################################
 
-Concepts
-========
-
-Builders
-========
+TODO

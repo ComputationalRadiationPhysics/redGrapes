@@ -24,8 +24,12 @@ Property Constraints
 ====================
 
 Because the properties of the parent task already made decisions about the scheduling, any child tasks are not allowed to
-revert these assumptions. So the properties of child tasks are constrained and assertet at task creation, throwing a runtime error
-if the constraints are not met. This is implemented by the :ref:`EnqueuePolicy <concept_EnqueuePolicy>`. In case of using the predefined `ResourceEnqueuePolicy`, it asserts the resource accesses of the parent task to be supersets of its child tasks. That means firstly no new resources should be introduced and secondly all access modes must be less or equally "mutable", e.g. a child task cannot write a resource that is only read by the parent task.
+revert these assumptions. So the properties of child tasks are constrained and assertet at task creation. This is implemented by the :ref:`EnqueuePolicy <concept_EnqueuePolicy>`. In case of using the predefined `ResourceEnqueuePolicy`, it asserts the resource accesses of the parent task to be supersets of its child tasks. That means firstly no new resources should be introduced and secondly all access modes must be less or equally "mutable", e.g. a child task cannot write a resource that is only read by the parent task.
+
+.. note::
+   Not meeting the resource constraint will throw an exception when calling `emplace_task()`.
+
+   "Why at runtime?", you might ask. Task properties should and are dynamically created at runtime.
 
 .. code-block:: c++
 
@@ -93,3 +97,7 @@ It is also possible to create resources which exist locally inside a task and ar
 	    .resources({ r1.read() })
     );
 
+
+.. note::
+   The context in which the constructor of a resource is called determines its *scope-level*.
+   Local resources should therefore be constructed inside of the parent task.
