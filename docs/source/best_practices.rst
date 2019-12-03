@@ -3,14 +3,32 @@
     Best Practices
 ######################
 
-Lifetime of captured variables
-==============================
+.. _best-practice_singleton:
 
+Singleton for Manager
+=====================
+TODO
+
+
+
+.. _best-practice_lifetimes:
+
+Lifetimes of Captured Variables
+===============================
+TODO
+
+
+
+.. _best-practice_containers:
 
 Writing Container Classes
 =========================
+TODO
 
 
-Always use auto for Task-Results
+
+.. _best-practice_task-results:
+
+Task-Results
 ================================
-
+TODO

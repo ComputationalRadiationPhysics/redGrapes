@@ -3,34 +3,93 @@
     Refining Tasks
 ######################
 
-It is possible to create a sub-graph of functors inside a functor during execution as well.
-If you use `scheduler.make_functor()` (which you shoud), then you don't have to care for anything.
-Just call functors inside your functor implementation.
+It is possible to create a sub-graph inside a task during its execution.
+This is done without further thought by just calling `emplace_task()` inside another task.
+Either you always capture the manager by reference or create a singleton (See :ref:`best-practice_singleton`).
 
 .. code-block:: c++
 
-    auto fun1 = scheduler.make_functor(scheduler.make_proto(
-        [&]( int x ) { /* ... */ }
-    ));
-    auto fun2 = scheduler.make_functor(scheduler.make_proto(
-        [&]( int x ) {
-	    // ...
-            fun1(x);
-	    // ...
-	}
-    ));
+    mgr.emplace_task(
+        [&mgr]
+        {
+            mgr.emplace_task(
+                []{ /* ... */ },
+                TaskProperties::Builder().label("Child Task")
+            );
+        },
+        TaskProperties::Builder().label("Parent Task")
+    );
 
+Property Constraints
+====================
 
-However if you use :ref:`functor queues <class_FunctorQueue>` explicitly, then you should get the right queue inside your functor:
+Because the properties of the parent task already made decisions about the scheduling, any child tasks are not allowed to
+revert these assumptions. So the properties of child tasks are constrained and assertet at task creation, throwing a runtime error
+if the constraints are not met. This is implemented by the :ref:`EnqueuePolicy <concept_EnqueuePolicy>`. In case of using the predefined `ResourceEnqueuePolicy`, it asserts the resource accesses of the parent task to be supersets of its child tasks. That means firstly no new resources should be introduced and secondly all access modes must be less or equally "mutable", e.g. a child task cannot write a resource that is only read by the parent task.
 
 .. code-block:: c++
 
-    auto fun1_proto = scheduler.make_proto( [&](){/* ... */} );
-    auto fun2 = main_queue.make_functor( scheduler.make_proto(
-        [&]( int x ) {
-	    auto queue = scheduler.get_current_queue();
-	    auto fun1 = queue.make_functor( fun1_proto );
+    rg::IOResource r1;
 
-	    fun1(x);
-	}
-    ));
+    mgr.emplace_task(
+       [&mgr, r1]
+       {
+           // OK.
+           mgr.emplace_task(
+               []{ /* ... */ },
+               TaskProperties::Builder()
+	           .label("good child")
+	           .resources({ r1.read() })
+	   );
+
+           // throws runtime error
+           mgr.emplace_task(
+               []{ /* ... */ },
+               TaskProperties::Builder()
+                   .label("bad child")
+                   .resources({ r1.write() })
+           );
+       },
+       TaskProperties::Builder()
+           .label("Parent Task")
+	   .resources({ r1.read() })
+   );
+
+
+Resource Scopes
+===============
+
+It is also possible to create resources which exist locally inside a task and are only relevant for sub-tasks.
+
+.. code-block:: c++
+
+    rg::IOResource r1;
+
+    mgr.emplace_task(
+        []
+	{
+            rg::IOResource local_resource;
+
+	    mgr.emplace_task(
+	        []{ /* ... */ },
+		TaskProperties::Builder()
+		    .label("Child Task 1")
+
+		    // use local_resource here without violating the subset constraint
+		    .resources({ local_resource.write() })
+	    );
+
+	    mgr.emplace_task(
+	        []{ /* ... */ },
+		TaskProperties::Builder()
+		    .label("Child Task 2")
+		    .resources({ local_resource.read() })
+	    );
+	},
+	TaskProperties::Builder()
+	    .label("Parent Task")
+
+	    // can't and doesn't need local_resource
+	    .resources({ r1.read() })
+    );
+
