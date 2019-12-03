@@ -79,3 +79,9 @@ RedGrapes is based on the high-level ideas described in a [whitepaper by Huebl, 
 * [Dr. Axel Huebl](https://github.com/ax3l): whitepaper, supervision
 * [René Widera](https://github.com/psychocoderHPC): whitepaper, supervision
 * [Alexander Matthes](https://github.com/theZiz): whitepaper
+
+### Dependencies
+Besides the C++14 standard, RedGrapes also depends on the following additional libraries:
+
+* [Boost Graph](https://www.boost.org/doc/libs/1_71_0/libs/graph/doc/)
+* [optional for C++14](https://github.com/akrzemi1/Optional) by [Andrzej Krzemienski](https://github.com/akrzemi1)
