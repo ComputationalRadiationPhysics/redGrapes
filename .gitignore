@@ -15,8 +15,10 @@ Testing
 docs/build
 docs/doxyxml
 
+build/
+
 *.swp
 *.orig
 *.png
 *.dot
-
+*~
