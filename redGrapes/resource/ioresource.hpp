@@ -17,18 +17,75 @@
 namespace redGrapes
 {
 
-struct IOResource : public Resource< access::IOAccess >
+template < typename T >
+struct IOResource
 {
-#define OP(name)                                                                \
-    inline ResourceAccess name (void) const                                     \
-    { return this->make_access(access::IOAccess{access::IOAccess::name}); }
+    struct Guard
+    {
+    protected:
+        friend class IOResource;
 
-    OP(read)
-    OP(write)
-    OP(aadd)
-    OP(amul)
+        std::shared_ptr< T > obj;
+        redGrapes::Resource< access::IOAccess > resource;
 
-#undef OP
+        Guard( std::shared_ptr<T> obj, redGrapes::Resource< access::IOAccess > resource )
+            : obj(obj)
+            , resource(resource)
+        {}
+
+        Guard( Guard const & other )
+            : obj(other.obj)
+            , resource(other.resource)
+        {}
+    };
+
+    struct ReadGuard : Guard
+    {
+        ReadGuard read() const noexcept { return *this; }
+        T const & operator* () const noexcept { return *this->obj; }
+        T const * operator-> () const noexcept { return this->obj.get(); }
+
+        template <typename Builder>
+        void build_properties( Builder & builder )
+        {
+            builder.add_resource( this->resource.make_access( access::IOAccess::read ) );
+        }
+
+    private:
+        friend class IOResource;
+        ReadGuard(Guard const & other) : Guard(other) {}
+    };
+
+    struct WriteGuard : ReadGuard
+    {
+        WriteGuard write() const noexcept { return *this; }
+        T & operator* () const noexcept { return *this->obj; }
+        T * operator-> () const noexcept { return this->obj.get(); }
+
+        template <typename B>
+        void build_properties( ResourceProperty::Builder<B> & builder )
+        {
+            builder.add_resource( this->resource.make_access( access::IOAccess::write ) );
+        }
+
+    private:
+        friend class IOResource;
+        WriteGuard(Guard const & other) : ReadGuard(other) {}
+    };
+
+    template < typename... Args >
+    IOResource( Args&&... args )
+        : g(
+              std::make_shared<T>(std::forward<Args>(args)...),
+              Resource<access::IOAccess>()
+          )
+    {}
+
+    auto read() { return ReadGuard(g); }
+    auto write() { return WriteGuard(g); }
+
+private:
+    Guard g;    
 }; // struct IOResource
 
 } // namespace redGrapes
