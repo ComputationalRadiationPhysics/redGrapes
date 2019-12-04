@@ -13,13 +13,14 @@
 #include <boost/graph/graph_traits.hpp>
 
 #include <redGrapes/thread/thread_dispatcher.hpp>
+#include <redGrapes/thread/thread_local.hpp>
 #include <redGrapes/graph/scheduling_graph.hpp>
-#include <redGrapes/task/delayed_functor.hpp>
-#include <redGrapes/task/working_future.hpp>
-#include <redGrapes/task/task.hpp>
 #include <redGrapes/graph/recursive_graph.hpp>
 #include <redGrapes/graph/precedence_graph.hpp>
 #include <redGrapes/graph/util.hpp>
+#include <redGrapes/task/delayed_functor.hpp>
+#include <redGrapes/task/working_future.hpp>
+#include <redGrapes/task/task.hpp>
 
 #include <redGrapes/scheduler/fifo.hpp>
 
