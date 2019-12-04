@@ -22,15 +22,12 @@
 #include <redGrapes/task/working_future.hpp>
 #include <redGrapes/task/task.hpp>
 
+#include <redGrapes/property/inherit.hpp>
+
 #include <redGrapes/scheduler/fifo.hpp>
 
 namespace redGrapes
 {
-
-struct DefaultTaskProperties
-{
-    struct Patch {};
-};
 
 template <typename T>
 struct DefaultEnqueuePolicy
@@ -40,7 +37,7 @@ struct DefaultEnqueuePolicy
 };
 
 template <
-    typename T_TaskProperties = DefaultTaskProperties,
+    typename T_TaskProperties = TaskProperties<>,
     typename EnqueuePolicy = DefaultEnqueuePolicy< T_TaskProperties >,
     template <typename, typename, typename> class Scheduler = FIFOScheduler
 >
@@ -53,7 +50,6 @@ public:
         static TaskID id = 0;
         static std::mutex m;
         std::unique_lock<std::mutex> l(m);
-        //        std::cout << "task id = " << id << std::endl;
         return id++;
     }
     
@@ -138,6 +134,21 @@ public:
     Scheduler< TaskID, TaskPtr, PrecedenceGraph > scheduler;
     ThreadDispatcher< Scheduler<TaskID, TaskPtr, PrecedenceGraph> > thread_dispatcher;
 
+    template <typename... Args>
+    static inline void pass(Args&&...) {}
+
+    struct PropBuildHelper
+    {
+        typename T_TaskProperties::Builder & builder;
+
+        template <typename T>
+        inline int build_arg (T & x)
+        {
+            x.build_properties( builder );
+            return 0;
+        }
+    };
+    
 public:
     using EventID = typename Scheduler<TaskID, TaskPtr, PrecedenceGraph>::EventID;
 
@@ -158,17 +169,29 @@ public:
         return scheduler;
     }
 
-    template< typename NullaryCallable >
-    auto emplace_task( NullaryCallable && impl, T_TaskProperties const & prop = T_TaskProperties{} )
+    template < typename Callable, typename... Args >
+    auto emplace_task( Callable && f, typename T_TaskProperties::Builder builder, Args&&... args )
     {
+        PropBuildHelper build{ builder };
+        pass( build.template build_arg<Args>(args)... );
+
+        auto impl = std::bind(f, std::forward<Args>(args)...);
+
         auto delayed = make_delayed_functor( std::move(impl) );
         auto result = make_working_future( std::move(delayed.get_future()), scheduler );
-        this->push( Task(std::move(delayed), prop ) );
+        this->push( Task(std::move(delayed), builder ) );
         return result;
     }
 
+    template < typename Callable, typename... Args >
+    auto emplace_task( Callable && f, Args&&... args )
+    {
+        typename TaskProperties::Builder builder;
+        return emplace_task( f, builder, std::forward<Args>(args)... );
+    }
+
     /**
-     * Enqueue a Schedulable as child of the current task.
+     * Enqueue a child of the current task.
      */
     void push( Task && task )
     {
