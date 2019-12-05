@@ -40,8 +40,8 @@ struct DefaultEnqueuePolicy
 };
 
 template <
-    typename TaskProperties = DefaultTaskProperties,
-    typename EnqueuePolicy = DefaultEnqueuePolicy< TaskProperties >,
+    typename T_TaskProperties = DefaultTaskProperties,
+    typename EnqueuePolicy = DefaultEnqueuePolicy< T_TaskProperties >,
     template <typename, typename, typename> class Scheduler = FIFOScheduler
 >
 class Manager
@@ -56,18 +56,29 @@ public:
         //        std::cout << "task id = " << id << std::endl;
         return id++;
     }
+    
+    struct TaskPtr;
+    struct WeakTaskPtr;
+
+    struct TaskProperties : T_TaskProperties
+    {
+        TaskID task_id;
+        std::experimental::optional< WeakTaskPtr > parent;
+
+        TaskProperties( T_TaskProperties const & p )
+            : T_TaskProperties( p )
+            , task_id(gen_task_id())
+        {}
+    };
 
     struct Task : TaskProperties
     {
         std::shared_ptr< TaskImplBase > impl;
-        TaskID task_id;
-        std::experimental::optional<TaskID> parent_id;
 
         template <typename F>
-        Task( F && f, TaskProperties prop )
+        Task( F && f, T_TaskProperties prop )
             : TaskProperties(prop)
             , impl( new FunctorTask<F>(std::move(f)) )
-            , task_id(gen_task_id())
         {}
 
         void hook_before( std::function<void()> hook )
@@ -83,6 +94,29 @@ public:
 
     using PrecedenceGraph = QueuedPrecedenceGraph<Task, EnqueuePolicy>;
 
+    struct WeakTaskPtr
+    {
+        std::weak_ptr< PrecedenceGraph > graph;
+        typename PrecedenceGraph::VertexID vertex;
+
+        WeakTaskPtr( TaskPtr const & other )
+            : graph( other.graph )
+            , vertex( other.vertex )
+        {}
+
+        Task & get() const
+        {
+            return graph_get(vertex, graph.lock()->graph()).first;
+        }
+
+        Task & locked_get() const
+        {
+            auto g = this->graph.lock();
+            auto lock = g->shared_lock();
+            return graph_get(vertex, g->graph()).first;
+        }
+    };
+    
     struct TaskPtr
     {
         std::shared_ptr< PrecedenceGraph > graph;
@@ -92,10 +126,13 @@ public:
         {
             return graph_get(vertex, graph->graph()).first;
         }
-    };
 
-    std::shared_mutex tasks_mutex;
-    std::unordered_map< TaskID, TaskPtr > tasks;
+        Task & locked_get() const
+        {
+            auto lock = graph->shared_lock();
+            return graph_get(vertex, graph->graph()).first;
+        }
+    };
 
     std::shared_ptr<PrecedenceGraph> main_graph;
     Scheduler< TaskID, TaskPtr, PrecedenceGraph > scheduler;
@@ -120,7 +157,7 @@ public:
     }
 
     template< typename NullaryCallable >
-    auto emplace_task( NullaryCallable && impl, TaskProperties const & prop = TaskProperties{} )
+    auto emplace_task( NullaryCallable && impl, T_TaskProperties const & prop = T_TaskProperties{} )
     {
         auto delayed = make_delayed_functor( std::move(impl) );
         auto result = make_working_future( std::move(delayed.get_future()), scheduler );
@@ -133,32 +170,19 @@ public:
      */
     void push( Task && task )
     {
-        task.parent_id = get_current_task();
+        if( auto parent = scheduler.get_current_task() )
+            task.parent = WeakTaskPtr(*parent);
 
         unsigned int scope_level = thread::scope_level + 1;
         task.hook_before([scope_level]{ thread::scope_level = scope_level; });
 
-        task.hook_after([this, task_id=task.task_id]
-        {
-            std::unique_lock<std::shared_mutex> lock( tasks_mutex );
-            this->tasks.erase( task_id );
-        });
-
-
         auto task_ptr = scheduler.add_task( task, this->get_current_graph() );
-
-        std::unique_lock<std::shared_mutex> lock( tasks_mutex );
-        this->tasks[ task.task_id ] = task_ptr;
-
     }
 
-    std::experimental::optional<TaskID> get_current_task( void )
+    std::experimental::optional<TaskID> get_current_task_id( void )
     {
         if( auto task_ptr = scheduler.get_current_task() )
-        {
-            auto l = task_ptr->graph->shared_lock();
-            return task_ptr->get().task_id;
-        }
+            return task_ptr->locked_get().task_id;
         else
             return std::experimental::nullopt;
     }
@@ -168,14 +192,15 @@ public:
     {
         if( auto task_ptr = scheduler.get_current_task() )
         {
-            auto l = task_ptr->graph->shared_lock();
-            auto g = graph_get(task_ptr->vertex, task_ptr->graph->graph()).second;
+            auto parent_graph = task_ptr->graph;
+            auto l = parent_graph->shared_lock();
+            auto g = graph_get(task_ptr->vertex, parent_graph->graph()).second;
             l.unlock();
 
             if( !g )
             {
-                auto new_graph = std::make_shared<PrecedenceGraph>( task_ptr->graph, task_ptr->vertex );
-                task_ptr->graph->add_subgraph( task_ptr->vertex, new_graph );
+                auto new_graph = std::make_shared<PrecedenceGraph>( parent_graph, task_ptr->vertex );
+                parent_graph->add_subgraph( task_ptr->vertex, new_graph );
                 return new_graph;
             }
             else
@@ -189,27 +214,33 @@ public:
     {
         if( auto task_ptr = scheduler.get_current_task() )
         {
-            auto l = task_ptr->graph->unique_lock();
-            task_ptr->get().apply_patch( patch );
+            task_ptr->locked_get().apply_patch( patch );
             scheduler.update_vertex( *task_ptr );
         }
         else
             throw std::runtime_error("update_properties: currently no task running");
     }
 
-    std::vector<TaskID> backtrace()
+    std::vector<TaskProperties> backtrace()
     {
-        std::vector<TaskID> bt;
-        /*
-        auto task_id = get_current_task();
-        while( task_id )
-        {
-            bt.push_back( *task_id );
+        std::vector<TaskProperties> bt;
 
-            auto l = task_ptr.graph->shared_lock();
-            task_ptr = tasks[task_id].get().parent_id;
+        std::experimental::optional< WeakTaskPtr > task_ptr;
+
+        if( auto parent = scheduler.get_current_task() )
+            task_ptr = WeakTaskPtr( *parent );
+
+        while( task_ptr )
+        {
+            TaskProperties task = task_ptr->locked_get();
+            bt.push_back( task );
+
+            if( task.parent )
+                task_ptr = WeakTaskPtr(*task.parent);
+            else
+                task_ptr = std::experimental::nullopt;
         }
-        */
+
         return bt;
     }
 
@@ -233,9 +264,9 @@ public:
     struct DefaultPropFunctor
     {
         template < typename... Args >
-        TaskProperties operator() (Args&&...)
+        T_TaskProperties operator() (Args&&...)
         {
-            return TaskProperties{};
+            return T_TaskProperties{};
         }
     };
 

@@ -112,6 +112,10 @@ public:
     {
         auto & task = task_ptr.get();
 
+        std::experimental::optional< TaskID > parent_id;
+        if( task.parent )
+            parent_id =  task.parent->locked_get().task_id;
+
         std::unique_lock< std::mutex > lock( mutex );
         EventID pre_event = make_event( task.task_id );
         EventID post_event = make_event( task.task_id );
@@ -132,10 +136,10 @@ public:
                 boost::add_edge( after_events[ preceding_task.task_id ], pre_event, m_graph );
         }
 
-        if( task.parent_id )
+        if( parent_id )
         {
-            if( after_events.count( *task.parent_id ) )
-                boost::add_edge( post_event, after_events[ *task.parent_id ], m_graph );
+            if( after_events.count( *parent_id ) )
+                boost::add_edge( post_event, after_events[ *parent_id ], m_graph );
             else
                 throw std::runtime_error("parent post-event doesn't exist!");
         }
@@ -143,6 +147,7 @@ public:
 
     auto update_vertex( TaskPtr const & task_ptr )
     {
+        auto lock = task_ptr.graph->unique_lock();
         auto vertices = task_ptr.graph->update_vertex( task_ptr.vertex );
         auto task_id = task_ptr.get().task_id;
 
