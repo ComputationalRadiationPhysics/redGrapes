@@ -16,6 +16,7 @@ set(EXAMPLE_NAMES
     5_access_demotion
     6_dynamic_properties
     7_resource_scope
+    8_event
     game_of_life
 )
 
