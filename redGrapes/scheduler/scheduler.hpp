@@ -37,6 +37,8 @@ struct SchedulerBase
         }
     };
 
+    using EventID = typename SchedulingGraph< TaskID, TaskPtr >::EventID;
+
     std::shared_ptr< PrecedenceGraph > precedence_graph;
     SchedulingGraph< TaskID, TaskPtr > scheduling_graph;
     std::vector< ThreadSchedule<Job> > schedule;
@@ -68,6 +70,12 @@ struct SchedulerBase
     void update_vertex( TaskPtr p )
     {
         scheduling_graph.update_vertex( p );
+        notify();
+    }
+
+    void reach_event( EventID event_id )
+    {
+        scheduling_graph.finish_event( event_id );
         notify();
     }
 
