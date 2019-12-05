@@ -12,8 +12,8 @@
 int main(int, char*[])
 {
     redGrapes::FieldResource<2> a;
-    redGrapes::IOResource b;
-    redGrapes::IOResource c;
+    redGrapes::IOResource<int> b;
+    redGrapes::IOResource<int> c;
 
     redGrapes::ResourceUser user1({
         a.read(), // complete resource
