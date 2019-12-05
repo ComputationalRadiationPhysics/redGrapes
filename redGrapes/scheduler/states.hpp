@@ -86,12 +86,13 @@ struct StateScheduler
     void update_vertex( TaskPtr p )
     {
         auto vertices = this->scheduling_graph.update_vertex( p );
+
         for( auto v : vertices )
         {
             TaskPtr following_task{ p.graph, v };
             if( is_task_ready( following_task ) )
             {
-                std::unique_lock<std::mutex> l( mutex );
+                std::unique_lock<std::mutex> tasks_lock( mutex );
                 active_tasks.push_back( following_task );
             }
         }
@@ -126,7 +127,7 @@ struct StateScheduler
                             auto target_vertex = boost::target(*edge_it.first, task_ptr.graph->graph());
                             if( boost::in_degree(target_vertex, task_ptr.graph->graph()) == 1 )
                             {
-                                TaskPtr p{ task_ptr.graph, target_vertex};
+                                TaskPtr p{ task_ptr.graph, target_vertex };
                                 active_tasks.push_back( p );
                             }
                         }
@@ -145,7 +146,7 @@ struct StateScheduler
                     if( is_task_ready( task_ptr ) )
                     {
                         states[ task_id ] = TaskState::ready;
-                        new_jobs.push_back( Job{ task_ptr.get().impl, task_ptr } );                    
+                        new_jobs.push_back( Job{ task_ptr.get().impl, task_ptr } );
                     }
                 }
                 break;
