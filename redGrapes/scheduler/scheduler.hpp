@@ -46,7 +46,7 @@ struct SchedulerBase
 
     SchedulerBase( std::shared_ptr<PrecedenceGraph> precedence_graph, size_t n_threads )
         : precedence_graph( precedence_graph )
-        , schedule( n_threads )
+        , schedule( n_threads + 1 )
         , finishing( false )
     {
         uptodate.clear();
