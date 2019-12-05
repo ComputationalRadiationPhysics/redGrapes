@@ -26,6 +26,8 @@
 
 #include <redGrapes/scheduler/fifo.hpp>
 
+#include <redGrapes/property/trait.hpp>
+
 namespace redGrapes
 {
 
@@ -142,13 +144,13 @@ public:
         typename T_TaskProperties::Builder & builder;
 
         template <typename T>
-        inline int build_arg (T & x)
+        inline int build (T const & x)
         {
-            x.build_properties( builder );
+            trait::BuildProperties<T>::build(builder, x);
             return 0;
         }
     };
-    
+
 public:
     using EventID = typename Scheduler<TaskID, TaskPtr, PrecedenceGraph>::EventID;
 
@@ -172,8 +174,8 @@ public:
     template < typename Callable, typename... Args >
     auto emplace_task( Callable && f, typename T_TaskProperties::Builder builder, Args&&... args )
     {
-        PropBuildHelper build{ builder };
-        pass( build.template build_arg<Args>(args)... );
+        PropBuildHelper build_helper{ builder };
+        pass( build_helper.template build<Args>(args)... );
 
         auto impl = std::bind(f, std::forward<Args>(args)...);
 
@@ -292,24 +294,21 @@ public:
         template <typename... Args>
         auto operator() (Args&&... args)
         {
-            return mgr.emplace_task(
-                       std::bind( this->impl, std::forward<Args>(args)... ),
-                       this->prop( std::forward<Args>(args)... )
-                   );
+            return mgr.emplace_task(impl, prop( std::forward<Args>(args)... ), std::forward<Args>(args)...);
         }
     };
 
     struct DefaultPropFunctor
     {
         template < typename... Args >
-        T_TaskProperties operator() (Args&&...)
+        typename T_TaskProperties::Builder operator() (Args&&...)
         {
-            return T_TaskProperties{};
+            return typename T_TaskProperties::Builder();
         }
     };
 
     template < typename ImplCallable, typename PropCallable = DefaultPropFunctor >
-    auto make_functor( ImplCallable && impl, PropCallable && prop = DefaultPropFunctor{} )
+    auto make_functor( ImplCallable && impl, PropCallable && prop = DefaultPropFunctor{}, typename T_TaskProperties::Builder builder = typename T_TaskProperties::Builder() )
     {
         return TaskFactoryFunctor< ImplCallable, PropCallable >{ *this, impl, prop };
     }
