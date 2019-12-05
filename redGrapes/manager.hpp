@@ -139,6 +139,8 @@ public:
     ThreadDispatcher< Scheduler<TaskID, TaskPtr, PrecedenceGraph> > thread_dispatcher;
 
 public:
+    using EventID = typename Scheduler<TaskID, TaskPtr, PrecedenceGraph>::EventID;
+
     Manager( int n_threads = std::thread::hardware_concurrency() )
         : main_graph( std::make_shared<PrecedenceGraph>() )
         , scheduler( main_graph, n_threads )
@@ -183,6 +185,19 @@ public:
     {
         if( auto task_ptr = scheduler.get_current_task() )
             return task_ptr->locked_get().task_id;
+        else
+            return std::experimental::nullopt;
+    }
+
+    void reach_event( EventID event_id )
+    {
+        scheduler.reach_event( event_id );
+    }
+
+    std::experimental::optional<EventID> create_event()
+    {
+        if( auto task_id = get_current_task_id() )
+            return scheduler.scheduling_graph.add_post_dependency( *task_id );
         else
             return std::experimental::nullopt;
     }
