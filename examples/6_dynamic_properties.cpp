@@ -15,14 +15,14 @@
 #include <redGrapes/property/inherit.hpp>
 #include <redGrapes/manager.hpp>
 
-using Properties = redGrapes::TaskProperties<
+using TaskProperties = redGrapes::TaskProperties<
     redGrapes::ResourceProperty
 >;
 
 int main( int, char*[] )
 {
     redGrapes::Manager<
-        Properties,
+        TaskProperties,
         redGrapes::ResourceEnqueuePolicy
     > mgr( 4 );
 
@@ -36,7 +36,7 @@ int main( int, char*[] )
         },
         [field]( int x )
         {
-            return Properties::Builder().resources({ field.write({{x,x}}) });
+            return TaskProperties::Builder().resources({ field.write({{x,x}}) });
         }
     );
 
