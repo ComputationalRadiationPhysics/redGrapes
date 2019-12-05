@@ -189,7 +189,7 @@ public:
     {
         if( auto task_ptr = scheduler.get_current_task() )
         {
-            auto l = task_ptr->graph->shared_lock();
+            auto l = task_ptr->graph->unique_lock();
             task_ptr->get().apply_patch( patch );
             scheduler.update_vertex( *task_ptr );
         }

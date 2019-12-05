@@ -141,19 +141,27 @@ public:
         }
     }
 
-    void update_vertex( TaskPtr const & task_ptr )
+    auto update_vertex( TaskPtr const & task_ptr )
     {
-        auto selection = task_ptr.graph->update_vertex( task_ptr.vertex );
+        auto vertices = task_ptr.graph->update_vertex( task_ptr.vertex );
         auto task_id = task_ptr.get().task_id;
 
         {
             std::lock_guard< std::mutex > lock( mutex );
-            for( auto other_task : selection )
-                boost::remove_edge( after_events[task_id], before_events[other_task.get().task_id], m_graph );
+            for( auto v : vertices )
+            {
+                auto other_task_id = graph_get(v, task_ptr.graph->graph()).first.task_id;
+                boost::remove_edge( after_events[task_id], before_events[other_task_id], m_graph );
+            }
 
-            for( auto other_task : selection )
-                notify_event( before_events[ other_task.get().task_id ] );
+            for( auto v : vertices )
+            {
+                auto other_task_id = graph_get(v, task_ptr.graph->graph()).first.task_id;
+                notify_event( before_events[ other_task_id ] );
+            }
         }
+
+        return vertices;
     }
 
     EventID make_event( TaskID task_id )

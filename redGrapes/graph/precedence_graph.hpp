@@ -61,24 +61,20 @@ class PrecedenceGraph : public RecursiveGraph<T, Graph>
         /// remove edges which don't satisfy the precedence policy
         auto remove_out_edges(VertexID vertex, std::function<bool(T const&)> const & pred)
         {
-            std::vector<std::reference_wrapper<T>> selection;
             std::vector<VertexID> vertices;
 
             for(auto it = boost::out_edges(vertex, this->graph()); it.first != it.second; ++it.first)
             {
                 auto other_vertex = boost::target(*(it.first), this->graph());
-                auto & other = graph_get(other_vertex, this->graph()).first;
-                if( pred( other ) )
-                {
+                auto & other = graph_get(other_vertex, this->graph());
+                if( pred( other.first ) )
                     vertices.push_back( other_vertex );
-                    selection.push_back( other );
-                }
             }
 
             for( auto other_vertex : vertices )
                 boost::remove_edge(vertex, other_vertex, this->graph());
 
-            return selection;
+            return vertices;
         }
 }; // class PrecedenceGraph
 
