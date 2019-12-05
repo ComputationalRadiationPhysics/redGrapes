@@ -83,6 +83,21 @@ struct StateScheduler
         return task_ptr;
     }
 
+    void update_vertex( TaskPtr p )
+    {
+        auto vertices = this->scheduling_graph.update_vertex( p );
+        for( auto v : vertices )
+        {
+            TaskPtr following_task{ p.graph, v };
+            if( is_task_ready( following_task ) )
+            {
+                std::unique_lock<std::mutex> l( mutex );
+                active_tasks.push_back( following_task );
+            }
+        }
+        this->notify();
+    }
+
     /*
      * update task states and remove done tasks
      * @return ready tasks
