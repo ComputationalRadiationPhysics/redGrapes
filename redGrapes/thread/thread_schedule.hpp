@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <deque>
 #include <queue>
 #include <stack>
@@ -15,6 +16,9 @@
 #include <condition_variable>
 #include <algorithm>
 #include <functional>
+
+#include <redGrapes/thread/thread_dispatcher.hpp>
+#include <redGrapes/thread/thread_local.hpp>
 
 #include <akrzemi/optional.hpp>
 
@@ -34,6 +38,11 @@ public:
         request_hook = r;
     }
 
+    void set_wait_hook( std::function<void()> const & r )
+    {
+        wait_hook = r;
+    }
+
     void push( Job const & job )
     {
         queue.push( job );
@@ -51,6 +60,7 @@ public:
 
     void consume( std::function<bool(void)> const & pred )
     {
+        wakeup = false;
         if( !pred() )
         {
             if( !queue.empty() )
@@ -75,9 +85,16 @@ public:
                 if( request_hook )
                     request_hook();
 
-                std::unique_lock< std::mutex > lock( cv_mutex );
-                cv.wait(lock, [this]{ return wakeup; });
-                wakeup = false;
+                if( wait_hook )
+                {
+                    while( ! wakeup )
+                        wait_hook();
+                }
+                else
+                {
+                    std::unique_lock< std::mutex > lock( cv_mutex );
+                    cv.wait(lock, [this]{ return bool(wakeup); });
+                }
             }
         }
     }
@@ -93,8 +110,9 @@ public:
     }
 
 private:
-    bool wakeup;
+    std::atomic_bool wakeup;
     std::function<void()> request_hook;
+    std::function<void()> wait_hook;
     std::queue< Job > queue;
 
     std::mutex stack_mutex;

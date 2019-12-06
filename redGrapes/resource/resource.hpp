@@ -14,11 +14,11 @@
 #include <boost/type_index.hpp>
 #include <memory> // std::unique_ptr<>
 #include <vector>
-#include <atomic>
+#include <mutex>
 #include <iostream>
 #include <functional>
 
-#include <redGrapes/thread/thread_dispatcher.hpp>
+#include <redGrapes/thread/thread_local.hpp>
 
 namespace redGrapes
 {
@@ -26,15 +26,12 @@ namespace redGrapes
 class ResourceBase
 {
 protected:
-    static std::atomic_int & id_counter()
-    {
-        static std::atomic_int x;
-        return x;
-    }
-
     static int getID()
     {
-        return id_counter() ++;
+        static std::mutex m;
+        static int id_counter;
+        std::lock_guard<std::mutex> lock(m);
+        return id_counter ++;
     }
 
 public:

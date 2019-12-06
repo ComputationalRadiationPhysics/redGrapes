@@ -7,9 +7,11 @@
 
 #pragma once
 
+#include <unordered_map>
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/graph_traits.hpp>
 #include <akrzemi/optional.hpp>
+#include <redGrapes/graph/scheduling_graph.hpp>
 #include <redGrapes/graph/util.hpp>
 
 #include <vector>
@@ -17,72 +19,83 @@
 namespace redGrapes
 {
 
-template < typename TaskProperties, typename SchedulingGraph >
+template <
+    typename TaskID,
+    typename TaskPtr,
+    typename PrecedenceGraph
+>
 struct SchedulerBase
 {
-    TaskContainer< TaskProperties > & tasks;
-    SchedulingGraph & graph;
+    struct Job
+    {
+        std::shared_ptr< TaskImplBase > f;
+        TaskPtr task_ptr;
+
+        void operator() ()
+        {
+            (*f)();
+        }
+    };
+
+    using EventID = typename SchedulingGraph< TaskID, TaskPtr >::EventID;
+
+    std::shared_ptr< PrecedenceGraph > precedence_graph;
+    SchedulingGraph< TaskID, TaskPtr > scheduling_graph;
+    std::vector< ThreadSchedule<Job> > schedule;
 
     std::atomic_flag uptodate;
+    std::atomic_bool finishing;
 
-    using TaskID = typename TaskContainer< TaskProperties >::TaskID;
-
-    SchedulerBase( TaskContainer< TaskProperties > & tasks, SchedulingGraph & graph )
-        : tasks(tasks)
-        , graph(graph)
+    SchedulerBase( std::shared_ptr<PrecedenceGraph> precedence_graph, size_t n_threads )
+        : precedence_graph( precedence_graph )
+        , schedule( n_threads + 1 )
+        , finishing( false )
     {
         uptodate.clear();
-        graph.notify_hook = [this]{ uptodate.clear(); };
     }
 
     void notify()
     {
-        this->graph.notify();
+        uptodate.clear();
+        for( auto & thread : schedule )
+            thread.notify();
     }
 
-    bool is_task_ready( TaskID task )
+    void finish()
     {
-        auto r = graph.precedence_graph.find_refinement_containing( task );
-        if( r )
-        {
-            auto l = r->lock();
-            if( auto task_id = graph_find_vertex( task, r->graph() ) )
-                return boost::in_degree( *task_id, r->graph() ) == 0;
-        }
-        return false;
+        finishing = true;
+        notify();
     }
 
-    std::experimental::optional<TaskID> find_task( std::function<bool(TaskID)> pred = [](TaskID){ return true; } )
+    void update_vertex( TaskPtr p )
     {
-        for(
-            auto it = graph.precedence_graph.vertices();
-            it.first != it.second;
-            ++ it.first
-        )
-        {
-            auto task = *(it.first);
-            if( pred( task ) )
-                return std::experimental::optional<TaskID>(task);
-        }
-
-        return std::experimental::nullopt;
+        scheduling_graph.update_vertex( p );
+        notify();
     }
 
-    std::vector<TaskID> collect_tasks( std::function<bool(TaskID)> pred = [](TaskID){ return true; } )
+    void reach_event( EventID event_id )
     {
-        std::vector<TaskID> selection;
-        for(
-            auto it = graph.precedence_graph.vertices();
-            it.first != it.second;
-            ++ it.first
-        )
-        {
-            auto task = *(it.first);
-            if( pred( task ) )
-                selection.push_back( task );
-        }
+        scheduling_graph.finish_event( event_id );
+        notify();
+    }
 
-        return selection;
+    void operator() ( std::function<bool()> const & pred = []{ return false; } )
+    {
+        auto l = thread::scope_level;
+        while( !pred() && !( finishing && scheduling_graph.empty() ) )
+            schedule[ thread::id ].consume( [this, pred]{ return (finishing && scheduling_graph.empty()) || pred(); } );
+        thread::scope_level = l;
+    }
+
+    std::experimental::optional<TaskPtr> get_current_task()
+    {
+        if( thread::id >= schedule.size() )
+            return std::experimental::nullopt;
+
+        if( std::experimental::optional<Job> job = schedule[ thread::id ].get_current_job() )
+            return std::experimental::optional<TaskPtr>( job->task_ptr );
+        else
+            return std::experimental::nullopt;
     }
 };
 

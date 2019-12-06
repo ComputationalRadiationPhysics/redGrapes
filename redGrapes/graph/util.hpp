@@ -21,7 +21,7 @@ namespace redGrapes
  * get vertex-property from vertex-descriptor
  */
 template <typename Graph>
-typename Graph::vertex_property_type
+typename Graph::vertex_property_type &
 graph_get(
     typename boost::graph_traits<Graph>::vertex_descriptor v,
     Graph & graph
