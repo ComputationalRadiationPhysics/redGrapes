@@ -10,24 +10,34 @@
 #include <iostream>
 
 #include <redGrapes/property/resource.hpp>
+#include <redGrapes/property/label.hpp>
 #include <redGrapes/property/inherit.hpp>
 #include <redGrapes/manager.hpp>
 
-using Properties = redGrapes::TaskProperties<
-    redGrapes::ResourceProperty
+using TaskProperties = redGrapes::TaskProperties<
+    redGrapes::ResourceProperty,
+    redGrapes::LabelProperty
 >;
 
 int main( int, char*[] )
 {
     redGrapes::Manager<
-        Properties,
+        TaskProperties,
         redGrapes::ResourceEnqueuePolicy
     > mgr( 4 );
 
-    auto fun1 = mgr.make_functor(
+    mgr.emplace_task(
         [&mgr]
         {
             std::cout << "f1 on thread " << redGrapes::thread::id << "..." << std::endl;
+
+            
+                    int i = 0;
+                    for( auto t : mgr.backtrace() )
+                    {
+                        std::cout << "backtrace[" << i << "]: " << t.label << std::endl;
+                        i++;
+                    }
 
             mgr.emplace_task(
                 []{
@@ -36,15 +46,23 @@ int main( int, char*[] )
                 });
 
             mgr.emplace_task(
-                []{
+                [&mgr]{
                     std::cout << "Refinement 2 on thread " << redGrapes::thread::id << std::endl;
                     std::this_thread::sleep_for( std::chrono::seconds(1) );
-                });
-        }
+
+                    int i = 0;
+                    for( auto t : mgr.backtrace() )
+                    {
+                        std::cout << "backtrace[" << i << "]: " << t.label << std::endl;
+                        i++;
+                    }
+                },
+                TaskProperties::Builder().label("Refinement 2")
+            );
+        },
+        TaskProperties::Builder().label("Parent Task")
     );
 
-    fun1();
-    fun1();
 
     return 0;
 }

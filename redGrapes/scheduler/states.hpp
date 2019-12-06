@@ -9,7 +9,7 @@
 #pragma once
 
 #include <vector>
-#include <redGrapes/task/task_container.hpp>
+#include <redGrapes/task/task.hpp>
 #include <redGrapes/scheduler/scheduler.hpp>
 #include <redGrapes/thread/thread_dispatcher.hpp>
 
@@ -19,53 +19,83 @@ namespace redGrapes
 enum TaskState { uninitialized = 0, pending, ready, running, done };
 
 template <
-    typename TaskProperties,
-    typename SchedulingGraph
+    typename TaskID,
+    typename TaskPtr,
+    typename PrecedenceGraph
 >
 struct StateScheduler
-    : SchedulerBase< TaskProperties, SchedulingGraph >
+    : SchedulerBase< TaskID, TaskPtr, PrecedenceGraph >
 {
-    using TaskID = typename TaskContainer<TaskProperties>::TaskID;
+    using typename SchedulerBase<TaskID, TaskPtr, PrecedenceGraph>::Job;
 
-    StateScheduler( TaskContainer< TaskProperties > & tasks, SchedulingGraph & graph )
-        : SchedulerBase< TaskProperties, SchedulingGraph >( tasks, graph )
+    struct TaskProperties
+    {
+        TaskState state;
+    };
+
+    StateScheduler( std::shared_ptr<PrecedenceGraph> & pg, size_t n_threads )
+        : SchedulerBase< TaskID, TaskPtr, PrecedenceGraph >( pg, n_threads )
     {}
 
-    void set_task_state( TaskID id, TaskState state )
+    TaskState get_task_state( TaskID task_id )
     {
+        std::lock_guard<std::mutex> l(mutex);
+        return states[task_id];
+    }
+
+    bool is_task_ready( TaskPtr task_ptr )
+    {
+        return boost::in_degree(task_ptr.vertex, task_ptr.graph->graph()) == 0;
+    }
+
+    template <typename Task>
+    auto add_task( Task task, std::shared_ptr<PrecedenceGraph> g )
+    {
+        auto l = g->unique_lock();
+        auto vertex = g->push( task );
+        TaskPtr task_ptr{ g, vertex };
+        this->scheduling_graph.add_task( task_ptr );
+        bool ready = is_task_ready( task_ptr );
+        l.unlock();
+
+        task.hook_before([this, task_id=task.task_id]
+                         {
+                             std::unique_lock<std::mutex> l( mutex );
+                             states[ task_id ] = TaskState::running;
+                         });
+        task.hook_after([this, task_id=task.task_id]
+                        {
+                            std::unique_lock<std::mutex> l( mutex );
+                            states[ task_id ] = TaskState::done;
+                            l.unlock();
+                            this->notify();
+                        });
+
         {
-            std::lock_guard<std::mutex> lock(this->states_mutex);
-            states[ id ] = state;
+            std::unique_lock<std::mutex> l( mutex );
+            states[ task.task_id ] = TaskState::pending;
+            if( ready )
+                active_tasks.push_back( task_ptr );
         }
-        this->uptodate.clear();
+
+        this->notify();
+
+        return task_ptr;
     }
 
-    TaskState get_task_state( TaskID id )
+    void update_vertex( TaskPtr p )
     {
-        std::lock_guard<std::mutex> lock(this->states_mutex);
-        return states[ id ];
-    }
+        auto vertices = this->scheduling_graph.update_vertex( p );
 
-    template <typename Refinement>
-    void push( TaskID task, Refinement & ref )
-    {
-        this->tasks.task_hook_before(
-            task,
-            [this, task]
+        for( auto v : vertices )
+        {
+            TaskPtr following_task{ p.graph, v };
+            if( is_task_ready( following_task ) )
             {
-                this->set_task_state( task, TaskState::running );
-            });
-
-        this->tasks.task_hook_after(
-            task,
-            [this, task]
-            {
-                this->set_task_state( task, TaskState::done );
-            });
-
-        this->graph.add_task( task, ref );
-
-        this->set_task_state( task, TaskState::pending );
+                std::unique_lock<std::mutex> tasks_lock( mutex );
+                active_tasks.push_back( following_task );
+            }
+        }
         this->notify();
     }
 
@@ -73,34 +103,63 @@ struct StateScheduler
      * update task states and remove done tasks
      * @return ready tasks
      */
-    std::vector<TaskID> update_graph()
+    std::vector<Job> update_graph()
     {
-        std::lock_guard<std::mutex> lock(this->states_mutex);
-        for( auto task : this->collect_tasks( [this](TaskID task){ return states[task] == TaskState::done; }) )
+        std::unique_lock<std::mutex> tasks_lock( mutex );
+        std::vector< Job > new_jobs;
+
+        for(int i = 0; i < active_tasks.size(); ++i)
         {
-            if( this->graph.is_task_finished(task) && this->graph.precedence_graph.finish( task ) )
+            auto task_ptr = active_tasks[i];
+
+            auto l = task_ptr.graph->unique_lock();
+            auto task_id = task_ptr.get().task_id;
+
+            switch( states[task_id] )
             {
-                states.erase( task );
-                this->tasks.erase( task );
+            case TaskState::done:
+                if( this->scheduling_graph.is_task_finished( task_id ) )
+                {
+                    std::vector<TaskPtr> potential_ready;
+                    {
+                        for( auto edge_it = boost::out_edges(task_ptr.vertex, task_ptr.graph->graph()); edge_it.first != edge_it.second; ++edge_it.first)
+                        {
+                            auto target_vertex = boost::target(*edge_it.first, task_ptr.graph->graph());
+                            if( boost::in_degree(target_vertex, task_ptr.graph->graph()) == 1 )
+                            {
+                                TaskPtr p{ task_ptr.graph, target_vertex };
+                                active_tasks.push_back( p );
+                            }
+                        }
+                    }
+
+                    task_ptr.graph->finish( task_ptr.vertex );
+                    active_tasks.erase( active_tasks.begin() + i );
+                    --i;
+
+                    states.erase( task_id );
+                }
+                break;
+
+            case TaskState::pending:
+                {
+                    if( is_task_ready( task_ptr ) )
+                    {
+                        states[ task_id ] = TaskState::ready;
+                        new_jobs.push_back( Job{ task_ptr.get().impl, task_ptr } );
+                    }
+                }
+                break;
             }
         }
 
-        std::vector< TaskID > ready;
-        for( auto task : this->collect_tasks( [this](TaskID task){ return states[task] == TaskState::pending; }) )
-        {
-            if( this->is_task_ready( task ) )
-            {
-                states[task] = TaskState::ready;
-                ready.push_back( task );
-            }
-        }
-
-        return ready;
+        return new_jobs;
     }
 
 private:
-    std::mutex states_mutex;
-    std::unordered_map< TaskID, TaskState > states;    
+    std::mutex mutex;
+    std::unordered_map< TaskID, TaskState > states;
+    std::vector< TaskPtr > active_tasks; // contains ready, running & done tasks
 };
 
 } // namespace redGrapes
