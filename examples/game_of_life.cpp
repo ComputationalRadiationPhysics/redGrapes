@@ -20,31 +20,16 @@
 #include <redGrapes/property/inherit.hpp>
 #include <redGrapes/manager.hpp>
 
-using Properties = redGrapes::TaskProperties<
+using TaskProperties = redGrapes::TaskProperties<
     redGrapes::ResourceProperty
 >;
 
 struct Vec2 { int x, y; };
-static constexpr size_t size_x = 16;
-static constexpr size_t size_y = 16;
-
 enum Cell { DEAD, ALIVE };
-struct Buffer : redGrapes::FieldResource<2>
-{
-    Cell (&data)[size_y+2][size_x+2];
+static constexpr Vec2 size { 32, 32 };
+static constexpr Vec2 chunk_size { 4, 4 };
 
-    Buffer()
-      : data( * ((Cell (*)[size_y+2][size_x+2])malloc(sizeof(Cell)*(size_y+2)*(size_x+2))) )
-    {}
-
-    ~Buffer()
-    {
-        free( &data );
-    }
-};
-
-Cell
-next_state( Cell const neighbours [][size_x+2] )
+Cell next_state( Cell const neighbours [][size.x+2] )
 {
     int count = neighbours[-1][-1] + neighbours[-1][0] + neighbours[-1][1] +
                 neighbours[0][-1] + neighbours[0][1] + neighbours[1][-1] +
@@ -57,109 +42,98 @@ next_state( Cell const neighbours [][size_x+2] )
         return neighbours[0][0];
 }
 
-void
-update_cell( Cell dst[][size_x+2], Cell const src[][size_x+2], Vec2 pos )
+int main( int, char * [] )
 {
-    auto neighbours = (Cell const (*)[size_x+2]) &(src[pos.y][pos.x]);
-    dst[pos.y][pos.x] = next_state( neighbours );
-}
-
-int
-main( int, char * [] )
-{
-    size_t n_threads = std::thread::hardware_concurrency();
-    std::cout << "using " << n_threads << " threads." << std::endl;
-
-    auto mgr = new redGrapes::Manager<
-        Properties,
+    redGrapes::Manager<
+        TaskProperties,
         redGrapes::ResourceEnqueuePolicy
-    >( n_threads );
+    > mgr;
 
-    Vec2 const chunk_size { 4, 4 };
-    std::array< Buffer, 4 > buffers;
+    using Buffer =
+        std::array<
+            std::array<
+                Cell,
+                size.x+2
+            >,
+            size.y+2
+        >;
+
+    std::vector< redGrapes::FieldResource<Buffer> > buffers;
+
+    for(size_t i = 0; i < 4; ++i)
+        buffers.emplace_back( new Buffer() );
 
     int current = 0;
 
-    std::default_random_engine generator;
-    std::bernoulli_distribution distribution{0.35};
-    for ( int x = 1; x <= size_x; ++x )
-        for ( int y = 1; y <= size_y; ++y )
-            buffers[current].data[y][x] = distribution( generator ) ? ALIVE : DEAD;
+    // initialization
+    mgr.emplace_task(
+        []( auto buf )
+        {
+            std::default_random_engine generator;
+            std::bernoulli_distribution distribution{0.35};
+
+            for ( size_t x = 0; x < size.x+2; ++x )
+                for ( size_t y = 0; y < size.y+2; ++y )
+                    buf[{x, y}] = distribution( generator ) ? ALIVE : DEAD;
+        },
+        buffers[current].write()
+    );
 
     for ( int generation = 0; generation < 500; ++generation )
     {
         int next = ( current + 1 ) % buffers.size();
-        auto & buf = buffers[current];
 
-        mgr->emplace_task(
-            [&buf, generation]
+        // copy borders
+        mgr.emplace_task(
+            []( auto buf )
             {
-                for ( int x = 0; x < size_x+2; ++x )
+                for ( size_t x = 0; x < size.x+2; ++x )
                 {
-                    buf.data[0][x] = buf.data[size_y][x];
-                    buf.data[size_y+1][x] = buf.data[1][x];
+                    buf[{x, 0}] = buf[{x, size.y}];;
+                    buf[{x, size.y+1}] = buf[{x, 1}];
                 }
-                for ( int y = 0; y < size_y+2; ++y )
+                for ( size_t y = 0; y < size.y+2; ++y )
                 {
-                    buf.data[y][0] = buf.data[y][size_x];
-                    buf.data[y][size_x+1] = buf.data[y][1];
+                    buf[{0, y}] = buf[{size.x, y}];
+                    buf[{size.x+1, y}] = buf[{1, y}];
                 }
             },
-            Properties::Builder()
-                .resources({
-                    buf.write({{0, size_x + 1}, {0, 0}}),
-                    buf.write({{0, size_x + 1}, {size_y + 1, size_y + 1}}),
-                    buf.write({{0, 0}, {0, size_y + 1}}),
-                    buf.write({{size_x + 1, size_x + 1}, {0, size_y + 1}}),
-                    buf.read({{0, size_x + 1}, {0, 1}}),
-                    buf.read({{0, size_x + 1}, {size_y, size_y + 1}}),
-                    buf.read({{0, 1}, {0, size_y + 1}}),
-                    buf.read({{size_x, size_x + 1}, {0, size_y + 1}})
-                })
+            buffers[current].write()
         );
 
         // print buffer
-        mgr->emplace_task(
-            [&buf]
+        mgr.emplace_task(
+            []( auto buf )
             {
-                for ( auto const & row : buf.data )
+                for ( size_t x = 1; x < size.x; ++x )
                 {
-                    for ( Cell cell : row )
-                        std::cout << ( ( cell == ALIVE ) ? "[47m" : "[100m" ) << "  ";
+                    for ( size_t y = 1; y < size.y; ++y )
+                    {
+                        std::cout << ( ( buf[{x,y}] == ALIVE ) ? "[47m" : "[100m" ) << "  ";
+                    }
                     std::cout << "[0m" << std::endl;
                 }
-                std::cout << std::endl;    
+                std::cout << std::endl;
             },
-            Properties::Builder().resources({ buf.read() })
-        );
+            buffers[current].read()
+        ).get();
 
-        // update
-        for ( int x = 1; x <= size_x; x += chunk_size.x )
-        {
-            for ( int y = 1; y <= size_y; y += chunk_size.y )
-            {
-                auto & dst = buffers[next];
-                auto & src = buffers[current];
-                mgr->emplace_task(
-                    [&dst, &src, x, y, chunk_size]
+        // calculate next step
+        for ( size_t x = 1; x <= size.x; x += chunk_size.x )
+            for ( size_t y = 1; y <= size.y; y += chunk_size.y )
+                mgr.emplace_task(
+                    [x, y]( auto dst, auto src )
                     {
                         for ( int xi = 0; xi < chunk_size.x; ++xi )
                             for ( int yi = 0; yi < chunk_size.y; ++yi )
-                                update_cell( dst.data, src.data, Vec2{ x + xi, y + yi } );
+                                dst[{x+xi, y+yi}] = next_state( (Cell const (*)[size.x+2]) &(src[{x+xi, y+yi}]) );
                     },
-                    Properties::Builder()
-                        .resources({
-                            dst.write( {{x, x + chunk_size.x - 1}, {y, y + chunk_size.y - 1}} ),
-                            src.read( {{x - 1, x + chunk_size.x}, {y - 1, y + chunk_size.y}} )
-                        })
+                    buffers[next].write().area({x, y}, {x + chunk_size.x, y + chunk_size.y}),
+                    buffers[current].read().area({x-1, y-1}, {x+chunk_size.x+2, y + chunk_size.y+2})
                 );
-            }
-        }
 
         current = next;
     }
-
-    delete mgr;
 
     return 0;
 }
