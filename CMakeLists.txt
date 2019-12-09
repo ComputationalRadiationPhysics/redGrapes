@@ -1,7 +1,7 @@
 
 cmake_minimum_required(VERSION 3.10.0)
 
-project(redGrapes)
+project(redGrapes VERSION 0.1.0)
 
 find_package(Boost 1.62.0 REQUIRED COMPONENTS graph)
 
