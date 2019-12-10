@@ -19,22 +19,27 @@ int main()
     redGrapes::Manager<
         Properties,
         redGrapes::ResourceEnqueuePolicy
-    > mgr( 4 );
+    > mgr( 0 );
 
-    redGrapes::IOResource a; // scope-level=0
-    redGrapes::IOResource b; // scope-level=0
+    redGrapes::IOResource<int> a; // scope-level=0
 
     mgr.emplace_task(
-        [&mgr]
+        [&mgr]( auto a )
         {
             std::cout << "scope = " << redGrapes::thread::scope_level << std::endl;
-            redGrapes::IOResource c; // scope-level=1
+            redGrapes::IOResource<int> b; // scope-level=1
 
             mgr.emplace_task(
-                []{},
-                Properties::Builder().resources({ c.write() })
-            );
+                []( auto b )
+                {
+                    *b = 1;
+                    std::cout << "scope = " << redGrapes::thread::scope_level << std::endl;
+                },
+                b.write()
+            ).get();
+
+            std::cout << "scope = " << redGrapes::thread::scope_level << std::endl;
         },
-        Properties::Builder().resources({ a.read() })
+        a.read()
     );
 }

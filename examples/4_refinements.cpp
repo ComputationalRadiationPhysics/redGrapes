@@ -30,14 +30,13 @@ int main( int, char*[] )
         [&mgr]
         {
             std::cout << "f1 on thread " << redGrapes::thread::id << "..." << std::endl;
-
             
-                    int i = 0;
-                    for( auto t : mgr.backtrace() )
-                    {
-                        std::cout << "backtrace[" << i << "]: " << t.label << std::endl;
-                        i++;
-                    }
+            int i = 0;
+            for( auto t : mgr.backtrace() )
+            {
+                std::cout << "f1 backtrace[" << i << "]: " << t.label << std::endl;
+                i++;
+            }
 
             mgr.emplace_task(
                 []{
@@ -53,7 +52,7 @@ int main( int, char*[] )
                     int i = 0;
                     for( auto t : mgr.backtrace() )
                     {
-                        std::cout << "backtrace[" << i << "]: " << t.label << std::endl;
+                        std::cout << "refinement 2 backtrace[" << i << "]: " << t.label << std::endl;
                         i++;
                     }
                 },
@@ -62,7 +61,6 @@ int main( int, char*[] )
         },
         TaskProperties::Builder().label("Parent Task")
     );
-
 
     return 0;
 }

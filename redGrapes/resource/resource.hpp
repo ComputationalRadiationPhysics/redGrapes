@@ -144,6 +144,20 @@ class ResourceAccess
     }
 }; // class ResourceAccess
 
+/**
+ * implements BuildProperties for a type "name" which
+ * can be casted to a ResourceAccess
+ */
+#define TRAIT_BUILD_RESOURCE_PROPERTIES( name )                  \
+    struct BuildProperties< name >                               \
+    {                                                            \
+        template < typename Builder >                            \
+        static void build( Builder & builder, name const & x )   \
+        {                                                        \
+            builder.add_resource( x );                           \
+        }                                                        \
+    };                                                           \
+
 struct DefaultAccessPolicy
 {
     static bool is_serial(DefaultAccessPolicy, DefaultAccessPolicy)
@@ -252,5 +266,25 @@ protected:
         return ResourceAccess( new Access( *this, pol ) );
     }
 }; // class Resource
+
+
+template <
+    typename T,
+    typename AccessPolicy
+>
+struct SharedResourceObject : Resource< AccessPolicy >
+{
+protected:
+    std::shared_ptr< T > obj;
+
+    SharedResourceObject( std::shared_ptr<T> obj )
+        : obj(obj)
+    {}
+
+    SharedResourceObject( SharedResourceObject const & other )
+        : Resource< AccessPolicy >( other )
+        , obj( other.obj )
+    {}
+}; // struct SharedResourceObject
 
 } // namespace redGrapes
