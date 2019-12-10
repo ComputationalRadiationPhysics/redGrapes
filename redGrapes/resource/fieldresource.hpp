@@ -140,10 +140,8 @@ struct ReadGuard : AreaGuard< Container >
         return ReadGuard(*this, pos, end);
     }
 
-    Item const & operator[] ( Index index ) const
-    {
-        return this->get( index );
-    }
+    Item const & operator[] ( Index index ) const { return this->get( index ); }
+    Container const * operator* () const noexcept { return this->obj.get(); }
 
     operator ResourceAccess() const noexcept
     {
@@ -176,10 +174,8 @@ struct WriteGuard : ReadGuard< Container >
         return WriteGuard(*this, pos, end);
     }
 
-    Item & operator[] ( Index index ) const
-    {
-        return this->get( index );
-    }
+    Item & operator[] ( Index index ) const { return this->get( index ); }
+    Container * operator* () const noexcept { return this->obj.get(); }
 
     operator ResourceAccess() const noexcept
     {
