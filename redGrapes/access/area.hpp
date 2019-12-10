@@ -19,18 +19,18 @@ namespace redGrapes
 namespace access
 {
 
-struct AreaAccess : std::array<int, 2>
+struct AreaAccess : std::array<size_t, 2>
 {
     AreaAccess()
-      : std::array<int, 2>
+      : std::array<size_t, 2>
         {
-          std::numeric_limits<int>::min(),
-          std::numeric_limits<int>::max()
+          std::numeric_limits<size_t>::min(),
+          std::numeric_limits<size_t>::max()
         }
     {}
 
-    AreaAccess(std::array<int, 2> a)
-      : std::array<int, 2>(a) {}
+    AreaAccess(std::array<size_t, 2> a)
+      : std::array<size_t, 2>(a) {}
 
     static bool
     is_serial(

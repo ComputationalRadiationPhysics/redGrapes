@@ -7,11 +7,8 @@
 
 #include <thread>
 #include <chrono>
-
 #include <iostream>
 #include <redGrapes/resource/ioresource.hpp>
-#include <redGrapes/property/resource.hpp>
-#include <redGrapes/property/inherit.hpp>
 #include <redGrapes/manager.hpp>
 
 using Properties = redGrapes::TaskProperties<
@@ -25,10 +22,10 @@ int main( int, char*[] )
         redGrapes::ResourceEnqueuePolicy
     > mgr( 4 );
 
-    redGrapes::IOResource a;
+    redGrapes::IOResource<int> a;
 
     mgr.emplace_task(
-        [&mgr, a]
+        [&mgr]( auto a )
         {
             std::cout << "f1 writes A" << std::endl;
             std::this_thread::sleep_for( std::chrono::seconds(1) );
@@ -43,16 +40,16 @@ int main( int, char*[] )
 
             std::cout << "f1 done" << std::endl; 
         },
-        Properties::Builder().resources({ a.write() })
+        a.write()
     );
 
     mgr.emplace_task(
-        []
+        []( auto a )
         {
             std::cout << "f2 reads A" << std::endl;
             std::cout << "f2 done" << std::endl;
         },
-        Properties::Builder().resources({ a.read() })
+        a.read()
     );
     
     return 0;
