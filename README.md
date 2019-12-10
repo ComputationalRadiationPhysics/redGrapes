@@ -31,9 +31,9 @@ The resulting task-graph can then be easily scheduled across parallel threads.
 See [examples](examples) for examples covering more features.
 
 ```c++
+#include <cassert>
 #include <redGrapes/manager.hpp>
 #include <redGrapes/resource/ioresource.hpp>
-#include <redGrapes/property/inherit.hpp>
 #include <redGrapes/property/resource.hpp>
 #include <redGrapes/property/label.hpp>
 
@@ -47,15 +47,20 @@ using TaskProperties =
 
 int main()
 {
-    rg::Manager<TaskProperties, rg::ResourceEnqueuePolicy> mgr( std::thread::hardware_concurrency() );
+    rg::Manager< TaskProperties, rg::ResourceEnqueuePolicy > mgr;
 
-    rg::IOResource a;
+    rg::IOResource< int > a;
+	
+    mgr.emplace_task(
+        []( auto a ){ *a = 123; },
+        TaskProperties::Builder().label("Task 1"),
+        a.write()
+    );
 
     mgr.emplace_task(
-        []{ std::cout << "read from resource a" << std::endl; },
-        TaskProperties::Builder()
-            .label("Task 1")
-            .resources({ a.read() })
+        []( auto a ){ assert( *a == 123 ); },
+        TaskProperties::Builder().label("Task 2"),
+        a.read()
     );
 
     return 0;
