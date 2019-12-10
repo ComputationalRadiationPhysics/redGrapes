@@ -1,4 +1,6 @@
 
+.. _new_resource_types:
+
 ###################################
     Creating new Resource-Types
 ###################################

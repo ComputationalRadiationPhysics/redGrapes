@@ -22,7 +22,6 @@ Here is a full example using the predefined ``LabelProperty``:
 
    #include <iostream>
    #include <redGrapes/manager.hpp>
-   #include <redGrapes/property/inherit.hpp>
    #include <redGrapes/property/label.hpp>
 
    namespace rg = redGrapes;
