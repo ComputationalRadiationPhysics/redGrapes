@@ -1,88 +1,145 @@
 
-#################################
-    Describing Resource Usage
-#################################
+############################
+    Describing Dataflows
+############################
 
-Resource Objects
-================
+Dataflows occour whenever tasks share any kind of data, i.e. one task outputs data which is used as input for the next. Dataflows between tasks determine their dependencies, i.e. which tasks must be absolutely kept in order and serial.
+In RedGrapes this is expressed using *resources*. Each resource represents shared data. Their possible usage by tasks is modelled by an *access policy*, which defines all possible access modes for a task on this resource, e.g. *read*/*write*. An specific configuration of a resource and its access mode is called *resource access*. Tasks can now store a list of resoruce accesses in their properties which is then used to derive the task precedence.
 
-The first thing to do is to represent the resources in your code. A very simple, predefined resource-type is `rmngr::IOResource`, which supports the access modes *read*, *write*, *atomic add* and *atomic mul*.
-
-.. code-block:: c++
-
-    #include <rmngr/resource/ioresource.hpp>
-
-    rmngr::IOResource a;
-
-Resources are copyable:
+Task Dependencies
+=================
+When creating a new task, it is inserted into the precedence graph based on an *EqueuePolicy*, which compares the properties of two tasks and decides whether they are dependent. This is done in reverse with all previously inserted tasks to calculate the task dependencies. The manager must be configured with an enqueue policy. ``redGrapes::ResourceEnqueuePolicy`` is predefined and uses the resource properties which are defined
+with ``redGrapes::ResourceProperty``.
 
 .. code-block:: c++
 
-    rmngr::IOResource b( a ); // b identifies the same resource as a
+    using TaskProperties =
+        rg::TaskProperties<
+	    redGrapes::ResourceProperty,
+	    /* other properties ... */
+	>;
 
-If you implement a structure which should be used **as** resource, then just derive from the corresponding resource type:
+    rg::Manager<
+        TaskProperties,
+        rg::ResourceEnqueuePolicy
+    > mgr;
+
+
+Resources
+=========
+
+The next thing to do is to represent the resources in your code. Any data that is shared between tasks should be represented as resource. Generally resources are just identifiers but there are also wrappers which are memory managed to make resource usage more safe.
+A very simple, predefined access policy is ``IOAccess``. It supports the access modes *read* and *write*, where reads can be executed independently.
 
 .. code-block:: c++
 
-    struct MyContainer : rmngr::IOResource {
-        // ...
-    }
+    #include <redGrapes/resource/resource.hpp>
+    #include <redGrapes/access/io.hpp>
+
+    // just an identifier, no association with actual data
+    rg::Resource< rg::access::IOAccess > r1;
 
 Resource Access
-===============
-
-`rmngr::IOResource` also defines convenience wrappers for its access modes, so for example you can call `read()` to create a ResourceAccess which represents a read-acces on the resource.
-
-.. code-block:: c++
-
-    auto access1 = a.read();
-    auto access2 = a.write();
-
-
-Lets suppose your own resource does more than only read/write.
-Then you want to define your own AccessPolicy which encodes the possible accesses to your resource type. This implementation must satisfy the :ref:`AccessPolicy concept <concept_AccessPolicy>`.
-
-Consider an array where you can specify, which element you want to access. Two accesses have to be executed sequential, if they use the same index.
+---------------
+Resource accesses are created with the method ``Resource::make_access(AccessPolicy)`` and can be added to tasks like normal properties. This is the information used by the enqueue policy.
 
 .. code-block:: c++
 
-    struct MyArrayAccess {
-        int index;
+    mgr.emplace_task(
+        []{ /* ... */ },
+        TaskProperties::Builder().resources({ r1.make_access( rg::access::IOAccess::read ) })
+    );
 
-        static bool is_serial(MyArrayAccess a, MyArrayAccess b) {
-            return (a.index == b.index);
-        }
-        static bool is_superset_of(MyArrayAccess a, MyArrayAccesss b) {
-            return (a.index == b.index);
-        }
-    }
-    
-    struct MyArray : rmngr::Resource<MyArrayAccess> {
-        std::array<...> data;
+Shared Resource Objects
+-----------------------
+Using just the previously described mechanisms would require for each shared object an additional resource object and doesn't give any guarantees about what is actually done in the task.
+So we could just get the resource accesses wrong and don't know about it. Furthermore the data must absolutely outlive the execution of all tasks.
 
-        rmngr::ResourceAccess access_index( int index ) const {
-            return this->make_access( MyArrayAccess{ index } );
-	}
-    }
+``rg::SharedResourceObject< T, AccessPolicy >`` is an ``Resource<AccessPolicy>`` and additionally stores an ``shared_ptr<T>``. So we firstly have the data and the resource identifier
+united into one object and secondly all lifetime issues are solved through reference counting.
 
-Resource Users
-==============
+.. tip::
+   To avoid lifetime issues, be strict and never capture anything by reference. Only allow copy and move captures.
 
-The goal is to annotate a functor with all its accesses it makes during execution.
-For that, every functor is a :ref:`ResourceUser <class_ResourceUser>`, which means it stores a list of :ref:`resource accesses <class_ResourceAccess>`.
+Access Guards
+-------------
+By manually adding the resource accesses to the task properties we still cannot check if all operations inside the task are correctly represented by them. The solution to this problem
+are *access guards*: Wrappers around a *shared resource object*, for each possible access mode one, that only allows the operations corresponding to the access. For *read*/*write* this
+would be an dereference to ``T const&`` or ``T&`` respectively.
+
+Additionally we need to create both the guard object and the task property together with one expression. This is done with so called
+*property building parameters*. These are function parameters which are bound to the task immediately at creation (to make it ultimately nullary again), but additionally implement a trait in which they can use the property-builder to modify the task properties. Each access-guard simply implements this trait and so by taking all resources by parameter instead of capture we can use the correct wrapper.
+
+See also :ref:`new_resource_types`.
+
+For convenience the guard objects also provide methods to create new guard objects with a subset of the access.
 
 .. code-block:: c++
 
-    #include <rmngr/resource/ioresource.hpp>
-    #include <rmngr/resource/resource_user.hpp>
+    #include <redGrapes/resource/ioresource.hpp>
 
-    rmngr::IOResource a, b;
-    rmngr::ResourceUser user1({ a.read(), b.read() });
-    rmngr::ResourceUser user2({ a.read(), b.write() });
+    rg::IOResource< int > r1;
 
-    // read-only can be parallel
-    rmngr::ResourceUser::is_serial(user1, user1) == true;
+    mgr.emplace_task(
+        []( auto r1 )
+        {
+	    // ok.
+            std::cout << *r1 << std::endl;
 
-    // writes are sequential
-    rmngr::ResourceUser::is_serial(user1, user2) == false;
-    rmngr::ResourceUser::is_serial(user2, user2) == false;
+            // compile-time error!
+            *r1 = 123;
+        },
+	r1.read()
+    );
+
+.. tip::
+   Altough it is possible to capture resources and add their properties via builders, it is recommended to access them through the parameters, because then the resource usage in the task is checked at compile time.
+
+
+Full Example
+============
+
+In this example `Task 2` and `Task 3` will be executed after `Task 1`. When enough threads are available, `Task 2` and `Task 3` will run in parallel.
+
+.. code-block:: c++
+
+   #include <redGrapes/manager.hpp>
+   #include <redGrapes/resource/ioresource.hpp>
+   #include <redGrapes/property/inherit.hpp>
+   #include <redGrapes/property/resource.hpp>
+   #include <redGrapes/property/label.hpp>
+
+   namespace rg = redGrapes;
+
+   using TaskProperties =
+       rg::TaskProperties<
+           rg::ResourceProperty,
+           rg::LabelProperty
+       >;
+
+   int main()
+   {
+       rg::Manager< TaskProperties, rg::ResourceEnqueuePolicy > mgr;
+
+       rg::IOResource< int > a;
+
+       mgr.emplace_task(
+           []( auto a ){ *a = 123; },
+           TaskProperties::Builder().label("Task 1"),
+           a.write()
+       );
+
+       mgr.emplace_task(
+           []( auto a ){ int x = *a; },
+           TaskProperties::Builder().label("Task 2"),
+           a.read()
+       );
+
+       mgr.emplace_task(
+           []( auto a ){ int x = *a; },
+           TaskProperties::Builder().label("Task 3"),
+           a.read()
+       );
+
+       return 0;
+   }

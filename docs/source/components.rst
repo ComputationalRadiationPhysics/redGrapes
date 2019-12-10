@@ -13,60 +13,45 @@ Resource
 .. doxygengroup:: AccessPolicy
 
 .. _class_Resource:
-.. doxygenclass:: rmngr::Resource
+.. doxygenclass:: redGrapes::Resource
     :members:
 
 ResourceAccess
 **************
 
 .. _class_ResourceAccess:
-.. doxygenclass:: rmngr::ResourceAccess
+.. doxygenclass:: redGrapes::ResourceAccess
    :members:
 
 ResourceUser
 ************
 
 .. _class_ResourceUser:
-.. doxygenclass:: rmngr::ResourceUser
+.. doxygenclass:: redGrapes::ResourceUser
    :members:
 
-Functors
+Tasks
 ========
 
-Delaying & Delayed Functors
-***************************
-
-.. _class_DelayedFunctorInterface:
-.. doxygenstruct:: rmngr::DelayedFunctorInterface
-    :members:
-    :undoc-members:
-
-.. _class_DelayingFunctor:
-.. doxygenclass:: rmngr::DelayingFunctor
-    :members:
-
-FunctorQueue
-************
-
-.. _concept_Queue:
-.. doxygengroup:: Queue
-
-.. _class_FunctorQueue:
-.. doxygenclass:: rmngr::FunctorQueue
+.. _class_DelayedFunctor:
+.. doxygenclass:: redGrapes::DelayedFunctor
     :members:
 
 Scheduler
 =========
 
-Schedulable Objects
-*******************
-- Proto Schedulable
+Precedence Graph
+****************
+.. _class_QueuedPrecedenceGraph:
+.. doxygenclass:: redGrapes::QueuedPrecedenceGraph
+   :members:
+   :undoc-members:
 
-Refined Graph
-*************
+Recursive Graph
+***************
 
 .. _class_RefinedGraph:
-.. doxygenclass:: rmngr::RefinedGraph
+.. doxygenclass:: redGrapes::RecursiveGraph
    :members:
    :undoc-members:
 
@@ -79,9 +64,6 @@ Thread Pool
 .. _concept_Thread:
 .. doxygengroup:: Thread
 
-.. _concept_Selector:
-.. doxygengroup:: Selector
-
 .. _class_ThreadDispatcher:
-.. doxygenclass:: rmngr::ThreadDispatcher
+.. doxygenclass:: redGrapes::ThreadDispatcher
     :members:
