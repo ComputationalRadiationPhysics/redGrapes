@@ -15,13 +15,15 @@ The builder :ref:`ResourceProperty <class_ResourceProperty>` provides in its bui
 .. note::
     In the case of :ref:`ResourceProperty <class_ResourceProperty>` it is only possible to **demote** the access, i.e. the new access has to be a subset of the old (e.g. we can change a write to read).
 
+.. caution::
+   When using access demotion, it is possible again to mess up the actual resource usage and properties, despite access guards, because we can't "delete" a symbol inside a scope.
 
 .. code-block:: c++
 
-    rg::IOResource r1, r2;
+    rg::IOResource< int > r1;
 
     mgr.emplace_task(
-        [&mgr]
+        [&mgr]( auto r1 )
         {
             // OK.
             mgr.update_properties(
@@ -30,12 +32,15 @@ The builder :ref:`ResourceProperty <class_ResourceProperty>` provides in its bui
                     .add_resources({ r1.read() })
             );
 
-	    // throws runtime error
+	    // compiles, but is wrong
+	    // be sure to avoid this
+	    *r1 = 123;
+
+	    // throws runtime error, only demotion allowed
             mgr.update_properties(
                 TaskProperties::Patch::Builder()
-                    .add_resources({ r2.read() })
+                    .add_resources({ r1.write() })
             );
         },
-        TaskProperties::Builder()
-            .resources({ r1.write() })
+        r1.write()
     );
