@@ -1,6 +1,10 @@
 # RedGrapes
 **Re**source-based, **D**eclarative task-**Gra**phs for **P**arallel, **E**vent-driven **S**cheduling
 
+[![Language](https://img.shields.io/badge/language-C%2B%2B14-lightgrey)](https://isocpp.org/)
+[![License](https://img.shields.io/badge/license-MPL--2.0-blue.svg)](https://www.mozilla.org/en-US/MPL/2.0/)
+<hr>
+
 RedGrapes is a C++14 framework for declaratively creating and scheduling task-graphs, based on high-level resource descriptions.
 
 ### Motivation
@@ -27,9 +31,9 @@ The resulting task-graph can then be easily scheduled across parallel threads.
 See [examples](examples) for examples covering more features.
 
 ```c++
+#include <cassert>
 #include <redGrapes/manager.hpp>
 #include <redGrapes/resource/ioresource.hpp>
-#include <redGrapes/property/inherit.hpp>
 #include <redGrapes/property/resource.hpp>
 #include <redGrapes/property/label.hpp>
 
@@ -43,15 +47,20 @@ using TaskProperties =
 
 int main()
 {
-    rg::Manager<TaskProperties, rg::ResourceEnqueuePolicy> mgr( std::thread::hardware_concurrency() );
+    rg::Manager< TaskProperties, rg::ResourceEnqueuePolicy > mgr;
 
-    rg::IOResource a;
+    rg::IOResource< int > a;
+	
+    mgr.emplace_task(
+        []( auto a ){ *a = 123; },
+        TaskProperties::Builder().label("Task 1"),
+        a.write()
+    );
 
     mgr.emplace_task(
-        []{ std::cout << "read from resource a" << std::endl; },
-        TaskProperties::Builder()
-            .label("Task 1")
-            .resources({ a.read() })
+        []( auto a ){ assert( *a == 123 ); },
+        TaskProperties::Builder().label("Task 2"),
+        a.read()
     );
 
     return 0;
@@ -66,3 +75,18 @@ RedGrapes is documented using in-code doxygen comments and reStructured-Text-fil
 
 ## License
 This Project is free software, licensed under the [Mozilla MPL 2.0 license](LICENSE).
+
+## Authors
+RedGrapes is based on the high-level ideas described in a [whitepaper by Huebl, Widera, Matthes](docs/2017_02_ResourceManagerDraft.pdf), members of the [Computational Radiation Physics Group](https://hzdr.de/crp) at [HZDR](https://www.hzdr.de/).
+
+* [Michael Sippel](https://github.com/michaelsippel): library design & implementation
+* [Dr. Sergei Bastrakov](https://github.com/sbastrakov): supervision
+* [Dr. Axel Huebl](https://github.com/ax3l): whitepaper, supervision
+* [René Widera](https://github.com/psychocoderHPC): whitepaper, supervision
+* [Alexander Matthes](https://github.com/theZiz): whitepaper
+
+### Dependencies
+Besides the C++14 standard, RedGrapes also depends on the following additional libraries:
+
+* [Boost Graph](https://www.boost.org/doc/libs/1_71_0/libs/graph/doc/)
+* [optional for C++14](https://github.com/akrzemi1/Optional) by [Andrzej Krzemienski](https://github.com/akrzemi1)
