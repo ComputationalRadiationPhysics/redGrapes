@@ -38,7 +38,7 @@ TEST_CASE("Resource ID")
 
 TEST_CASE("IOResource")
 {
-    redGrapes::IOResource a,b;
+    redGrapes::IOResource<int> a, b;
 
     REQUIRE( redGrapes::ResourceAccess::is_serial(a.read(), a.read()) == false );
     REQUIRE( redGrapes::ResourceAccess::is_serial(a.read(), a.write()) == true );

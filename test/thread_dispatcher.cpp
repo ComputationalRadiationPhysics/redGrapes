@@ -5,55 +5,45 @@
 #include <deque>
 #include <functional>
 #include <atomic>
-#include <redGrapes/thread_dispatcher.hpp>
+#include <redGrapes/thread/thread_dispatcher.hpp>
 
 #include <iostream>
 
 /**
  * Returns n jobs and tests that all jobs are executed
  */
-struct TestSelector
+struct TestScheduler
 {
-    std::mutex mutex;
-    std::atomic_int n;
-    std::atomic_int x;
+    std::vector<bool> worked;
 
-    TestSelector( int n_ )
-      : n(n_), x(n_) {}
+    TestScheduler( int n_threads )
+        : worked( n_threads )
+    {}
 
-    ~TestSelector()
+    ~TestScheduler()
     {
-        REQUIRE( this->empty() );
     }
 
     bool empty()
     {
-        return (x == 0);
+        return true;
     }
 
-    template <typename Pred>
-    auto getJob( Pred const& )
+    void operator() ()
     {
-        std::lock_guard<std::mutex> lock( this->mutex );
-        if( n > 0 )
-        {
-            --n;
-            return std::function<void()>([&]() { --x; });
-	}
-	else
-	    return std::function<void()>([]() {});
+        worked[redGrapes::thread::id] = true;
     }
 };
 
 TEST_CASE("ThreadDispatcher")
 {
-    for( int n_threads = 0; n_threads < 10; ++n_threads )
+    for( int n_threads = 1; n_threads < 10; ++n_threads )
     {
-        for( int n_jobs = 0; n_jobs < 50; ++n_jobs )
-	{
-   	    TestSelector selector( n_jobs );
-	    redGrapes::ThreadDispatcher<TestSelector> dispatcher( selector, n_threads );
-	}
+        TestScheduler scheduler( n_threads );
+        redGrapes::ThreadDispatcher<TestScheduler> dispatcher( scheduler, n_threads );
+        dispatcher.finish();
+        for( int i = 0; i < n_threads; ++i )
+            REQUIRE( scheduler.worked[i] );
     }
 }
 

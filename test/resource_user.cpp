@@ -6,7 +6,7 @@
 
 TEST_CASE("Resource User")
 {
-    redGrapes::IOResource a, b;
+    redGrapes::IOResource<int> a, b;
 
     redGrapes::ResourceUser f1({a.read()});
     redGrapes::ResourceUser f2({a.read(), a.write()});
