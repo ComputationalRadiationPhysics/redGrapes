@@ -17,7 +17,7 @@ Real-world workloads that depend on states at runtime and asynchronous communica
 
 For this reason, one should decouple aforementioned computational tasks from their execution model altogether.
 A typical approach involves task-graphs, which are directed acyclic graphs (DAGs), whose vertices are some sort of computation (or communication) and the edges denote the execution precedence order.
-The execution precedence arises from the order in which those tasks were declared by the programmer but also have to take into account the data dependencies between the tasks (which are also a DAG).
+The execution precedence arises from the order in which those tasks were declared by the programmer but also have to take into account the data dependencies between the tasks.
 
 Consequently, **RedGrapes** provides you with a light-weight, application-level, task-based C++ programming framework.
 Herein, a task-graph is generated declaratively from access to resources and order of your code, just as in serial programming.
@@ -31,9 +31,9 @@ Data dependencies are described via **resources**, which are accessed and potent
 
 Each task has an annotation how the resources are accessed.
 Therein allowed **access modes** depend on the type of the resource.
-A simple example would be read/write, but also array accesses or composite types could be used.
-A resource can be associated with a specific *access mode* forming a *resource access*, of which two can then be used to check if they are conflicting.
-So each task carries in its *task-properties* a list of resource-accesses.
+A simple example would be read/write, but also more complex operations are possible, e.g. on arrays or just a sub view.
+A *resource* can be associated with a specific *access mode* forming a **resource access**. These instances of a *resource access* can then be pairwise tested wheter they are conflicting and thereby creating a data-dependency (e.g. two writes to the same resource).
+So each task carries a list of these resource-accesses in its so-called **task-properties**.
 If two tasks have conflicting resource-accesses, the first created task is executed first.
 This is exactly the behaviour that one would also achieve when programming serially, without hints given via resources.
 
