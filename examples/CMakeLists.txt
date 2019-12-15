@@ -14,9 +14,8 @@ set(EXAMPLE_NAMES
     3_functors_with_resources
     4_refinements
     5_access_demotion
-    6_dynamic_properties
-    7_resource_scope
-    8_event
+    6_resource_scope
+    7_event
     game_of_life
 )
 

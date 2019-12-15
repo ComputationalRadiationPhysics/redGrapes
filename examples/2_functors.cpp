@@ -9,17 +9,25 @@
 
 #include <redGrapes/manager.hpp>
 
-int fun1_impl (int x)
+static auto & mgr()
 {
-    return x*x;
+    static redGrapes::Manager<> m( 1 /* number of threads */ );
+    return m;
+}
+
+auto square (int x)
+{
+    return mgr().emplace_task(
+        [x]
+        {
+            return x*x;
+        }
+    );
 }
 
 int main()
 {
-    redGrapes::Manager<> mgr( 1 /* number of threads */ );
-
-    auto fun = mgr.make_functor(&fun1_impl);
-    std::cout << "fun(2) = " << fun(2).get() << std::endl;
+    std::cout << "square(2) = " << square(2).get() << std::endl;
 
     return 0;
 }

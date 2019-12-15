@@ -283,35 +283,6 @@ public:
 
         return bt;
     }
-
-    template< typename ImplCallable, typename PropCallable >
-    struct TaskFactoryFunctor
-    {
-        Manager & mgr;
-        ImplCallable impl;
-        PropCallable prop;
-
-        template <typename... Args>
-        auto operator() (Args&&... args)
-        {
-            return mgr.emplace_task(impl, prop( std::forward<Args>(args)... ), std::forward<Args>(args)...);
-        }
-    };
-
-    struct DefaultPropFunctor
-    {
-        template < typename... Args >
-        typename T_TaskProperties::Builder operator() (Args&&...)
-        {
-            return typename T_TaskProperties::Builder();
-        }
-    };
-
-    template < typename ImplCallable, typename PropCallable = DefaultPropFunctor >
-    auto make_functor( ImplCallable && impl, PropCallable && prop = DefaultPropFunctor{}, typename T_TaskProperties::Builder builder = typename T_TaskProperties::Builder() )
-    {
-        return TaskFactoryFunctor< ImplCallable, PropCallable >{ *this, impl, prop };
-    }
 };
 
 } // namespace redGrapes
