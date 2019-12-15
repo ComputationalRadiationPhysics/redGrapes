@@ -11,16 +11,13 @@
 
 int main(int, char*[])
 {
-    redGrapes::FieldResource<2> a;
+    redGrapes::FieldResource< std::vector<int> > a;
     redGrapes::IOResource<int> b;
     redGrapes::IOResource<int> c;
 
     redGrapes::ResourceUser user1({
         a.read(), // complete resource
-        a.write({{
-            {0, 20}, // area of 1st dimension
-            {0, 10}  // area of 2nd dimension
-        }}),
+        a.write().area( {0}, {10} ), // write only indices 0 to 10
         b.write()
     });
 
