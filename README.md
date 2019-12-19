@@ -95,7 +95,7 @@ This Project is free software, licensed under the [Mozilla MPL 2.0 license](LICE
 ## Author Contributions
 
 RedGrapes is developed by members of the [Computational Radiation Physics Group](https://hzdr.de/crp) at [HZDR](https://www.hzdr.de/).
-Its conceptual design is based on a [whitepaper by A. Huebl, R. Widera, and M. Matthes (2017)](docs/2017_02_ResourceManagerDraft.pdf). 
+Its conceptual design is based on a [whitepaper by A. Huebl, R. Widera, and A. Matthes (2017)](docs/2017_02_ResourceManagerDraft.pdf). 
 
 * [Michael Sippel](https://github.com/michaelsippel): library design & implementation
 * [Dr. Sergei Bastrakov](https://github.com/sbastrakov): supervision
