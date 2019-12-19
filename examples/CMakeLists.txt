@@ -7,6 +7,7 @@ find_package(redGrapes REQUIRED CONFIG PATHS "${CMAKE_CURRENT_LIST_DIR}/..")
 include_directories(SYSTEM ${redGrapes_INCLUDE_DIRS})
 
 find_package(Threads REQUIRED)
+find_package(MPI REQUIRED)
 
 set(EXAMPLE_NAMES
     1_resources
@@ -17,6 +18,7 @@ set(EXAMPLE_NAMES
     6_resource_scope
     7_event
     game_of_life
+    mpi
 )
 
 foreach(examplename ${EXAMPLE_NAMES})
@@ -24,4 +26,7 @@ foreach(examplename ${EXAMPLE_NAMES})
     target_link_libraries(${examplename} PRIVATE redGrapes)
     target_link_libraries(${examplename} PRIVATE Threads::Threads)
 endforeach()
+
+target_link_libraries(mpi PRIVATE MPI::MPI_CXX)
+
 
