@@ -141,7 +141,7 @@ struct ReadGuard : AreaGuard< Container >
     }
 
     Item const & operator[] ( Index index ) const { return this->get( index ); }
-    Container const * operator* () const noexcept { return this->obj.get(); }
+    Container const * operator-> () const noexcept { return this->obj.get(); }
 
     operator ResourceAccess() const noexcept
     {
@@ -175,7 +175,7 @@ struct WriteGuard : ReadGuard< Container >
     }
 
     Item & operator[] ( Index index ) const { return this->get( index ); }
-    Container * operator* () const noexcept { return this->obj.get(); }
+    Container * operator-> () const noexcept { return this->obj.get(); }
 
     operator ResourceAccess() const noexcept
     {
