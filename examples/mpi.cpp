@@ -4,12 +4,27 @@
 #include <redGrapes/helpers/mpi/request_pool.hpp>
 
 namespace rg = redGrapes;
-/*
-using TaskProperties =
-    rg::TaskProperties<
-        rg::ResourceProperty
-    >;
-*/
+
+/**
+ * This example shows how to use MPI with redGrapes.
+ *
+ * A 1D-array is used, where the first element is
+ * synchronized with the last of the left neighbour
+ *
+ *
+ *          Rank 0        |        Rank 1
+ *  +---------------------|---------------------+
+ *  |  +---+---+---+---+  |  +---+---+---+---+  |
+ *  +->| 6 | 1 | 2 | 3 |--|->| 3 | 4 | 5 | 6 |--+
+ *     +---+---+---+---+  |  +---+---+---+---+
+ *  -->recv|       |send<-|->recv|       |send<--
+ *                        |
+ *
+ * Over this datastructure a very simple iteration
+ * is computed: shift all elements one position.
+ * For the iteration, double buffering is used.
+ */
+
 struct MPIConfig
 {
     int world_rank;
