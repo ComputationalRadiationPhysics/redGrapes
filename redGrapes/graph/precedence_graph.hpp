@@ -13,6 +13,8 @@
 #include <memory> // std::unique_ptr<>
 #include <stdexcept> // std::runtime_error
 
+#include <chrono>
+
 #include <boost/graph/graph_traits.hpp>
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/labeled_graph.hpp>
@@ -166,40 +168,23 @@ class QueuedPrecedenceGraph
 
             VertexID v = boost::add_vertex( std::make_pair(a, std::shared_ptr<RecursiveGraph<T,Graph>>(nullptr)), this->graph() );
 
-            struct Visitor : boost::default_dfs_visitor
+            bool end = true;
+            for(auto b : this->queue)
             {
-                using G = Graph<std::pair<T,std::shared_ptr<RecursiveGraph<T,Graph>>>>;
-                G const & g;
-                std::unordered_set<VertexID>& discovered;
-
-                Visitor(G const & g, std::unordered_set<VertexID>& d)
-                    : g(g)
-                    , discovered(d)
-                {}
-
-                void discover_vertex(VertexID v, boost::reverse_graph<G> const&)
+                T const & prop = graph_get(b.first, this->graph()).first;
+                if( EnqueuePolicy::is_serial(prop, a) )
                 {
-                    this->discovered.insert(v);
+                    boost::add_edge(b.first, v, this->graph());
+                    if( b.second )
+                        break;
                 }
-            };
-
-            std::unordered_set<VertexID> indirect_dependencies;
-            Visitor vis(this->graph(), indirect_dependencies);
-
-            std::unordered_map<VertexID, boost::default_color_type> vertex2color;
-            auto colormap = boost::make_assoc_property_map(vertex2color);
-
-            for( auto b : this->queue )
-            {
-                T const & prop = graph_get(b, this->graph()).first;
-                if( EnqueuePolicy::is_serial(prop, a) && indirect_dependencies.count(b) == 0 )
+                else
                 {
-                    boost::add_edge(b, v, this->graph());
-                    boost::depth_first_visit(boost::make_reverse_graph(this->graph()), b, vis, colormap);
+                    end = false;
                 }
             }
 
-            this->queue.insert(this->queue.begin(), v);
+            this->queue.insert(this->queue.begin(), std::make_pair(v, end));
 
             return v;
         }
@@ -219,9 +204,11 @@ class QueuedPrecedenceGraph
             boost::clear_vertex( vertex, this->graph() );
             boost::remove_vertex( vertex, this->graph() );
 
-            auto it = std::find( this->queue.begin(), this->queue.end(), vertex );
-            if ( it != this->queue.end() )
-                this->queue.erase( it );
+
+            auto it = std::find_if(this->queue.begin(), this->queue.end(), [vertex](auto x){ return x.first == vertex; });
+            if (it != this->queue.end())
+                this->queue.erase(it);
+
             else
             {
                 spdlog::error("QueuedPrecedenceGraph: removed vertex {} which is not in queue", vertex);
@@ -230,7 +217,7 @@ class QueuedPrecedenceGraph
         }
 
 private:
-    std::list< VertexID > queue;
+    std::list<std::pair<VertexID, bool>> queue;
 }; // class QueuedPrecedenceGraph
 
-} // namespace redGrapes
+} // namespace redGrapes           
