@@ -9,7 +9,11 @@
 #include <pngwriter.h>
 #include <iomanip>
 #include <iostream>
+#include <functional>
+#include <chrono>
 #include <redGrapes/helpers/cuda/stream.hpp>
+#include <redGrapes/helpers/cuda/synchronize.hpp>
+#include <redGrapes/helpers/cuda/synchronize_event.hpp>
 #include <redGrapes/manager.hpp>
 #include <redGrapes/resource/fieldresource.hpp>
 #include <redGrapes/resource/ioresource.hpp>
@@ -50,9 +54,9 @@ __global__ void mandelbrot(double begin_x, double end_x, double begin_y, double 
 int main()
 {
     rg::Manager<
-        rg::TaskProperties<rg::ResourceProperty>,
-        rg::ResourceEnqueuePolicy>
-        mgr;
+        rg::TaskProperties< rg::ResourceProperty >,
+        rg::ResourceEnqueuePolicy
+    > mgr( 2 );
 
     double mid_x = 0.41820187155955555;
     double mid_y = 0.32743154895555555;
@@ -61,15 +65,19 @@ int main()
     size_t height = 4096;
     size_t area = width * height;
 
-    rg::helpers::cuda::StreamResource<decltype(mgr)> cuda_stream(mgr, 0);
-    mgr.getScheduler().schedule[0].set_wait_hook([cuda_stream] { cuda_stream.poll(); });
+    rg::helpers::cuda::StreamResource< rg::helpers::cuda::PollingEventStream<decltype(mgr)> > cuda_stream(mgr, s);
+    mgr.getScheduler().schedule[1].set_wait_hook([cuda_stream] { cuda_stream->poll(); });
+    //std::thread polling_thread( [cuda_stream]{ while(1){cuda_stream->poll(); }} );
+    //polling_thread.detach();
 
     rg::IOResource<Color *> host_buffer;
     rg::IOResource<Color *> device_buffer;
 
     mgr.emplace_task(
         [area](auto host_buffer) {
-            *host_buffer = new Color[area];
+            void * ptr;
+            cudaMallocHost(&ptr, area * sizeof(Color));
+            *host_buffer = (Color *)ptr;
         },
         host_buffer.write());
 
@@ -81,6 +89,13 @@ int main()
         },
         device_buffer.write());
 
+    // warmup cuda
+    hello_world<<< 1, 1, 0, cuda_stream >>>();
+    cudaMemcpyAsync(*host_buffer, *device_buffer, sizeof(Color), cudaMemcpyDeviceToHost, cuda_stream);
+    cudaDeviceSynchronize();
+
+    auto t1 = std::chrono::high_resolution_clock::now();
+    
     float w = 1.0;
     for(int i = 0; i < 200; ++i)
     {
@@ -118,9 +133,8 @@ int main()
         /*
          * write png
          */
-        int step = 0;
         mgr.emplace_task(
-            [step, width, height, i](auto host_buffer) {
+            [width, height, i](auto host_buffer) {
                 std::stringstream step;
                 step << std::setw(6) << std::setfill('0') << i;
                 std::string filename("mandelbrot_" + step.str() + ".png");
@@ -141,12 +155,16 @@ int main()
             host_buffer.read());
     }
 
+    mgr.emplace_task([](auto x) { cudaDeviceSynchronize(); }, host_buffer.write()).get();
+    auto t2 = std::chrono::high_resolution_clock::now();
+    std::cout << "runtime: " << std::chrono::duration_cast<std::chrono::microseconds>( t2 - t1 ).count() << " μs" << std::endl;
+
     /*
      * cleanup
      */
     mgr.emplace_task(
         [](auto host_buffer) {
-            delete *host_buffer;
+            cudaFreeHost(*host_buffer);
         },
         host_buffer.write());
 
