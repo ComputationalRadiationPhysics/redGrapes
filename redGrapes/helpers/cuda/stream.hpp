@@ -25,9 +25,20 @@ struct StreamAccess
         return true;
     }
 
-    bool is_superset_of(StreamAccess const & sub)
+    bool is_superset_of(StreamAccess const & sub) const
     {
         return true;
+    }
+
+    friend bool operator==(StreamAccess const &, StreamAccess const &)
+    {
+        return true;
+    }
+
+    friend std::ostream& operator<<(std::ostream& out, StreamAccess const & a)
+    {
+        out << "Stream Access" << std::endl;
+        return out;
     }
 };
 
