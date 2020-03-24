@@ -29,13 +29,13 @@ struct ResourceProperty : ResourceUser
             : builder( b )
         {}
 
-        PropertiesBuilder resources( std::initializer_list<ResourceAccess> list )
+        PropertiesBuilder & resources( std::initializer_list<ResourceAccess> list )
         {
 	    builder.prop.access_list = list;
             return builder;
         }
 
-        PropertiesBuilder add_resource( ResourceAccess access )
+        PropertiesBuilder & add_resource( ResourceAccess access )
         {
             builder.prop += access;
             return builder;

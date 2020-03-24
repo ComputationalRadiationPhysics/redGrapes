@@ -19,9 +19,13 @@
 #include <functional>
 
 #include <redGrapes/thread/thread_local.hpp>
+#include <redGrapes/property/trait.hpp>
 
 namespace redGrapes
 {
+
+template <typename AccessPolicy>
+class Resource;
 
 class ResourceBase
 {
@@ -45,6 +49,14 @@ public:
         : id( getID() )
         , scope_level( thread::scope_level )
     {}
+    /*
+    template < typename AccessPolicy >
+    ResourceAccess make_access( AccessPolicy access ) const
+    {
+        Resource<AccessPolicy> res( *this );
+        return res.make_access( access );
+    }
+    */
 };
 
 template <typename AccessPolicy>
@@ -149,19 +161,28 @@ class ResourceAccess
     }
 }; // class ResourceAccess
 
+namespace trait
+{
+
 /**
- * implements BuildProperties for a type "name" which
+ * implements BuildProperties for any type which
  * can be casted to a ResourceAccess
  */
-#define TRAIT_BUILD_RESOURCE_PROPERTIES( name )                  \
-    struct BuildProperties< name >                               \
-    {                                                            \
-        template < typename Builder >                            \
-        static void build( Builder & builder, name const & x )   \
-        {                                                        \
-            builder.add_resource( x );                           \
-        }                                                        \
-    };                                                           \
+template < typename T >
+struct BuildProperties<
+    T,
+    typename std::enable_if<
+        std::is_convertible<T, ResourceAccess>::value
+    >::type
+>
+{
+    template < typename Builder >
+    static void build( Builder & builder, T const & obj )
+    {
+        builder.add_resource( obj );
+    }
+};
+} // namespace trait
 
 struct DefaultAccessPolicy
 {
@@ -257,7 +278,16 @@ protected:
         AccessPolicy policy;
     }; // struct ThisResourceAccess
 
+    friend class ResourceBase;
+
+    Resource( ResourceBase const & base )
+        : ResourceBase( base )
+    {}
+
   public:
+    Resource()
+    {}
+
     /**
      * Create an ResourceAccess, which represents an concrete
      * access configuration associated with this resource.
@@ -279,7 +309,7 @@ template <
 >
 struct SharedResourceObject : Resource< AccessPolicy >
 {
-protected:
+    //protected:
     std::shared_ptr< T > obj;
 
     SharedResourceObject( std::shared_ptr<T> obj )
