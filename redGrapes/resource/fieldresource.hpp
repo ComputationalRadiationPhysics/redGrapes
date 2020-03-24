@@ -211,16 +211,5 @@ struct FieldResource : fieldresource::WriteGuard< Container >
     {}
 };
 
-namespace trait
-{
-
-template < typename Container >
-TRAIT_BUILD_RESOURCE_PROPERTIES( fieldresource::ReadGuard< Container > );
-
-template < typename Container >
-TRAIT_BUILD_RESOURCE_PROPERTIES( fieldresource::WriteGuard< Container > );
-
-} // namespace trait
-
 }; // namespace redGrapes
 

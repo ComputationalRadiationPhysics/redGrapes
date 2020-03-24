@@ -103,6 +103,13 @@ struct TaskProperties
             , TaskPropertiesInherit< Policies..., PropEnd_t >::template Builder< Builder >( *this )
         {}
 
+        
+        template < typename T >
+        void add( T const & obj )
+        {
+            trait::BuildProperties<T>::build( *this, obj );
+        }
+
         operator TaskProperties () const
         {
             return prop;

@@ -71,16 +71,4 @@ struct IOResource : public ioresource::WriteGuard< T >
 
 }; // struct IOResource
 
-
-namespace trait
-{
-
-template< typename T >
-TRAIT_BUILD_RESOURCE_PROPERTIES( ioresource::ReadGuard<T> );
-
-template< typename T >
-TRAIT_BUILD_RESOURCE_PROPERTIES( ioresource::WriteGuard<T> );
-
-} // namespace trait
-
 } // namespace redGrapes
