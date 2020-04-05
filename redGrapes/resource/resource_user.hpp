@@ -20,12 +20,13 @@ namespace redGrapes
 class ResourceUser
 {
   public:
-    ResourceUser() {}
+    ResourceUser()
+        : scope_level( thread::scope_level ) {}
 
     ResourceUser( std::list<ResourceAccess> const & access_list_ )
         : access_list( access_list_ )
-    {
-    }
+        , scope_level( thread::scope_level )
+    {}
 
     static bool
     is_serial( ResourceUser const & a, ResourceUser const & b )
@@ -47,7 +48,7 @@ class ResourceUser
                 if ( r.is_superset_of( ra ) )
                     found = true;
 
-            if ( !found )
+            if ( !found && ra.scope_level() <= scope_level )
                 // a introduced a new resource
                 return false;
         }
@@ -60,6 +61,8 @@ class ResourceUser
         return a.is_superset_of(b);
     }
 
+
+    unsigned int scope_level;
     std::list<ResourceAccess> access_list;
 
     friend std::ostream& operator<<(std::ostream& out, ResourceUser const& r)

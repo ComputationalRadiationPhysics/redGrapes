@@ -108,12 +108,17 @@ class ResourceAccess
     bool
     is_superset_of( ResourceAccess const & a ) const
     {
-        if ( this->obj->resource.scope_level < a.obj->resource.scope_level )
-            return true;
-        else if ( this->obj->access_type == a.obj->access_type )
+        //if ( this->obj->resource.scope_level < a.obj->resource.scope_level )
+        //    return true;
+        if ( this->obj->access_type == a.obj->access_type )
             return this->obj->is_superset_of( *a.obj );
         else
             return false;
+    }
+
+    unsigned int scope_level() const
+    {
+        return this->obj->resource.scope_level;
     }
 
     /**
