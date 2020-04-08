@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include <limits>
 #include <array>
 #include <iostream>
 
@@ -22,12 +23,10 @@ namespace access
 struct AreaAccess : std::array<size_t, 2>
 {
     AreaAccess()
-      : std::array<size_t, 2>
-        {
-          std::numeric_limits<size_t>::min(),
-          std::numeric_limits<size_t>::max()
-        }
-    {}
+    {
+        ( *this )[ 0 ] = std::numeric_limits< size_t >::min();
+        ( *this )[ 1 ] = std::numeric_limits< size_t >::max();
+    }
 
     AreaAccess(std::array<size_t, 2> a)
       : std::array<size_t, 2>(a) {}
