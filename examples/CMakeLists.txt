@@ -1,7 +1,7 @@
 
 cmake_minimum_required(VERSION 3.10.0)
 
-project(redGrapesExamples LANGUAGES CUDA CXX)
+project(redGrapesExamples LANGUAGES CXX)
 
 find_package(redGrapes REQUIRED CONFIG PATHS "${CMAKE_CURRENT_LIST_DIR}/..")
 include_directories(SYSTEM ${redGrapes_INCLUDE_DIRS})
@@ -9,11 +9,8 @@ include_directories(SYSTEM ${redGrapes_INCLUDE_DIRS})
 find_package(Threads REQUIRED)
 find_package(PNGwriter)
 
-set(CMAKE_CUDA_STANDARD 14)
-set(CMAKE_CUDA_STANDARD_REQUIRED ON)
-set(CMAKE_CUDA_EXTENSIONS OFF)
-
-set(CUDA_LINK_LIBRARIES_KEYWORD PUBLIC)
+include(CheckLanguage)
+check_language(CUDA)
 
 set(EXAMPLE_NAMES
     1_resources
@@ -32,9 +29,16 @@ foreach(examplename ${EXAMPLE_NAMES})
     target_link_libraries(${examplename} PRIVATE Threads::Threads)
 endforeach()
 
-add_executable(cuda_mandelbrot cuda_mandelbrot.cu)
-target_link_libraries(cuda_mandelbrot PRIVATE redGrapes)
-target_link_libraries(cuda_mandelbrot PRIVATE Threads::Threads)
-target_link_libraries(cuda_mandelbrot PRIVATE PNGwriter::PNGwriter)
+if(CMAKE_CUDA_COMPILER)
+    enable_language(CUDA)
+    set(CMAKE_CUDA_STANDARD 14)
+    set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+    set(CMAKE_CUDA_EXTENSIONS OFF)
+    set(CUDA_LINK_LIBRARIES_KEYWORD PUBLIC)
 
+    add_executable(cuda_mandelbrot cuda_mandelbrot.cu)
+    target_link_libraries(cuda_mandelbrot PRIVATE redGrapes)
+    target_link_libraries(cuda_mandelbrot PRIVATE Threads::Threads)
+    target_link_libraries(cuda_mandelbrot PRIVATE PNGwriter::PNGwriter)
+endif()
 
