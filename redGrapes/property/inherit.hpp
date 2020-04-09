@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include <redGrapes/property/trait.hpp>
+
 namespace redGrapes
 {
 
