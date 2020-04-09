@@ -1,4 +1,4 @@
-/* Copyright 2019 Michael Sippel
+/* Copyright 2019-2020 Michael Sippel
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -10,6 +10,7 @@
 #include <mpi.h>
 #include <mutex>
 #include <map>
+#include <akrzemi/optional.hpp>
 #include <redGrapes/resource/ioresource.hpp>
 
 namespace redGrapes
@@ -26,7 +27,10 @@ struct RequestPool
 
     Manager & mgr;
     std::mutex mutex;
-    std::map<MPI_Request*, std::pair<EventID, ioresource::WriteGuard<MPI_Status>>> requests;
+
+    std::vector< MPI_Request > requests;
+    std::vector< EventID > events;
+    std::vector< ioresource::WriteGuard< MPI_Status > > statuses;
 
     RequestPool( Manager & mgr )
         : mgr(mgr)
@@ -38,47 +42,79 @@ struct RequestPool
      */
     void poll()
     {
-        std::vector<std::tuple<MPI_Request*, EventID, ioresource::WriteGuard<MPI_Status>>> r;
+        std::lock_guard< std::mutex > lock(mutex);
+        
+        if( ! requests.empty() )
         {
-            std::lock_guard<std::mutex> lock(mutex);
-            r.reserve(requests.size());
-            for( auto it = requests.begin(); it != requests.end(); ++it )
-                r.emplace_back(it->first, it->second.first, it->second.second);
-        }
+            int index;
+            int flag;
+            MPI_Status status;
 
-        for( auto request : r )
-        {
-            int flag = 0;
-            MPI_Test(std::get<0>(request), &flag, &(*std::get<2>(request)));
-            if( flag )
+            int outcount;
+            std::vector< int > indices( requests.size() );
+            std::vector< MPI_Status > out_statuses ( requests.size() );
+
+            MPI_Testsome(
+                requests.size(),
+                requests.data(),
+                &outcount,
+                indices.data(),
+                out_statuses.data());
+
+            for( int i = 0; i < outcount; ++i )
             {
-                std::lock_guard<std::mutex> lock(mutex);
-                requests.erase( std::get<0>(request) );
-                mgr.reach_event( std::get<1>(request) );
+                int idx = indices[ i ];
+
+                // write status
+                *(this->statuses[ idx ]) = out_statuses[ i ];
+
+                // finish task waiting for request
+                mgr.reach_event( events[ idx ] );
+
+                requests.erase( requests.begin() + idx );
+                statuses.erase( statuses.begin() + idx );
+                events.erase( events.begin() + idx );
+
+                for( int j = i; j < outcount; ++j )
+                    if( indices[ j ] > idx )
+                        indices[ j ] --;
             }
         }
     }
 
     /**
      * Adds a new MPI request to the pool and creates a child task
-     * that finishes after the request is done
+     * that finishes after the request is done. While waiting
+     * for this request, other tasks will be executed
      *
-     * @param request new MPI request
-     * @return IOResource of the MPI status
+     * @param request The MPI request to wait for
+     * @return resulting MPI status of the request
      */
-    auto wait( MPI_Request * request )
+    MPI_Status wait( MPI_Request request )
     {
         IOResource< MPI_Status > status;
+
+        // create task that blocks status until notified from poll()
         mgr.emplace_task(
             [this, request]( auto status )
             {
+                auto event = *mgr.create_event();
+
                 std::lock_guard<std::mutex> lock(mutex);
-                requests.emplace(request, std::make_pair(*mgr.create_event(), status));
+                requests.push_back( request );
+                events.push_back( event );
+                statuses.push_back( status );
             },
             status.write()
         );
 
-        return status;
+        return mgr.emplace_task(
+            []( auto status )
+            {
+                return *status;
+            },
+            status.read()
+        ).get();
     }
 };
 

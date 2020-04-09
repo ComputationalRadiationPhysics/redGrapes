@@ -33,21 +33,27 @@ struct MPIConfig
 
 int main()
 {
-    rg::Manager< rg::TaskProperties<rg::ResourceProperty>, rg::ResourceEnqueuePolicy > mgr;
-    rg::helpers::mpi::RequestPool<decltype(mgr)> mpi_request_pool( mgr );
+    int prov;
+    MPI_Init_thread( nullptr, nullptr, MPI_THREAD_MULTIPLE, &prov );
+    assert( prov == MPI_THREAD_MULTIPLE );
 
-    // set mpi polling on thread 0
-    mgr.getScheduler().schedule[0].set_wait_hook(
-        [&mpi_request_pool] {
-            mpi_request_pool.poll();
+    rg::Manager<
+        rg::TaskProperties< rg::ResourceProperty >,
+        rg::ResourceEnqueuePolicy
+    > mgr( 4 );
+    auto mpi_request_pool = std::make_shared<rg::helpers::mpi::RequestPool<decltype(mgr)>>( mgr );
+
+    // set mpi polling on thread 1
+    mgr.getScheduler().schedule[1].set_wait_hook(
+        [mpi_request_pool] {
+            mpi_request_pool->poll();
         }
     );
 
-    // initialize MPI
+    // initialize MPI config
     rg::IOResource< MPIConfig > mpi_config;
     mgr.emplace_task(
         []( auto config ) {
-            MPI_Init(nullptr, nullptr);
             MPI_Comm_rank(MPI_COMM_WORLD, &config->world_rank);
             MPI_Comm_size(MPI_COMM_WORLD, &config->world_size);
         },
@@ -74,7 +80,7 @@ int main()
         mpi_config.read()
     );
 
-    for(size_t i = 0; i < 8; ++i)
+    for(size_t i = 0; i < 100; ++i)
     {
         int next = (current + 1) % 2;
 
@@ -83,24 +89,33 @@ int main()
          */
         // Send
         mgr.emplace_task(
-            [i, &mpi_request_pool]( auto field, auto mpi_config )
+            [i, current, mpi_request_pool]( auto field, auto mpi_config )
             {
-                auto request = new MPI_Request;
                 int dst = ( mpi_config->world_rank + 1 ) % mpi_config->world_size;
-                MPI_Isend( &field[{3}], 1, MPI_INT, dst, 0, MPI_COMM_WORLD, request );
-                mpi_request_pool.wait( request );
+
+                MPI_Request request;
+                MPI_Isend( &field[{3}], sizeof(int), MPI_CHAR, dst, current, MPI_COMM_WORLD, &request );
+
+                MPI_Status status = mpi_request_pool->wait( request );
             },
             field[current].at({3}).read(),
             mpi_config.read()
         );
+
         // Receive
         mgr.emplace_task(
-            [i, &mpi_request_pool]( auto field, auto mpi_config )
+            [i, current, &mgr, mpi_request_pool]( auto field, auto mpi_config )
             {
-                auto request = new MPI_Request;
                 int src = ( mpi_config->world_rank - 1 ) % mpi_config->world_size;
-                MPI_Irecv( &field[{0}], 1, MPI_INT, src, 0, MPI_COMM_WORLD, request );
-                mpi_request_pool.wait( request );
+
+                MPI_Request request;
+                MPI_Irecv( &field[{0}], sizeof(int), MPI_CHAR, src, current, MPI_COMM_WORLD, &request );
+
+                MPI_Status status = mpi_request_pool->wait( request );
+                /*
+                int recv_data_count;
+                MPI_Get_count( &status, MPI_CHAR, &recv_data_count );
+                */
             },
             field[current].at({0}).write(),
             mpi_config.read()
@@ -124,7 +139,7 @@ int main()
          */
         mgr.emplace_task(
             [i]( auto buf, auto mpi_config )
-            {
+            {                
                 std::cout << "Step[" << i << "], rank[" << mpi_config->world_rank << "] :: ";
                 for( size_t i = 0; i < buf->size(); ++i )
                     std::cout << buf[{i}] << "; ";
