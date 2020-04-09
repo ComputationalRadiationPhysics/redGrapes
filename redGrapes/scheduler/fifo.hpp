@@ -38,15 +38,22 @@ private:
     void get_job( ThreadSchedule< Job > & thread )
     {
         std::unique_lock< std::mutex > lock( queue_mutex );
-
         if( job_queue.empty() )
         {
+            lock.unlock();
+
             if( ! this->uptodate.test_and_set() )
             {
                 auto ready_tasks = this->update_graph();
+
+                lock.lock();
                 for( auto job : ready_tasks )
                     job_queue.push( job );
+
+                lock.unlock();
             }
+
+            lock.lock();
         }
 
         if( ! job_queue.empty() )
