@@ -35,8 +35,8 @@ protected:
     }
 
 public:
-    unsigned int const id;
-    unsigned int const scope_level;
+    unsigned int id;
+    unsigned int scope_level;
 
     /**
      * Create a new resource with an unused ID.

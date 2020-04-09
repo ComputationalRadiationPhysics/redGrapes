@@ -31,6 +31,8 @@ struct ReadGuard : public SharedResourceObject< T, access::IOAccess >
     T const & operator* () const noexcept { return *this->obj; }
     T const * operator-> () const noexcept { return this->obj.get(); }
 
+    T const * get() const noexcept { return this->obj.get(); }
+
 protected:
     ReadGuard( std::shared_ptr<T> obj ) : SharedResourceObject<T, access::IOAccess>( obj ) {}
 };
@@ -44,6 +46,8 @@ struct WriteGuard : public ReadGuard< T >
 
     T & operator* () const noexcept { return *this->obj; }
     T * operator-> () const noexcept { return this->obj.get(); }
+
+    T * get() const noexcept { return this->obj.get(); }
 
 protected:
     WriteGuard( std::shared_ptr<T> obj ) : ReadGuard<T>( obj ) {}
@@ -60,6 +64,11 @@ struct IOResource : public ioresource::WriteGuard< T >
               std::make_shared< T >( std::forward<Args>(args)... )
           )
     {}
+
+    IOResource( std::shared_ptr<T> o )
+        : ioresource::WriteGuard<T>( o )
+    {}
+
 }; // struct IOResource
 
 
