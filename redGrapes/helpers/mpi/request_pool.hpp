@@ -10,8 +10,7 @@
 #include <mpi.h>
 #include <mutex>
 #include <map>
-#include <akrzemi/optional.hpp>
-#include <redGrapes/resource/ioresource.hpp>
+#include <memory>
 
 namespace redGrapes
 {
@@ -30,7 +29,7 @@ struct RequestPool
 
     std::vector< MPI_Request > requests;
     std::vector< EventID > events;
-    std::vector< ioresource::WriteGuard< MPI_Status > > statuses;
+    std::vector< std::shared_ptr< MPI_Status > > statuses;
 
     RequestPool( Manager & mgr )
         : mgr(mgr)
@@ -43,7 +42,7 @@ struct RequestPool
     void poll()
     {
         std::lock_guard< std::mutex > lock(mutex);
-        
+
         if( ! requests.empty() )
         {
             int index;
@@ -88,33 +87,27 @@ struct RequestPool
      * for this request, other tasks will be executed
      *
      * @param request The MPI request to wait for
-     * @return resulting MPI status of the request
+     * @return future to the resulting MPI status of the request
      */
-    MPI_Status wait( MPI_Request request )
+    auto wait( MPI_Request request )
     {
-        IOResource< MPI_Status > status;
-
-        // create task that blocks status until notified from poll()
-        mgr.emplace_task(
-            [this, request]( auto status )
+        return mgr.emplace_task(
+            [this, request]
             {
+                auto status = std::make_shared< MPI_Status >();
                 auto event = *mgr.create_event();
 
-                std::lock_guard<std::mutex> lock(mutex);
-                requests.push_back( request );
-                events.push_back( event );
-                statuses.push_back( status );
-            },
-            status.write()
-        );
+                {
+                    std::lock_guard<std::mutex> lock(mutex);
+                    requests.push_back( request );
+                    events.push_back( event );
+                    statuses.push_back( status );
+                }
 
-        return mgr.emplace_task(
-            []( auto status )
-            {
+                mgr.yield( event );
                 return *status;
-            },
-            status.read()
-        ).get();
+            }
+        );
     }
 };
 

@@ -1,5 +1,6 @@
 
 #include <redGrapes/manager.hpp>
+#include <redGrapes/resource/ioresource.hpp>
 #include <redGrapes/resource/fieldresource.hpp>
 #include <redGrapes/helpers/mpi/request_pool.hpp>
 
@@ -96,7 +97,7 @@ int main()
                 MPI_Request request;
                 MPI_Isend( &field[{3}], sizeof(int), MPI_CHAR, dst, current, MPI_COMM_WORLD, &request );
 
-                MPI_Status status = mpi_request_pool->wait( request );
+                mpi_request_pool->wait( request );
             },
             field[current].at({3}).read(),
             mpi_config.read()
@@ -111,11 +112,10 @@ int main()
                 MPI_Request request;
                 MPI_Irecv( &field[{0}], sizeof(int), MPI_CHAR, src, current, MPI_COMM_WORLD, &request );
 
-                MPI_Status status = mpi_request_pool->wait( request );
-                /*
+                MPI_Status status = mpi_request_pool->wait( request ).get();
+
                 int recv_data_count;
                 MPI_Get_count( &status, MPI_CHAR, &recv_data_count );
-                */
             },
             field[current].at({0}).write(),
             mpi_config.read()

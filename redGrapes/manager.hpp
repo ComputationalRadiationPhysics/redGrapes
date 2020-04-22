@@ -54,7 +54,7 @@ public:
         std::unique_lock<std::mutex> l(m);
         return id++;
     }
-    
+
     struct TaskPtr;
     struct WeakTaskPtr;
 
@@ -79,6 +79,16 @@ public:
             , impl( new FunctorTask<F>(std::move(f)) )
         {}
 
+        void hook_pause( std::function<void(unsigned int)> hook )
+        {
+            impl->pause_hooks.push_back( hook );
+        }
+
+        void hook_resume( std::function<void()> hook )
+        {
+            impl->resume_hooks.push_back( hook );
+        }
+        
         void hook_before( std::function<void()> hook )
         {
             impl->before_hooks.push_back( hook );
@@ -114,7 +124,7 @@ public:
             return graph_get(vertex, g->graph()).first;
         }
     };
-    
+
     struct TaskPtr
     {
         std::shared_ptr< PrecedenceGraph > graph;
@@ -180,9 +190,17 @@ public:
         auto impl = std::bind(f, std::forward<Args>(args)...);
 
         auto delayed = make_delayed_functor( std::move(impl) );
-        auto result = make_working_future( std::move(delayed.get_future()), scheduler );
-        this->push( Task(std::move(delayed), builder ) );
-        return result;
+        auto future = delayed.get_future();
+
+        Task task( std::move(delayed), builder );
+
+        EventID result_event = scheduler.scheduling_graph.new_event();
+
+        task.hook_after([this, task_id=task.task_id, result_event] { reach_event( result_event ); });
+
+        this->push( std::move( task ) );
+
+        return make_working_future( std::move(future), *this, result_event );
     }
 
     template < typename Callable, typename... Args >
@@ -195,15 +213,16 @@ public:
     /**
      * Enqueue a child of the current task.
      */
-    void push( Task && task )
+    TaskPtr push( Task && task )
     {
         if( auto parent = scheduler.get_current_task() )
             task.parent = WeakTaskPtr(*parent);
 
         unsigned int scope_level = thread::scope_level + 1;
         task.hook_before([scope_level]{ thread::scope_level = scope_level; });
+        task.hook_resume([scope_level]{ thread::scope_level = scope_level; });
 
-        auto task_ptr = scheduler.add_task( task, this->get_current_graph() );
+        return scheduler.add_task( task, this->get_current_graph() );
     }
 
     std::experimental::optional<TaskID> get_current_task_id( void )
@@ -222,6 +241,7 @@ public:
     std::experimental::optional<EventID> create_event()
     {
         if( auto task_id = get_current_task_id() )
+            // TODO: remove direct member access to scheduling_graph
             return scheduler.scheduling_graph.add_post_dependency( *task_id );
         else
             return std::experimental::nullopt;
@@ -259,6 +279,14 @@ public:
         }
         else
             throw std::runtime_error("update_properties: currently no task running");
+    }
+
+    /*
+     * yield at least until event is reached
+     */
+    void yield( EventID event_id )
+    {
+        scheduler.yield( event_id );
     }
 
     std::vector<TaskProperties> backtrace()

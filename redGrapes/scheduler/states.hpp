@@ -16,7 +16,7 @@
 namespace redGrapes
 {
 
-enum TaskState { uninitialized = 0, pending, ready, running, done };
+enum TaskState { uninitialized = 0, pending, ready, running, paused, done };
 
 template <
     typename TaskID,
@@ -43,31 +43,48 @@ struct StateScheduler
         return states[task_id];
     }
 
-    bool is_task_ready( TaskPtr task_ptr )
+    bool is_task_ready( TaskID task_id )
     {
-        return boost::in_degree(task_ptr.vertex, task_ptr.graph->graph()) == 0;
+        return this->scheduling_graph.is_task_ready( task_id );
     }
 
-    template <typename Task>
+    template < typename Task >
     auto add_task( Task task, std::shared_ptr<PrecedenceGraph> g )
     {
         auto l = g->unique_lock();
         auto vertex = g->push( task );
-        TaskPtr task_ptr{ g, vertex };
+        TaskPtr task_ptr { g, vertex };
         this->scheduling_graph.add_task( task_ptr );
-        bool ready = is_task_ready( task_ptr );
+        bool ready = boost::in_degree(vertex, g->graph()) == 0;
         l.unlock();
+
+        task.hook_pause([this, task_id=task.task_id]( unsigned int event )
+                        {
+                             std::unique_lock<std::mutex> l( mutex );
+                             states[ task_id ] = TaskState::paused;
+                             l.unlock();
+
+                             this->notify();
+                        });
+
+        task.hook_resume([this, task_id=task.task_id]
+                        {
+                             std::unique_lock<std::mutex> l( mutex );
+                             states[ task_id ] = TaskState::running;
+                        });
 
         task.hook_before([this, task_id=task.task_id]
                          {
                              std::unique_lock<std::mutex> l( mutex );
                              states[ task_id ] = TaskState::running;
                          });
+
         task.hook_after([this, task_id=task.task_id]
                         {
                             std::unique_lock<std::mutex> l( mutex );
                             states[ task_id ] = TaskState::done;
                             l.unlock();
+
                             this->notify();
                         });
 
@@ -85,12 +102,13 @@ struct StateScheduler
 
     void update_vertex( TaskPtr p )
     {
-        auto vertices = this->scheduling_graph.update_vertex( p );
+        auto vertices = this->scheduling_graph.update_task( p );
 
         for( auto v : vertices )
         {
             TaskPtr following_task{ p.graph, v };
-            if( is_task_ready( following_task ) )
+            auto task_id = following_task.locked_get().task_id;
+            if( is_task_ready( task_id ) )
             {
                 std::unique_lock<std::mutex> tasks_lock( mutex );
                 active_tasks.push_back( following_task );
@@ -141,9 +159,10 @@ struct StateScheduler
                 }
                 break;
 
+            case TaskState::paused:
             case TaskState::pending:
                 {
-                    if( is_task_ready( task_ptr ) )
+                    if( is_task_ready( task_id ) )
                     {
                         states[ task_id ] = TaskState::ready;
                         new_jobs.push_back( Job{ task_ptr.get().impl, task_ptr } );
