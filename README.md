@@ -102,26 +102,31 @@ However this does not suffice for what we want to achieve: declarative task prec
 
 **typesafe**: Some libraries like Legion or StarPU use a very old fashioned, untyped argc/argv interface to pass parameters to tasks. This is very dangerous. Both libraries also require in general a lot of C-style boilerplate.
 
+TODO: ranges
 **custom access modes**: redGrapes supports arbitrary access modes, not just read/write, e.g. ranges in arrays, multi-dimensional buffers, etc.
 
 **integration with asynchronous APIs**: To correctly model asynchronous MPI or CUDA calls, the complete operation should be a task, but still not block. The finishing of the asynchronous operation has to be triggered externally. Systems that implement distributed scheduling do not leave this option since the communication is done by the runtime itself.
 
-**distributed scheduling**: Legion, StarPU, HPX etc. focus heavily on mapping a program with virtual memory to multiple compute nodes. This is out of scope for redGrapes, but could be built on top rather than tightly coupling it.
+**inter-process scheduling**: Legion, StarPU, HPX etc. focus heavily on mapping a program with virtual memory to multiple compute nodes. This is out of scope for redGrapes, but could be built on top rather than tightly coupling it.
 
-| **Feature**                                                               | native C++         | typesafe           | custom access modes | compile time checked memory access | integration with asynchronous APIs                              | distributed scheduling |
-|---------------------------------------------------------------------------|--------------------|--------------------|---------------------|------------------------------------|-----------------------------------------------------------------|------------------------|
-| **Resource-based Systems**                                                |                    |                    |                     |                                    |                                                                 |                        |
-| [RedGrapes](https://github.com/ComputationalRadiationPhysics/redGrapes)   | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark:  | :heavy_check_mark:                 | :heavy_check_mark:                                              | :x:                    |
-| [SYCL](https://www.khronos.org/sycl/)                                     | :heavy_check_mark: | :heavy_check_mark: | :x:                 | :heavy_check_mark:                 | :x: (See [#181](https://github.com/illuhad/hipSYCL/issues/181)) | :x:                    |
-| [MetaPass](http://www.jlifflander.com/papers/meta-espm2016.pdf)           | :heavy_check_mark: | :heavy_check_mark: | :x:                 | :heavy_check_mark:                 | :white_check_mark:                                              | :heavy_check_mark:     |
-| [Legion](https://legion.stanford.edu/)                                    | :heavy_check_mark: | :x:                | :x:                 | :x:                                | :white_check_mark:                                              | :heavy_check_mark:     |
-| [StarPU](http://runtime.bordeaux.inria.fr/StarPU/)                        | :heavy_check_mark: | :x:                | :x:                 | :x:                                | :white_check_mark:                                              | :heavy_check_mark:     |
-| [PaRSEC](http://icl.cs.utk.edu/parsec/)                                   | :x:                | -                  | :x:                 | :heavy_check_mark:                 | :white_check_mark:                                              | :heavy_check_mark:     |
-| [OpenMP](https://www.openmp.org/)                                         | :x:                | -                  | :x:                 | :x:                                | :x:                                                             | :x:                    |
-| **Event-based Systems**                                                   |                    |                    |                     |                                    |                                                                 |                        |
-| [Realm](http://theory.stanford.edu/~aiken/publications/papers/pact14.pdf) | :heavy_check_mark: | :heavy_check_mark: | -                   | -                                  | :white_check_mark:                                              | :heavy_check_mark:     |
-| [HPX](http://stellar.cct.lsu.edu/projects/hpx/)                           | :heavy_check_mark: | :heavy_check_mark: | -                   | -                                  | :white_check_mark:                                              | :heavy_check_mark:     |
-| [CppTaskFlow](https://cpp-taskflow.github.io/)                            | :heavy_check_mark: | :heavy_check_mark: | -                   | -                                  | :white_check_mark: (CUDA Graphs)                                | :x:                    |
+| **Feature**                                                               | native C++         | typesafe           | custom access modes | compile time checked memory access | integration with asynchronous APIs | inter-process scheduling |
+|---------------------------------------------------------------------------|--------------------|--------------------|---------------------|------------------------------------|------------------------------------|--------------------------|
+| **Resource-based Systems**                                                |                    |                    |                     |                                    |                                    |                          |
+| [RedGrapes](https://github.com/ComputationalRadiationPhysics/redGrapes)   | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark:  | :heavy_check_mark:                 | :heavy_check_mark:                 | :x:                      |
+| [SYCL](https://www.khronos.org/sycl/)                                     | :heavy_check_mark: | :heavy_check_mark: | :x:                 | :heavy_check_mark:                 | :x:                                | :x:                      |
+| [MetaPass](http://www.jlifflander.com/papers/meta-espm2016.pdf)           | :heavy_check_mark: | :heavy_check_mark: | :x:                 | :heavy_check_mark:                 | :white_check_mark: (1)             | :heavy_check_mark:       |
+| [Legion](https://legion.stanford.edu/)                                    | :heavy_check_mark: | :x:                | :x:                 | :x:                                | :white_check_mark: (1)             | :heavy_check_mark:       |
+| [StarPU](http://runtime.bordeaux.inria.fr/StarPU/)                        | :heavy_check_mark: | :x:                | :x:                 | :x:                                | :white_check_mark: (1)             | :heavy_check_mark:       |
+| [PaRSEC](http://icl.cs.utk.edu/parsec/)                                   | :x:                | :heavy_check_mark: | :x:                 | :heavy_check_mark:                 | :white_check_mark: (1)             | :heavy_check_mark:       |
+| [OpenMP](https://www.openmp.org/)                                         | :x:                | :heavy_check_mark: | :x:                 | :x:                                | :x:                                | :x:                      |
+| **Event-based Systems**                                                   |                    |                    |                     |                                    |                                    |                          |
+| [Realm](http://theory.stanford.edu/~aiken/publications/papers/pact14.pdf) | :heavy_check_mark: | :heavy_check_mark: | -                   | -                                  | :white_check_mark: (1)             | :heavy_check_mark:       |
+| [HPX](http://stellar.cct.lsu.edu/projects/hpx/)                           | :heavy_check_mark: | :heavy_check_mark: | -                   | -                                  | :white_check_mark: (1)             | :heavy_check_mark:       |
+| [CppTaskFlow](https://cpp-taskflow.github.io/)                            | :heavy_check_mark: | :heavy_check_mark: | -                   | -                                  | :white_check_mark: (2)             | :x:                      |
+
+(0) (See [#181](https://github.com/illuhad/hipSYCL/issues/181))
+(1)
+(2) Cuda Graphs
 
 ## License
 
