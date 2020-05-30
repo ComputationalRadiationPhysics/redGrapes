@@ -12,8 +12,6 @@
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/graph_traits.hpp>
 
-#include <redGrapes/thread/thread_dispatcher.hpp>
-#include <redGrapes/thread/thread_local.hpp>
 #include <redGrapes/graph/scheduling_graph.hpp>
 #include <redGrapes/graph/recursive_graph.hpp>
 #include <redGrapes/graph/precedence_graph.hpp>
@@ -23,8 +21,6 @@
 #include <redGrapes/task/task.hpp>
 
 #include <redGrapes/property/inherit.hpp>
-
-#include <redGrapes/scheduler/fifo.hpp>
 
 #include <redGrapes/property/trait.hpp>
 
@@ -39,9 +35,9 @@ struct DefaultEnqueuePolicy
 };
 
 template <
-    typename T_TaskProperties = TaskProperties<>,
-    typename EnqueuePolicy = DefaultEnqueuePolicy< T_TaskProperties >,
-    template <typename, typename, typename> class Scheduler = FIFOScheduler
+    typename T_TaskProperties,// = TaskProperties<>,
+    typename EnqueuePolicy,// = DefaultEnqueuePolicy< T_TaskProperties >,
+    template <typename, typename, typename> class Scheduler// = FIFOScheduler
 >
 class Manager
 {
@@ -73,7 +69,7 @@ public:
     {
         std::shared_ptr< TaskImplBase > impl;
 
-        template <typename F>
+        template < typename F >
         Task( F && f, T_TaskProperties prop )
             : TaskProperties(prop)
             , impl( new FunctorTask<F>(std::move(f)) )
@@ -142,21 +138,21 @@ public:
         }
     };
 
-    std::shared_ptr<PrecedenceGraph> main_graph;
+    std::shared_ptr< PrecedenceGraph > main_graph;
     Scheduler< TaskID, TaskPtr, PrecedenceGraph > scheduler;
-    ThreadDispatcher< Scheduler<TaskID, TaskPtr, PrecedenceGraph> > thread_dispatcher;
+    SchedulingGraph< TaskID, TaskPtr > scheduling_graph;
 
-    template <typename... Args>
-    static inline void pass(Args&&...) {}
+    template < typename... Args >
+    static inline void pass( Args&&... ) {}
 
     struct PropBuildHelper
     {
         typename T_TaskProperties::Builder & builder;
 
-        template <typename T>
-        inline int build (T const & x)
+        template < typename T >
+        inline int build( T const & x )
         {
-            trait::BuildProperties<T>::build(builder, x);
+            trait::BuildProperties< T >::build(builder, x);
             return 0;
         }
     };
@@ -166,35 +162,44 @@ public:
 
     Manager( int n_threads = std::thread::hardware_concurrency() )
         : main_graph( std::make_shared<PrecedenceGraph>() )
-        , scheduler( main_graph, n_threads )
-        , thread_dispatcher( scheduler, n_threads )
+        , scheduler( main_graph, scheduling_graph, n_threads )
     {}
-
-    ~Manager()
-    {
-        scheduler.finish();
-        thread_dispatcher.finish();
-    }
 
     auto & getScheduler()
     {
         return scheduler;
     }
 
-    template < typename Callable, typename... Args >
-    auto emplace_task( Callable && f, typename T_TaskProperties::Builder builder, Args&&... args )
+    /*! create a new task, as child of the currently running task
+     *
+     * @param f callable that takes "proprty-building" objects as args
+     * @param builder used sequentially by property-builders of each arg
+     * @param args are forwarded to f after the each arg added its
+     *             properties to the task
+     *
+     * @return future from f's result
+     */
+    template <
+        typename Callable,
+        typename... Args
+    >
+    auto emplace_task(
+        Callable && f,
+        typename T_TaskProperties::Builder builder,
+        Args&&... args
+    )
     {
         PropBuildHelper build_helper{ builder };
         pass( build_helper.template build<Args>(args)... );
 
-        auto impl = std::bind(f, std::forward<Args>(args)...);
+        auto impl = std::bind( f, std::forward<Args>(args)... );
 
         auto delayed = make_delayed_functor( std::move(impl) );
         auto future = delayed.get_future();
 
         Task task( std::move(delayed), builder );
 
-        EventID result_event = scheduler.scheduling_graph.new_event();
+        EventID result_event = scheduling_graph.new_event();
 
         task.hook_after([this, task_id=task.task_id, result_event] { reach_event( result_event ); });
 
@@ -203,15 +208,20 @@ public:
         return make_working_future( std::move(future), *this, result_event );
     }
 
-    template < typename Callable, typename... Args >
-    auto emplace_task( Callable && f, Args&&... args )
+    template <
+        typename Callable,
+        typename... Args
+    >
+    auto emplace_task(
+        Callable && f,
+        Args&&... args
+    )
     {
         typename TaskProperties::Builder builder;
         return emplace_task( f, builder, std::forward<Args>(args)... );
     }
 
-    /**
-     * Enqueue a child of the current task.
+    /*! Enqueue a child of the current task.
      */
     TaskPtr push( Task && task )
     {
@@ -222,10 +232,21 @@ public:
         task.hook_before([scope_level]{ thread::scope_level = scope_level; });
         task.hook_resume([scope_level]{ thread::scope_level = scope_level; });
 
-        return scheduler.add_task( task, this->get_current_graph() );
+        auto g = get_current_graph();
+        auto l = g->unique_lock();
+
+        auto vertex = g->push( task );
+        TaskPtr task_ptr { g, vertex };
+        scheduling_graph.add_task( task_ptr );
+        l.unlock();
+
+        scheduler.add_task( task_ptr );
+
+        return task_ptr;
     }
 
-    std::experimental::optional<TaskID> get_current_task_id( void )
+    std::experimental::optional< TaskID >
+    get_current_task_id( void )
     {
         if( auto task_ptr = scheduler.get_current_task() )
             return task_ptr->locked_get().task_id;
@@ -233,28 +254,34 @@ public:
             return std::experimental::nullopt;
     }
 
+    /*! trigger event_id
+     */
     void reach_event( EventID event_id )
     {
-        scheduler.reach_event( event_id );
+        scheduling_graph.reach_event( event_id );
     }
 
-    std::experimental::optional<EventID> create_event()
+    /*! create an event on which the termination of the current task depends
+     */
+    std::experimental::optional< EventID >
+    create_event()
     {
         if( auto task_id = get_current_task_id() )
-            // TODO: remove direct member access to scheduling_graph
-            return scheduler.scheduling_graph.add_post_dependency( *task_id );
+            return scheduling_graph.add_post_dependency( *task_id );
         else
             return std::experimental::nullopt;
     }
 
-    std::shared_ptr<PrecedenceGraph>
+    /*! get the subgraph which contains all children of the currently running task
+     */
+    std::shared_ptr< PrecedenceGraph >
     get_current_graph( void )
     {
         if( auto task_ptr = scheduler.get_current_task() )
         {
             auto parent_graph = task_ptr->graph;
             auto l = parent_graph->shared_lock();
-            auto g = graph_get(task_ptr->vertex, parent_graph->graph()).second;
+            auto g = graph_get( task_ptr->vertex, parent_graph->graph() ).second;
             l.unlock();
 
             if( !g )
@@ -264,34 +291,48 @@ public:
                 return new_graph;
             }
             else
-                return std::dynamic_pointer_cast<PrecedenceGraph>(g);
+                return std::dynamic_pointer_cast< PrecedenceGraph >(g);
         }
-
-        return this->main_graph;
+        else
+            /* the current thread is not executing a task,
+               so we use the root-graph as default */
+            return this->main_graph;
     }
 
+    /*! Apply a patch to the properties of the currently running task
+     */
     void update_properties( typename TaskProperties::Patch const & patch )
     {
         if( auto task_ptr = scheduler.get_current_task() )
         {
             task_ptr->locked_get().apply_patch( patch );
-            scheduler.update_vertex( *task_ptr );
+
+            auto vertices = this->scheduling_graph.update_task( task_ptr );
+            for( auto v : vertices )
+            {
+                TaskPtr following_task{ task_ptr.graph, v };
+                auto task_id = following_task.locked_get().task_id;
+
+                scheduler.activate_task( task_id );
+            }
         }
         else
             throw std::runtime_error("update_properties: currently no task running");
     }
 
-    /*
-     * yield at least until event is reached
+    /*! yield at least until event_id is reached
      */
     void yield( EventID event_id )
     {
         scheduler.yield( event_id );
     }
 
-    std::vector<TaskProperties> backtrace()
+    /*! get backtrace from currently running task
+     */
+    std::vector< TaskProperties >
+    backtrace()
     {
-        std::vector<TaskProperties> bt;
+        std::vector< TaskProperties > bt;
 
         std::experimental::optional< WeakTaskPtr > task_ptr;
 
@@ -304,7 +345,7 @@ public:
             bt.push_back( task );
 
             if( task.parent )
-                task_ptr = WeakTaskPtr(*task.parent);
+                task_ptr = WeakTaskPtr( *task.parent );
             else
                 task_ptr = std::experimental::nullopt;
         }
