@@ -16,12 +16,34 @@
 #include <redGrapes/graph/util.hpp>
 #include <redGrapes/task/task.hpp>
 
-#include <redGrapes/thread/thread_schedule.hpp>
-#include <redGrapes/thread/thread_dispatcher.hpp>
-
 namespace redGrapes
 {
 
+/*!
+ * Manages a flat, non-recursive graph of events.
+ * An event is the abstraction of the programs execution state.
+ * During runtime, each thread encounters a sequence of events.
+ * The goal is to synchronize these events in the manner
+ * "Event A must occur before Event B".
+ *
+ * Multiple events need to be related, so that they
+ * form a partial order (i.e. an antisymmetric quasiorder).
+ * This order is an homomorph image from the timeline of
+ * execution states.
+ *
+ *
+ * Each task is represented by at least two events:
+ * A Pre-Event and a Post-Event.
+ *                   +------+
+ * >>> /  Pre- \ >>> | Task | >>> / Post- \ >>>
+ *     \ Event /     +------+     \ Event /
+ *
+ * Data-dependencies between tasks are assured by
+ * edges from post-events to pre-events.
+ *
+ * Child-tasks are inserted, so that the child tasks post-event
+ * precedes the parent tasks post-event.
+ */
 template <
     typename TaskID,
     typename TaskPtr
@@ -34,14 +56,17 @@ public:
 private:
     struct Event
     {
-        // number of incoming edges
-        // state == 0: event is reached and can be removed
+        /*! number of incoming edges
+         * state == 0: event is reached and can be removed
+         */
         unsigned int state;
+
+        /*! the set of subsequent events
+         */
         std::vector< EventID > followers;
 
         Event()
-            // every event needs at least one down() before
-            // it will be removed
+            // every event needs at least one down() before it will be removed
             : state( 1 )
         {}
 
@@ -150,7 +175,7 @@ public:
     }
 
     /*!
-     * Checks whether a event is reached
+     * Checks whether an event is reached
      */
     bool is_event_reached( EventID event_id )
     {
