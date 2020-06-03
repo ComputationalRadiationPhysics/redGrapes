@@ -68,6 +68,7 @@ private:
     };
 
     std::mutex mutex;
+    EventID event_id_counter;
     std::unordered_map< EventID, Event > events;
     std::unordered_map< TaskID , TaskEvents > task_events;
 
@@ -78,8 +79,6 @@ private:
      */
     EventID make_event()
     {
-        static EventID event_id_counter = 0;
-
         EventID event_id = event_id_counter ++;
 
         events.emplace(
