@@ -228,13 +228,52 @@ public:
         return true;
     }
 
+    //! notify the tasks pre-event
+    void task_start( TaskID task_id )
+    {
+        assert( is_task_ready( task_id ) );
+
+        std::lock_guard< std::mutex > lock( mutex );
+        if( events.count( task_events[ task_id ].pre_event ) )
+            notify_event( task_events[ task_id ].pre_event );
+    }
+
+    //! notify the tasks post-event
+    void task_end( TaskID task_id )
+    {
+        std::lock_guard< std::mutex > lock( mutex );
+
+        assert( task_events.count( task_id ) );
+
+        EventID event_id = task_events[ task_id ].post_event;
+        events[ event_id ].down();
+        notify_event( event_id );
+
+        task_events.erase( task_id );
+    }
+
+    //! pause the task until event_id is reached
+    void task_pause( TaskID task_id, EventID event_id )
+    {
+        std::lock_guard< std::mutex > lock( mutex );
+        task_events[ task_id ].pre_event = event_id;
+    }
+
     /*!
      * Insert a new task and add the same dependencies as in the
      * precedence graph
+     * Note that tasks must be added in order!
      *
      * Here we assume that the precedence graph is locked
+     *
+     * @param task_ptr task to add
+     * @param dependency_event_type function to determine whether to take the preceding tasks
+     *                              pre- or post-event as dependency
      */
-    void add_task( TaskPtr task_ptr )
+    void add_task(
+        TaskPtr task_ptr,
+        std::function< bool( TaskPtr const & ) > dependency_event_type = []( TaskPtr const & ) { return false; }
+    )
     {
         auto & task = task_ptr.get();
 
@@ -242,61 +281,48 @@ public:
         if( task.parent )
             parent_id = task.parent->locked_get().task_id;
 
+        // create new events for the task
         std::unique_lock< std::mutex > lock( mutex );
         task_events[ task.task_id ].pre_event = make_event();
         task_events[ task.task_id ].post_event = make_event();
 
-        task.hook_pause(
-            [this, task_id=task.task_id]( EventID event_id )
-            {
-                std::lock_guard< std::mutex > lock( mutex );
-                task_events[ task_id ].pre_event = event_id;
-            });
+        task.hook_pause( [this, task_id=task.task_id] ( EventID event_id ) { task_pause( task_id, event_id ); } );
+        task.hook_before( [this, task_id=task.task_id] { task_start( task_id ); } );
+        task.hook_after( [this, task_id=task.task_id] { task_end( task_id ); } );
 
-        task.hook_before(
-            [this, task_id=task.task_id]
-            {
-                assert( is_task_ready( task_id ) );
-
-                std::lock_guard< std::mutex > lock( mutex );
-                if( events.count( task_events[ task_id ].pre_event ) )
-                    notify_event( task_events[ task_id ].pre_event );
-            });
-
-        task.hook_after(
-            [this, task_id=task.task_id]
-            {
-                std::lock_guard< std::mutex > lock( mutex );
-
-                assert( task_events.count( task_id ) );
-
-                EventID event_id = task_events[ task_id ].post_event;
-                events[ event_id ].down();
-                notify_event( event_id );
-
-                task_events.erase( task_id );
-            });
-
+        // add dependencies to tasks which precede the new one
         for(
             auto it = boost::in_edges( task_ptr.vertex, task_ptr.graph->graph() );
             it.first != it.second;
             ++ it.first
         )
         {
-            auto & preceding_task =
-               graph_get(
-                   boost::source( *(it.first), task_ptr.graph->graph() ),
-                   task_ptr.graph->graph()
-               ).first;
+            TaskPtr preceding_task_ptr
+            {
+                task_ptr.graph,
+                boost::source( *(it.first), task_ptr.graph->graph() )
+            };
 
-            if( task_events.count( preceding_task.task_id ) )
-                if( events.count( task_events[ preceding_task.task_id ].post_event ) )
+            auto & preceding_task_id = preceding_task_ptr.get().task_id;
+
+            if( task_events.count( preceding_task_id ) )
+            {
+                EventID preceding_event_id;
+
+                if( dependency_event_type( preceding_task_ptr ) )
+                    preceding_event_id = task_events[ preceding_task_id ].pre_event;
+                else
+                    preceding_event_id = task_events[ preceding_task_id ].post_event;
+
+                if( events.count( preceding_event_id ) )
                     add_edge(
-                        task_events[ preceding_task.task_id ].post_event,
+                        task_events[ preceding_event_id ].post_event,
                         task_events[ task.task_id ].pre_event
                     );
+            }
         }
 
+        // add dependency to parent
         if( parent_id )
         {
             assert( task_events.count( *parent_id ) );
@@ -306,6 +332,7 @@ public:
                 task_events[ *parent_id ].post_event
             );
         }
+        // else: task has no parent
 
         events[ task_events[ task.task_id ].pre_event ].down();
     }
