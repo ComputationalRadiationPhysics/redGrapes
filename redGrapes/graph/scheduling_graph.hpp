@@ -34,9 +34,12 @@ namespace redGrapes
  *
  * Each task is represented by at least two events:
  * A Pre-Event and a Post-Event.
- *                   +------+
- * >>> /  Pre- \ >>> | Task | >>> / Post- \ >>>
- *     \ Event /     +------+     \ Event /
+   \verbatim
+                     +------+
+   >>> /  Pre- \ >>> | Task | >>> / Post- \ >>>
+       \ Event /     +------+     \ Event /
+
+   \endverbatim
  *
  * Data-dependencies between tasks are assured by
  * edges from post-events to pre-events.
@@ -61,8 +64,7 @@ private:
          */
         unsigned int state;
 
-        /*! the set of subsequent events
-         */
+        //! the set of subsequent events
         std::vector< EventID > followers;
 
         Event()
@@ -168,15 +170,14 @@ private:
     }
 
 public:
+    //! are all events reached?
     bool empty()
     {
         std::lock_guard< std::mutex > lock( mutex );
         return events.size() == 0;
     }
 
-    /*!
-     * Checks whether an event is reached
-     */
+    //! Checks whether an event is reached
     bool is_event_reached( EventID event_id )
     {
         std::lock_guard< std::mutex > lock( mutex );
@@ -187,18 +188,14 @@ public:
             return true;
     }
 
-    /*!
-     * Create a new event without dependencies
-     */
+    //! Create a new event without dependencies
     EventID new_event()
     {
         std::lock_guard< std::mutex > lock( mutex );
         return make_event( );
     }
 
-    /*!
-     * Creates a new event which precedes the tasks post-event
-     */
+    //! Creates a new event which precedes the tasks post-event
     EventID add_post_dependency( TaskID task_id )
     {
         std::lock_guard< std::mutex > lock( mutex );
@@ -210,9 +207,7 @@ public:
         return event_id;
     }
 
-    /*!
-     * remove the initial dependency on this event
-     */
+    //!  remove the initial dependency on this event
     bool reach_event( EventID event_id )
     {
         std::unique_lock< std::mutex > lock( mutex );
@@ -223,9 +218,7 @@ public:
         return notify_event( event_id );
     }
 
-    /*!
-     * Checks whether the tasks pre-event is already reached
-     */
+    //! Checks whether the tasks pre-event is already reached
     bool is_task_ready( TaskID task_id )
     {
         std::lock_guard< std::mutex > lock( mutex );
@@ -239,9 +232,7 @@ public:
             return true;
     }
 
-    /*!
-     * Checks whether the tasks post-event is already reached
-     */
+    //!  Checks whether the tasks post-event is already reached
     bool is_task_finished( TaskID task_id )
     {
         std::lock_guard< std::mutex > lock( mutex );
@@ -285,19 +276,24 @@ public:
     }
 
     /*!
-     * Insert a new task and add the same dependencies as in the
-     * precedence graph
-     * Note that tasks must be added in order!
+     * Insert a new task and add the same dependencies as in the precedence graph
+     * Note that tasks must be added in order, since only preceding tasks are considered!
      *
-     * Here we assume that the precedence graph is locked
+     * The precedence graph containing the task is assumed to be locked.
      *
      * @param task_ptr task to add
      * @param dependency_event_type function to determine whether to take the preceding tasks
-     *                              pre- or post-event as dependency
+     *                              pre- or post-event as dependency. By returning true, an edge
+     *                              to the preceding tasks pre-event is added. By default, false
+     *                              is returned, meaning an edge to the post-event.
      */
     void add_task(
         TaskPtr task_ptr,
-        std::function< bool( TaskPtr const & ) > dependency_event_type = []( TaskPtr const & ) { return false; }
+        std::function< bool( TaskPtr const & ) > dependency_event_type
+            = []( TaskPtr const & )
+              {
+                  return false;
+              }
     )
     {
         auto & task = task_ptr.get();
@@ -362,10 +358,7 @@ public:
         events[ task_events[ task.task_id ].pre_event ].down();
     }
 
-    /*!
-     * remove revoked dependencies 
-     * (e.g. after access demotion)
-     */
+    //! remove revoked dependencies (e.g. after access demotion)
     auto update_task( TaskPtr const & task_ptr )
     {
         auto lock = task_ptr.graph->unique_lock();

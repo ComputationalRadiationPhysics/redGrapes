@@ -1,4 +1,4 @@
-/* Copyright 2019 Michael Sippel
+/* Copyright 2019-2020 Michael Sippel
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -170,7 +170,7 @@ public:
         return scheduler;
     }
 
-    /*! create a new task, as child of the currently running task
+    /*! create a new task, as child of the currently running task (if there is one)
      *
      * @param f callable that takes "proprty-building" objects as args
      * @param builder used sequentially by property-builders of each arg
@@ -221,8 +221,7 @@ public:
         return emplace_task( f, builder, std::forward<Args>(args)... );
     }
 
-    /*! Enqueue a child of the current task.
-     */
+    //! Enqueue a child of the current task.
     TaskPtr push( Task && task )
     {
         if( auto parent = scheduler.get_current_task() )
@@ -254,15 +253,12 @@ public:
             return std::experimental::nullopt;
     }
 
-    /*! trigger event_id
-     */
     void reach_event( EventID event_id )
     {
         scheduling_graph.reach_event( event_id );
     }
 
-    /*! create an event on which the termination of the current task depends
-     */
+    //! create an event on which the termination of the current task depends
     std::experimental::optional< EventID >
     create_event()
     {
@@ -272,8 +268,7 @@ public:
             return std::experimental::nullopt;
     }
 
-    /*! get the subgraph which contains all children of the currently running task
-     */
+    //! get the subgraph which contains all children of the currently running task
     std::shared_ptr< PrecedenceGraph >
     get_current_graph( void )
     {
@@ -299,8 +294,7 @@ public:
             return this->main_graph;
     }
 
-    /*! Apply a patch to the properties of the currently running task
-     */
+    //! Apply a patch to the properties of the currently running task
     void update_properties( typename TaskProperties::Patch const & patch )
     {
         if( auto task_ptr = scheduler.get_current_task() )
@@ -320,15 +314,13 @@ public:
             throw std::runtime_error("update_properties: currently no task running");
     }
 
-    /*! yield at least until event_id is reached
-     */
+    //! pause the currently running task at least until event_id is reached
     void yield( EventID event_id )
     {
         scheduler.yield( event_id );
     }
 
-    /*! get backtrace from currently running task
-     */
+    //! get backtrace from currently running task
     std::vector< TaskProperties >
     backtrace()
     {
