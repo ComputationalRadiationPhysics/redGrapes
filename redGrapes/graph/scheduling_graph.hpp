@@ -72,20 +72,9 @@ private:
             : state( 1 )
         {}
 
-        bool is_reached()
-        {
-            return state == 0;
-        }
-
-        void up()
-        {
-            state += 1;
-        }
-
-        void down()
-        {
-            state -= 1;
-        }
+        bool is_reached() { return state == 0; }
+        void up() { state += 1; }
+        void down() { state -= 1; }
     };
 
     struct TaskEvents
@@ -141,7 +130,7 @@ private:
 
         auto & fs = events[ a ].followers;
         fs.erase(
-            std::find( std::begin(fs), std::end(fs), b)
+            std::find( std::begin(fs), std::end(fs), b )
         );
         events[ b ].down();
     }
@@ -177,7 +166,7 @@ public:
         return events.size() == 0;
     }
 
-    //! Checks whether an event is reached
+    //! checks whether an event is reached
     bool is_event_reached( EventID event_id )
     {
         std::lock_guard< std::mutex > lock( mutex );
@@ -188,14 +177,14 @@ public:
             return true;
     }
 
-    //! Create a new event without dependencies
+    //! create a new event without dependencies
     EventID new_event()
     {
         std::lock_guard< std::mutex > lock( mutex );
         return make_event( );
     }
 
-    //! Creates a new event which precedes the tasks post-event
+    //! creates a new event which precedes the tasks post-event
     EventID add_post_dependency( TaskID task_id )
     {
         std::lock_guard< std::mutex > lock( mutex );
@@ -207,7 +196,7 @@ public:
         return event_id;
     }
 
-    //!  remove the initial dependency on this event
+    //! remove the initial dependency on this event
     bool reach_event( EventID event_id )
     {
         std::unique_lock< std::mutex > lock( mutex );
@@ -218,7 +207,7 @@ public:
         return notify_event( event_id );
     }
 
-    //! Checks whether the tasks pre-event is already reached
+    //! checks whether the tasks pre-event is already reached
     bool is_task_ready( TaskID task_id )
     {
         std::lock_guard< std::mutex > lock( mutex );
@@ -232,7 +221,7 @@ public:
             return true;
     }
 
-    //!  Checks whether the tasks post-event is already reached
+    //! checks whether the tasks post-event is already reached
     bool is_task_finished( TaskID task_id )
     {
         std::lock_guard< std::mutex > lock( mutex );

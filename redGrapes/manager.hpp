@@ -230,7 +230,7 @@ public:
         return emplace_task( f, builder, std::forward<Args>(args)... );
     }
 
-    //! Enqueue a child of the current task.
+    //! enqueue a child of the current task
     TaskPtr push( Task && task )
     {
         if( auto parent = scheduler.get_current_task() )
@@ -322,12 +322,12 @@ public:
 
             if( !g )
             {
-                auto new_graph = std::make_shared<PrecedenceGraph>( parent_graph, task_ptr->vertex );
+                auto new_graph = std::make_shared< PrecedenceGraph >( parent_graph, task_ptr->vertex );
                 parent_graph->add_subgraph( task_ptr->vertex, new_graph );
                 return new_graph;
             }
             else
-                return std::dynamic_pointer_cast< PrecedenceGraph >(g);
+                return std::dynamic_pointer_cast< PrecedenceGraph >( g );
         }
         else
             /* the current thread is not executing a task,
@@ -335,7 +335,7 @@ public:
             return this->main_graph;
     }
 
-    //! Apply a patch to the properties of the currently running task
+    //! apply a patch to the properties of the currently running task
     void update_properties( typename TaskProperties::Patch const & patch )
     {
         if( auto task_ptr = scheduler.get_current_task() )
