@@ -328,16 +328,15 @@ public:
 
             if( task_events.count( preceding_task_id ) )
             {
-                EventID preceding_event_id;
-
-                if( dependency_event_type( preceding_task_ptr ) )
-                    preceding_event_id = task_events[ preceding_task_id ].pre_event;
-                else
-                    preceding_event_id = task_events[ preceding_task_id ].post_event;
+                EventID preceding_event_id =
+                    dependency_event_type( preceding_task_ptr ) ?
+                        task_events[ preceding_task_id ].pre_event
+                    :
+                        task_events[ preceding_task_id ].post_event;
 
                 if( events.count( preceding_event_id ) )
                     add_edge(
-                        task_events[ preceding_event_id ].post_event,
+                        preceding_event_id,
                         task_events[ task.task_id ].pre_event
                     );
             }
