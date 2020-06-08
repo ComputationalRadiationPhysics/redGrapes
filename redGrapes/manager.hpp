@@ -138,9 +138,10 @@ public:
         }
     };
 
+    // destruction order is important here!
+    SchedulingGraph< TaskID, TaskPtr > scheduling_graph;
     std::shared_ptr< PrecedenceGraph > main_graph;
     Scheduler< TaskID, TaskPtr, PrecedenceGraph > scheduler;
-    SchedulingGraph< TaskID, TaskPtr > scheduling_graph;
 
     template < typename... Args >
     static inline void pass( Args&&... ) {}
@@ -162,7 +163,15 @@ public:
 
     Manager( int n_threads = std::thread::hardware_concurrency() )
         : main_graph( std::make_shared<PrecedenceGraph>() )
-        , scheduler( main_graph, scheduling_graph, n_threads )
+        , scheduler(
+              main_graph,
+              scheduling_graph,
+              n_threads,
+              [this] ( TaskPtr task_ptr )
+              {
+                  this->finish_task( task_ptr );
+              }
+          )
     {}
 
     auto & getScheduler()
@@ -232,16 +241,48 @@ public:
         task.hook_resume([scope_level]{ thread::scope_level = scope_level; });
 
         auto g = get_current_graph();
-        auto l = g->unique_lock();
+        auto g_lock = g->unique_lock();
 
         auto vertex = g->push( task );
         TaskPtr task_ptr { g, vertex };
-        scheduling_graph.add_task( task_ptr );
-        l.unlock();
 
-        scheduler.add_task( task_ptr );
+        g_lock.unlock();
+
+        scheduler.activate_task( task_ptr );
 
         return task_ptr;
+    }
+
+    //! remove task from precedence graph and activate all followers
+    void finish_task( TaskPtr task_ptr )
+    {
+        auto graph_lock = task_ptr.graph->unique_lock();
+
+        // collect all following tasks
+        std::vector< TaskPtr > followers;
+        for(
+            auto edge_it = boost::out_edges( task_ptr.vertex, task_ptr.graph->graph() );
+            edge_it.first != edge_it.second;
+            ++edge_it.first
+        )
+        {
+            auto target_vertex =
+                boost::target(
+                    *edge_it.first,
+                    task_ptr.graph->graph()
+                );
+
+            followers.push_back( TaskPtr{ task_ptr.graph, target_vertex } );
+        }
+
+        // remove task from graph, so the followers potentially get ready
+        task_ptr.graph->finish( task_ptr.vertex );
+
+        graph_lock.unlock();
+
+        // notify scheduler to consider potentially ready tasks
+        for( auto task_ptr : followers )
+            scheduler.activate_task( task_ptr );
     }
 
     std::experimental::optional< TaskID >
