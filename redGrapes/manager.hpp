@@ -258,6 +258,8 @@ public:
     {
         auto graph_lock = task_ptr.graph->unique_lock();
 
+        auto task_id = task_ptr.get().task_id;
+
         // collect all following tasks
         std::vector< TaskPtr > followers;
         for(
@@ -277,8 +279,9 @@ public:
 
         // remove task from graph, so the followers potentially get ready
         task_ptr.graph->finish( task_ptr.vertex );
-
         graph_lock.unlock();
+
+        scheduling_graph.remove_task( task_id );
 
         // notify scheduler to consider potentially ready tasks
         for( auto task_ptr : followers )

@@ -253,8 +253,6 @@ public:
         EventID event_id = task_events[ task_id ].post_event;
         events[ event_id ].down();
         notify_event( event_id );
-
-        task_events.erase( task_id );
     }
 
     //! pause the task until event_id is reached
@@ -262,6 +260,14 @@ public:
     {
         std::lock_guard< std::mutex > lock( mutex );
         task_events[ task_id ].pre_event = event_id;
+    }
+
+    void remove_task( TaskID task_id )
+    {
+        assert( is_task_finished( task_id ) );
+
+        std::lock_guard< std::mutex > lock( mutex );
+        task_events.erase( task_id );
     }
 
     /*!
