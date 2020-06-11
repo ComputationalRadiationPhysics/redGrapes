@@ -1,4 +1,4 @@
-/* Copyright 2019 Michael Sippel
+/* Copyright 2019-2020 Michael Sippel
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -14,6 +14,8 @@
 #include <boost/context/continuation.hpp>
 #include <akrzemi/optional.hpp>
 
+#include <redGrapes/thread/thread_local.hpp>
+
 namespace redGrapes
 {
 
@@ -24,41 +26,19 @@ struct TaskImplBase
 
     void operator() ()
     {
+        thread::scope_level = scope_level;
+
         if( ! resume_cont )
-        {
-            finished = false;
             resume_cont = boost::context::callcc(
                 [this]( boost::context::continuation && c )
                 {
                     this->yield_cont = std::move(c);
-
-                    for( auto & f : before_hooks )
-                        f();
-
                     this->run();
-
-                    for( auto & f : after_hooks )
-                        f();
-
-                    finished = true;
-
                     return std::move( this->yield_cont );
                 }
             );
-        }
         else
-        {
-            for( auto & f : resume_hooks )
-                f();
-
             resume_cont = resume_cont->resume();
-        }
-
-        if( ! finished )
-        {
-            for( auto & f : pause_hooks )
-                f( event_id );
-        }
     }
 
     void yield( unsigned int event_id )
@@ -67,14 +47,9 @@ struct TaskImplBase
         yield_cont = yield_cont.resume();
     }
 
-    bool finished;
     unsigned int event_id;
-    
-    std::vector<std::function<void()>> before_hooks;
-    std::vector<std::function<void()>> after_hooks;
 
-    std::vector<std::function<void(unsigned int)>> pause_hooks;
-    std::vector<std::function<void()>> resume_hooks;
+    unsigned int scope_level;
 
 private:
     boost::context::continuation yield_cont;

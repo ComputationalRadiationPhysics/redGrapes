@@ -314,10 +314,6 @@ public:
         task_events[ task.task_id ].pre_event = make_event();
         task_events[ task.task_id ].post_event = make_event();
 
-        task.hook_pause( [this, task_id=task.task_id] ( EventID event_id ) { task_pause( task_id, event_id ); } );
-        task.hook_before( [this, task_id=task.task_id] { task_start( task_id ); } );
-        task.hook_after( [this, task_id=task.task_id] { task_end( task_id ); } );
-
         // add dependencies to tasks which precede the new one
         for(
             auto it = boost::in_edges( task_ptr.vertex, task_ptr.graph->graph() );

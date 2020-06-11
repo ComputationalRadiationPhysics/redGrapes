@@ -74,26 +74,6 @@ public:
             : TaskProperties(prop)
             , impl( new FunctorTask<F>(std::move(f)) )
         {}
-
-        void hook_pause( std::function<void(unsigned int)> hook )
-        {
-            impl->pause_hooks.push_back( hook );
-        }
-
-        void hook_resume( std::function<void()> hook )
-        {
-            impl->resume_hooks.push_back( hook );
-        }
-        
-        void hook_before( std::function<void()> hook )
-        {
-            impl->before_hooks.push_back( hook );
-        }
-
-        void hook_after( std::function<void()> hook )
-        {
-            impl->after_hooks.push_back( hook );
-        }
     };
 
     using PrecedenceGraph = QueuedPrecedenceGraph<Task, EnqueuePolicy>;
@@ -211,11 +191,16 @@ public:
         auto delayed = make_delayed_functor( std::move(impl) );
         auto future = delayed.get_future();
 
-        Task task( std::move(delayed), builder );
-
         EventID result_event = scheduling_graph.new_event();
 
-        task.hook_after([this, task_id=task.task_id, result_event] { reach_event( result_event ); });
+        Task task(
+            [this, delayed{ std::move(delayed) }, result_event] () mutable
+            {
+                delayed();
+                reach_event( result_event );
+            },
+            builder
+        );
 
         this->push( std::move( task ) );
 
@@ -241,9 +226,7 @@ public:
         if( auto parent = scheduler.get_current_task() )
             task.parent = WeakTaskPtr(*parent);
 
-        unsigned int scope_level = thread::scope_level + 1;
-        task.hook_before([scope_level]{ thread::scope_level = scope_level; });
-        task.hook_resume([scope_level]{ thread::scope_level = scope_level; });
+        task.impl->scope_level = thread::scope_level + 1;
 
         auto g = get_current_graph();
         auto g_lock = g->unique_lock();
