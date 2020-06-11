@@ -163,6 +163,11 @@ public:
 
     Manager( int n_threads = std::thread::hardware_concurrency() )
         : main_graph( std::make_shared<PrecedenceGraph>() )
+        , scheduling_graph(
+              [this] ( TaskPtr a, TaskPtr b )
+              {
+                  return this->scheduler.task_dependency_type( a, b );
+              })
         , scheduler(
               main_graph,
               scheduling_graph,
@@ -245,6 +250,7 @@ public:
 
         auto vertex = g->push( task );
         TaskPtr task_ptr { g, vertex };
+        scheduling_graph.add_task( task_ptr );
 
         g_lock.unlock();
 
@@ -345,7 +351,7 @@ public:
         {
             task_ptr->locked_get().apply_patch( patch );
 
-            auto vertices = this->scheduling_graph.update_task( task_ptr );
+            auto vertices = scheduler.update_task( task_ptr );
             for( auto v : vertices )
             {
                 TaskPtr following_task{ task_ptr.graph, v };

@@ -158,7 +158,32 @@ private:
             return false;
     }
 
+    std::function< bool( TaskPtr, TaskPtr ) > task_dependency_type;
+
 public:
+    /*
+     * It can be configured, how task dependencies are represented in the scheduling graph
+     * using the dependency_event_type function. This is useful for representing asynchronous
+     * tasks whose dependencies are managed externally, e.g. asynchronous CUDA operations.
+     * In the case of CUDA, the pre-event of a task can be used to represent the submission
+     * of the asynchronous call.
+     *
+     * @param task_dependency_type function to determine whether to take the preceding tasks
+     *                             pre- or post-event as dependency. By returning true, an edge
+     *                             to the preceding tasks pre-event is added. By default, false
+     *                             is returned, meaning an edge to the post-event.
+     */
+    SchedulingGraph(
+        std::function< bool ( TaskPtr, TaskPtr ) >
+        task_dependency_type
+            = [] ( TaskPtr, TaskPtr )
+              {
+                  return false;
+              }
+    )
+        : task_dependency_type( task_dependency_type )
+    {}
+
     //! are all events reached?
     bool empty()
     {
@@ -271,25 +296,12 @@ public:
     }
 
     /*!
-     * Insert a new task and add the same dependencies as in the precedence graph
+     * Insert a new task and add the same dependencies as in the precedence graph.
      * Note that tasks must be added in order, since only preceding tasks are considered!
      *
      * The precedence graph containing the task is assumed to be locked.
-     *
-     * @param task_ptr task to add
-     * @param dependency_event_type function to determine whether to take the preceding tasks
-     *                              pre- or post-event as dependency. By returning true, an edge
-     *                              to the preceding tasks pre-event is added. By default, false
-     *                              is returned, meaning an edge to the post-event.
      */
-    void add_task(
-        TaskPtr task_ptr,
-        std::function< bool( TaskPtr const & ) > dependency_event_type
-            = []( TaskPtr const & )
-              {
-                  return false;
-              }
-    )
+    void add_task( TaskPtr task_ptr )
     {
         auto & task = task_ptr.get();
 
@@ -324,7 +336,7 @@ public:
             if( task_events.count( preceding_task_id ) )
             {
                 EventID preceding_event_id =
-                    dependency_event_type( preceding_task_ptr ) ?
+                    task_dependency_type( preceding_task_ptr, task_ptr ) ?
                         task_events[ preceding_task_id ].pre_event
                     :
                         task_events[ preceding_task_id ].post_event;
@@ -363,11 +375,20 @@ public:
             std::lock_guard< std::mutex > lock( mutex );
             for( auto v : vertices )
             {
-                auto other_task_id = graph_get(v, task_ptr.graph->graph()).first.task_id;
-                remove_edge(
-                    task_events[ task_id ].post_event,
-                    task_events[ other_task_id ].pre_event
-                );
+                TaskPtr other_task_ptr
+                {
+                    v,
+                    task_ptr.graph
+                };
+
+                auto other_task_id = other_task_ptr.get().task_id;
+
+                if( ! task_dependency_type( task_ptr, other_task_ptr ) )
+                    remove_edge(
+                        task_events[ task_id ].post_event,
+                        task_events[ other_task_id ].pre_event
+                    );
+                // else: the pre-event of task_ptr's task shouldn't exist at this point, so we do nothing
             }
 
             for( auto v : vertices )
