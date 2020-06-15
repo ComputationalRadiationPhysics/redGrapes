@@ -92,41 +92,41 @@ RedGrapes is documented using in-code doxygen comments and reStructured-text fil
 
 There are several other libraries and toolchains with similar goals, enabling some kind of task-based programming in C++.
 Firstly we should classify such programming systems by how the task-graph is built.
-The more low-level approach is to just create tasks as executable unit and define the dependencies manually between them, named here as **event-based**.
-This approach may be also called "data-driven", because the dependencies can be created by waiting for futures of other tasks, so basically it is an implementation of an async scheduler.
-However this does not suffice for what we want to achieve: declarative task precedences. For this the runtime must be aware of shared states and automatically detect conflicting usage of these shared states to create task precedences. We call this approach **resource-based**, where resources mean any kind of shared-state.
+The more low-level approach is to just create tasks as executable unit and **imperatively define task-dependencies**.
+This approach may be called "data-driven", because the dependencies can be created by waiting for futures of other tasks. <!--, so basically it is an implementation of an async scheduler.-->
+However since we want to achieve **declarative task dependencies**, the aforementioned approach does not suffice and we can exclude this class of runtime-systems.
+To enable declarative task dependencies, the runtime must also be aware of shared states and be able to automatically detect conflicting usage in order to derive the task graph.
 
-**compile time checked memory access**: the automatic creation of a task graph is often done via annotations, e.g. a pragma in OpenMP, but that does not guarantee correctness. RedGrapes allows to write relatively safe code in that regard.
+**compile time checked memory access**: The automatic creation of a task graph is often done via annotations, e.g. a pragma in OpenMP, but that does not guarantee correctness. RedGrapes allows to write relatively safe code in that regard.
 
 **native C++**: PaRSEC has an complicated toolchain using additional compilers, OpenMP makes use of pragmas that require compiler support. RedGrapes only requires the C++14 standard.
 
 **typesafe**: Some libraries like Legion or StarPU use a very old fashioned, untyped argc/argv interface to pass parameters to tasks. This is very dangerous. Both libraries also require in general a lot of C-style boilerplate.
 
-TODO: ranges
-**custom access modes**: redGrapes supports arbitrary access modes, not just read/write, e.g. ranges in arrays, multi-dimensional buffers, etc.
+**custom access modes**: RedGrapes supports arbitrary, user-configured access modes, not just read/write, e.g. ranges in arrays, multi-dimensional buffers, etc.
 
 **integration with asynchronous APIs**: To correctly model asynchronous MPI or CUDA calls, the complete operation should be a task, but still not block. The finishing of the asynchronous operation has to be triggered externally. Systems that implement distributed scheduling do not leave this option since the communication is done by the runtime itself.
 
-**inter-process scheduling**: Legion, StarPU, HPX etc. focus heavily on mapping a program with virtual memory to multiple compute nodes. This is out of scope for redGrapes, but could be built on top rather than tightly coupling it.
+**inter-process scheduling**: Legion, StarPU, HPX etc. add another layer of abstraction to provide a virtualized programming interface for multiple nodes in a cluster. This implies that the domain decomposition, communication and task-migration is all handled by the runtime. This is out of scope for redGrapes, but could be built on top rather than tightly coupling it.
 
 | **Feature**                                                               | native C++         | typesafe           | custom access modes | compile time checked memory access | integration with asynchronous APIs | inter-process scheduling |
 |---------------------------------------------------------------------------|--------------------|--------------------|---------------------|------------------------------------|------------------------------------|--------------------------|
-| **Resource-based Systems**                                                |                    |                    |                     |                                    |                                    |                          |
+| **declarative task-dependencies**                                         |                    |                    |                     |                                    |                                    |                          |
 | [RedGrapes](https://github.com/ComputationalRadiationPhysics/redGrapes)   | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark:  | :heavy_check_mark:                 | :heavy_check_mark:                 | :x:                      |
-| [SYCL](https://www.khronos.org/sycl/)                                     | :heavy_check_mark: | :heavy_check_mark: | :x:                 | :heavy_check_mark:                 | :x:                                | :x:                      |
-| [MetaPass](http://www.jlifflander.com/papers/meta-espm2016.pdf)           | :heavy_check_mark: | :heavy_check_mark: | :x:                 | :heavy_check_mark:                 | :white_check_mark: (1)             | :heavy_check_mark:       |
-| [Legion](https://legion.stanford.edu/)                                    | :heavy_check_mark: | :x:                | :x:                 | :x:                                | :white_check_mark: (1)             | :heavy_check_mark:       |
-| [StarPU](http://runtime.bordeaux.inria.fr/StarPU/)                        | :heavy_check_mark: | :x:                | :x:                 | :x:                                | :white_check_mark: (1)             | :heavy_check_mark:       |
-| [PaRSEC](http://icl.cs.utk.edu/parsec/)                                   | :x:                | :heavy_check_mark: | :x:                 | :heavy_check_mark:                 | :white_check_mark: (1)             | :heavy_check_mark:       |
+| [SYCL](https://www.khronos.org/sycl/)                                     | :heavy_check_mark: | :heavy_check_mark: | :x:                 | :heavy_check_mark:                 | :x: <sup>1</sup>                   | :x:                      |
+| [MetaPass](http://www.jlifflander.com/papers/meta-espm2016.pdf)           | :heavy_check_mark: | :heavy_check_mark: | :x:                 | :heavy_check_mark:                 | :heavy_check_mark: <sup>2</sup>    | :heavy_check_mark:       |
+| [Legion](https://legion.stanford.edu/)                                    | :heavy_check_mark: | :x:                | :x:                 | :x:                                | :heavy_check_mark: <sup>2</sup>    | :heavy_check_mark:       |
+| [StarPU](http://runtime.bordeaux.inria.fr/StarPU/)                        | :heavy_check_mark: | :x:                | :x:                 | :x:                                | :heavy_check_mark: <sup>2</sup>    | :heavy_check_mark:       |
+| [PaRSEC](http://icl.cs.utk.edu/parsec/)                                   | :x:                | :heavy_check_mark: | :x:                 | :heavy_check_mark:                 | :heavy_check_mark: <sup>2</sup>    | :heavy_check_mark:       |
 | [OpenMP](https://www.openmp.org/)                                         | :x:                | :heavy_check_mark: | :x:                 | :x:                                | :x:                                | :x:                      |
-| **Event-based Systems**                                                   |                    |                    |                     |                                    |                                    |                          |
-| [Realm](http://theory.stanford.edu/~aiken/publications/papers/pact14.pdf) | :heavy_check_mark: | :heavy_check_mark: | -                   | -                                  | :white_check_mark: (1)             | :heavy_check_mark:       |
-| [HPX](http://stellar.cct.lsu.edu/projects/hpx/)                           | :heavy_check_mark: | :heavy_check_mark: | -                   | -                                  | :white_check_mark: (1)             | :heavy_check_mark:       |
-| [CppTaskFlow](https://cpp-taskflow.github.io/)                            | :heavy_check_mark: | :heavy_check_mark: | -                   | -                                  | :white_check_mark: (2)             | :x:                      |
+| **imperative task-dependencies**                                          |                    |                    |                     |                                    |                                    |                          |
+| [Realm](http://theory.stanford.edu/~aiken/publications/papers/pact14.pdf) | :heavy_check_mark: | :heavy_check_mark: | -                   | -                                  | :heavy_check_mark: <sup>2</sup>    | :heavy_check_mark:       |
+| [HPX](http://stellar.cct.lsu.edu/projects/hpx/)                           | :heavy_check_mark: | :heavy_check_mark: | -                   | -                                  | :heavy_check_mark: <sup>2</sup>    | :heavy_check_mark:       |
+| [TaskFlow](https://taskflow.github.io/)                                   | :heavy_check_mark: | :heavy_check_mark: | -                   | -                                  | :heavy_check_mark: <sup>3</sup>    | :x:                      |
 
-(0) (See [#181](https://github.com/illuhad/hipSYCL/issues/181))
-(1)
-(2) Cuda Graphs
+1. See [#181](https://github.com/illuhad/hipSYCL/issues/181)
+2. only implicit MPI-communication, not user controlled
+3. CUDA-Graphs with TaskFlow-specific wrappers
 
 ## License
 
