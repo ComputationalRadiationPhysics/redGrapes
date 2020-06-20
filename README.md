@@ -9,11 +9,11 @@ RedGrapes is a C++14 framework for declaratively creating and scheduling task-gr
 
 ### Motivation
 
-Modern compute nodes concurrently perform computational tasks over various memory resource pools, cores, and accelerator devices.
-In order to achieve high scalability in such a compute node, communication and computation tasks need to be overlapped extensively.
+Modern compute nodes concurrently perform computational tasks over various memory resource pools, cores and accelerator devices.
+In order to achieve high scalability in such a system, communication and computation tasks need to be overlapped extensively.
 
-Up until now, software developers that took up to this challenge had to juggle data and in-node execution dependencies manually, which is a tedious and error-prone process.
-Real-world workloads that depend on states at runtime and asynchronous communication models complicate the program flow even further.
+Up until now, software developers who took up to this challenge had to juggle data and in-node execution dependencies manually, but that is a tedious and error-prone process.
+Real-world applications always use global shared states and also vary the workload at runtime depending on input parameters or other variables. In addition, asynchronous communication models complicate the program flow even further.
 
 For this reason, one should decouple aforementioned computational tasks from their execution model altogether.
 A typical approach involves task-graphs, which are directed acyclic graphs (DAGs), whose vertices are some sort of computation (or communication) and the edges denote the execution precedence order.
