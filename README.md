@@ -94,20 +94,19 @@ There are several other libraries and toolchains with similar goals, enabling so
 Firstly we should classify such programming systems by how the task-graph is built.
 The more low-level approach is to just create tasks as executable unit and **imperatively define task-dependencies**.
 This approach may be called "data-driven", because the dependencies can be created by waiting for futures of other tasks. <!--, so basically it is an implementation of an async scheduler.-->
-However since we want to achieve **declarative task dependencies**, the aforementioned approach does not suffice and we can exclude this class of runtime-systems.
-To enable declarative task dependencies, the runtime must also be aware of shared states and be able to automatically detect conflicting usage in order to derive the task graph.
+However since we want to achieve **declarative task dependencies**, for which the runtime must also be aware of shared states to automatically detect data dependencies in order to derive the task-graph, the aforementioned approach does not suffice and we can exclude this entire class of runtime-systems.
 
-**compile time checked memory access**: The automatic creation of a task graph is often done via annotations, e.g. a pragma in OpenMP, but that does not guarantee correctness. RedGrapes allows to write relatively safe code in that regard.
+**compile time checked memory access**: The automatic creation of a task graph is often done via annotations, e.g. a pragma in OpenMP, but that does not guarantee the correctness of the access specifications. RedGrapes leverages the type system to write relatively safe code in that regard.
 
-**native C++**: PaRSEC has an complicated toolchain using additional compilers, OpenMP makes use of pragmas that require compiler support. RedGrapes only requires the C++14 standard.
+**native C++**: PaRSEC has a complicated toolchain using additional compilers, OpenMP makes use of pragmas that require compiler support. RedGrapes only requires the C++14 standard.
 
-**typesafe**: Some libraries like Legion or StarPU use a very old fashioned, untyped argc/argv interface to pass parameters to tasks. This is very dangerous. Both libraries also require in general a lot of C-style boilerplate.
+**typesafe**: Some libraries like Legion or StarPU use a very old fashioned, untyped argc/argv interface to pass parameters to tasks (very dangerous). Both libraries in general also require a lot of C-style boilerplate.
 
-**custom access modes**: RedGrapes supports arbitrary, user-configured access modes, not just read/write, e.g. ranges in arrays, multi-dimensional buffers, etc.
+**custom access modes**: RedGrapes supports arbitrary, user-configurable access modes beyond read/write, e.g. accesses to sub-areas of a multi-dimensional buffer can be described properly.
 
 **integration with asynchronous APIs**: To correctly model asynchronous MPI or CUDA calls, the complete operation should be a task, but still not block. The finishing of the asynchronous operation has to be triggered externally. Systems that implement distributed scheduling do not leave this option since the communication is done by the runtime itself.
 
-**inter-process scheduling**: Legion, StarPU, HPX etc. add another layer of abstraction to provide a virtualized programming interface for multiple nodes in a cluster. This implies that the domain decomposition, communication and task-migration is all handled by the runtime. This is out of scope for redGrapes, but could be built on top rather than tightly coupling it.
+**inter-process scheduling**: Legion, StarPU, HPX etc. add another layer of abstraction to provide a virtualized programming interface for multiple nodes in a HPC-cluster. This implies that the domain decomposition, communication and task-migration is handled to some extent implicitly by the tasking-runtime. This is out of scope for redGrapes, but could be built on top rather than tightly coupling it.
 
 | **Feature**                                                               | native C++         | typesafe           | custom access modes | compile time checked memory access | CUDA                              | MPI                               | other async APIs               | inter-process scheduling |
 |---------------------------------------------------------------------------|--------------------|--------------------|---------------------|------------------------------------|-----------------------------------|-----------------------------------|--------------------------------|--------------------------|
