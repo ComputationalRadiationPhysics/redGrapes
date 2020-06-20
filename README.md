@@ -109,24 +109,27 @@ To enable declarative task dependencies, the runtime must also be aware of share
 
 **inter-process scheduling**: Legion, StarPU, HPX etc. add another layer of abstraction to provide a virtualized programming interface for multiple nodes in a cluster. This implies that the domain decomposition, communication and task-migration is all handled by the runtime. This is out of scope for redGrapes, but could be built on top rather than tightly coupling it.
 
-| **Feature**                                                               | native C++         | typesafe           | custom access modes | compile time checked memory access | integration with asynchronous APIs | inter-process scheduling |
-|---------------------------------------------------------------------------|--------------------|--------------------|---------------------|------------------------------------|------------------------------------|--------------------------|
-| **declarative task-dependencies**                                         |                    |                    |                     |                                    |                                    |                          |
-| [RedGrapes](https://github.com/ComputationalRadiationPhysics/redGrapes)   | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark:  | :heavy_check_mark:                 | :heavy_check_mark:                 | :x:                      |
-| [SYCL](https://www.khronos.org/sycl/)                                     | :heavy_check_mark: | :heavy_check_mark: | :x:                 | :heavy_check_mark:                 | :x: <sup>1</sup>                   | :x:                      |
-| [MetaPass](http://www.jlifflander.com/papers/meta-espm2016.pdf)           | :heavy_check_mark: | :heavy_check_mark: | :x:                 | :heavy_check_mark:                 | :heavy_check_mark: <sup>2</sup>    | :heavy_check_mark:       |
-| [Legion](https://legion.stanford.edu/)                                    | :heavy_check_mark: | :x:                | :x:                 | :x:                                | :heavy_check_mark: <sup>2</sup>    | :heavy_check_mark:       |
-| [StarPU](http://runtime.bordeaux.inria.fr/StarPU/)                        | :heavy_check_mark: | :x:                | :x:                 | :x:                                | :heavy_check_mark: <sup>2</sup>    | :heavy_check_mark:       |
-| [PaRSEC](http://icl.cs.utk.edu/parsec/)                                   | :x:                | :heavy_check_mark: | :x:                 | :heavy_check_mark:                 | :heavy_check_mark: <sup>2</sup>    | :heavy_check_mark:       |
-| [OpenMP](https://www.openmp.org/)                                         | :x:                | :heavy_check_mark: | :x:                 | :x:                                | :x:                                | :x:                      |
-| **imperative task-dependencies**                                          |                    |                    |                     |                                    |                                    |                          |
-| [Realm](http://theory.stanford.edu/~aiken/publications/papers/pact14.pdf) | :heavy_check_mark: | :heavy_check_mark: | -                   | -                                  | :heavy_check_mark: <sup>2</sup>    | :heavy_check_mark:       |
-| [HPX](http://stellar.cct.lsu.edu/projects/hpx/)                           | :heavy_check_mark: | :heavy_check_mark: | -                   | -                                  | :heavy_check_mark: <sup>2</sup>    | :heavy_check_mark:       |
-| [TaskFlow](https://taskflow.github.io/)                                   | :heavy_check_mark: | :heavy_check_mark: | -                   | -                                  | :heavy_check_mark: <sup>3</sup>    | :x:                      |
+| **Feature**                                                               | native C++         | typesafe           | custom access modes | compile time checked memory access | CUDA                              | MPI                               | other async APIs               | inter-process scheduling |
+|---------------------------------------------------------------------------|--------------------|--------------------|---------------------|------------------------------------|-----------------------------------|-----------------------------------|--------------------------------|--------------------------|
+| **declarative task-dependencies**                                         |                    |                    |                     |                                    |                                   |                                   |                                |                          |
+| [RedGrapes](https://github.com/ComputationalRadiationPhysics/redGrapes)   | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark:  | :heavy_check_mark:                 | :heavy_check_mark: <sup>1,2</sup> | :heavy_check_mark: <sup>1,2</sup> | :heavy_check_mark:<sup>3</sup> | :x:                      |
+| [SYCL](https://www.khronos.org/sycl/)                                     | :heavy_check_mark: | :heavy_check_mark: | :x:                 | :heavy_check_mark:                 | :x:                               | :x:                               | :x: <sup>4</sup>               | :x:                      |
+| [MetaPass](http://www.jlifflander.com/papers/meta-espm2016.pdf)           | :heavy_check_mark: | :heavy_check_mark: | :x:                 | :heavy_check_mark:                 | :heavy_check_mark: <sup>5</sup>   | :heavy_check_mark: <sup>5</sup>   | :x:                            | :heavy_check_mark:       |
+| [Legion](https://legion.stanford.edu/)                                    | :heavy_check_mark: | :x:                | :x:                 | :x:                                | :heavy_check_mark: <sup>5</sup>   | :heavy_check_mark: <sup>5</sup>   | :x:                            | :heavy_check_mark:       |
+| [StarPU](http://runtime.bordeaux.inria.fr/StarPU/)                        | :heavy_check_mark: | :x:                | :x:                 | :x:                                | :heavy_check_mark: <sup>5</sup>   | :heavy_check_mark: <sup>5</sup>   | :x:                            | :heavy_check_mark:       |
+| [PaRSEC](http://icl.cs.utk.edu/parsec/)                                   | :x:                | :heavy_check_mark: | :x:                 | :heavy_check_mark:                 | :heavy_check_mark: <sup>5</sup>   | :heavy_check_mark: <sup>5</sup>   | :x:                            | :heavy_check_mark:       |
+| [OpenMP](https://www.openmp.org/)                                         | :x:                | :heavy_check_mark: | :x:                 | :x:                                | :x:                               | :x:                               | :x:                            | :x:                      |
+| **imperative task-dependencies**                                          |                    |                    |                     |                                    |                                   |                                   |                                |                          |
+| [Realm](http://theory.stanford.edu/~aiken/publications/papers/pact14.pdf) | :heavy_check_mark: | :heavy_check_mark: | -                   | -                                  | :heavy_check_mark: <sup>5</sup>   |                                   | :x:                            | :heavy_check_mark:       |
+| [HPX](http://stellar.cct.lsu.edu/projects/hpx/)                           | :heavy_check_mark: | :heavy_check_mark: | -                   | -                                  | :heavy_check_mark: <sup>5</sup>   | :heavy_check_mark: <sup>5</sup>   | :x:                            | :heavy_check_mark:       |
+| [TaskFlow](https://taskflow.github.io/)                                   | :heavy_check_mark: | :heavy_check_mark: | -                   | -                                  | :heavy_check_mark: <sup>6</sup>   | :x:                               | :x:                            | :x:                      |
 
-1. See [#181](https://github.com/illuhad/hipSYCL/issues/181)
-2. only implicit MPI-communication, not user controlled
-3. CUDA-Graphs with TaskFlow-specific wrappers
+1. user controllable
+2. decoupled helper code, but included with redGrapes
+3. Events can be triggered extrenally, e.g. from a polling loop
+4. See [hipSYCL#181](https://github.com/illuhad/hipSYCL/issues/181)
+5. only implicitly managed, not user controlled
+6. CUDA-Graphs with TaskFlow-specific wrappers
 
 ## License
 
