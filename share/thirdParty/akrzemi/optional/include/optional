@@ -1,0 +1,14 @@
+#pragma once
+
+#include <akrzemi/optional.hpp>
+
+namespace std
+{
+
+template <typename T>
+using optional = std::experimental::optional< T >;
+
+static auto nullopt = std::experimental::nullopt;
+
+}
+
