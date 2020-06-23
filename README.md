@@ -1,8 +1,11 @@
 # RedGrapes
 **Re**source-based, **D**eclarative task-**Gra**phs for **P**arallel, **E**vent-driven **S**cheduling
 
-[![Language](https://img.shields.io/badge/language-C%2B%2B14-lightgrey)](https://isocpp.org/)
+[![GitHub commits](https://img.shields.io/github/commits-since/ComputationalRadiationPhysics/redGrapes/v0.1.0/dev.svg)](https://GitHub.com/ComputationalRadiationPhysics/redGrapes/commit/)
+[![Language](https://img.shields.io/badge/language-C%2B%2B14-orange)](https://isocpp.org/)
 [![License](https://img.shields.io/badge/license-MPL--2.0-blue.svg)](https://www.mozilla.org/en-US/MPL/2.0/)
+[![Documentation Status](https://readthedocs.org/projects/redgrapes/badge/?version=dev)](https://redgrapes.readthedocs.io/en/dev/?badge=dev)
+
 <hr>
 
 RedGrapes is a C++14 framework for declaratively creating and scheduling task-graphs, based on a high-level resource description.
