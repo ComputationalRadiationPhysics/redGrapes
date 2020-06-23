@@ -34,7 +34,7 @@ Data dependencies are described via **resources**, which are accessed and potent
 
 Each task has an annotation how the resources are accessed.
 Therein allowed **access modes** depend on the type of the resource.
-A simple example would be read/write, but also more complex operations are possible, e.g. on arrays or just a sub view.
+A simple example would be read/write, but also more complex operations are possible, e.g. accessing sub-regions of a sequence-container or other atomic, commutative operations besides read.
 A *resource* can be associated with a specific *access mode* forming a **resource access**. These instances of a *resource access* can then be pairwise tested wheter they are conflicting and thereby creating a data-dependency (e.g. two writes to the same resource).
 So each task carries a list of these resource-accesses in its so-called **task-properties**.
 If two tasks have conflicting resource-accesses, the first created task is executed first.
@@ -131,7 +131,7 @@ However since we want to achieve **declarative task dependencies**, for which th
 3. only implicitly managed, not user controlled
 4. See [hipSYCL#181](https://github.com/illuhad/hipSYCL/issues/181)
 
-*Note*: Should other libraries be misrepresented here, corrections are welcome.
+*Note*: Should any libraries be misrepresented here, corrections are welcome.
 
 
 ## License
