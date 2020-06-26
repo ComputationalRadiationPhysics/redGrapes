@@ -9,61 +9,54 @@
 
 #include <bitset>
 #include <optional>
+#include <redGrapes/scheduler/scheduler.hpp>
 
 namespace redGrapes
 {
 namespace scheduler
 {
 
-struct IScheduler
+template < std::size_t T_tag_count = 64 >
+struct SchedulingTagProperties
 {
-    virtual ~IScheduler() {};
+    std::bitset< T_tag_count > required_scheduler_tags;
 
-    bool task_dependency_type( TaskPtr a, TaskPtr b );
-    void activate_task( TaskPtr task_ptr );
+    template < typename PropertiesBuilder >
+    struct Builder
+    {
+        PropertiesBuilder & builder;
+
+        Builder( PropertiesBuilder & b )
+            : builder(b)
+        {}
+
+        // fixme: return reference?
+        PropertiesBuilder scheduling_tags( std::bitset< T_tag_count > tags )
+        {
+            builder.prop.required_scheduler_tags |= tags;
+            return builder;
+        }
+    };
 };
 
 template <
+    typename TaskID,
+    typename TaskPtr,
     std::size_t T_tag_count = 64
 >
-struct TagMatch : IScheduler
+struct TagMatch : IScheduler< TaskPtr >
 {
     struct SubScheduler
     {
         std::bitset< T_tag_count > supported_tags;
-        std::bitset< T_tag_count > required_tags;
-
-        std::shared_ptr< IScheduler > s;
+        std::shared_ptr< IScheduler< TaskPtr > > s;
     };
 
     std::vector< SubScheduler > sub_schedulers;
 
-    struct TaskProperties
-    {
-        std::bitset< T_tag_count > required_scheduler_tags;
-
-        template < typename PropertiesBuilder >
-        struct Builder
-        {
-            PropertiesBuilder & builder;
-
-            Builder( PropertiesBuilder & b )
-                : builder(b)
-            {}
-
-            // fixme: return reference?
-            PropertiesBuilder scheduler_tags( std::bitset< T_tag_count > tags )
-            {
-                required_scheduler_tags |= tags;
-                return builder;
-            }
-        };
-    };
-
     void add_scheduler(
         std::bitset< T_tag_count > supported_tags,
-        std::bitset< T_tag_count > required_tags,
-        std::shared_ptr< Scheduler > s
+        std::shared_ptr< IScheduler< TaskPtr > > s
     )
     {
         sub_schedulers.push_back(
@@ -75,18 +68,15 @@ struct TagMatch : IScheduler
     }
 
     std::optional<
-        std::shared_ptr< SubScheduler >
+        std::shared_ptr< IScheduler< TaskPtr > >
     >
     get_matching_scheduler(
         std::bitset< T_tag_count > const & required_tags
     )
     {
         for( auto const & s : sub_schedulers )
-        {
-            if( ( s.supported_tags & required_tags ) == required_tags &&
-                ( s.required_tags & required_tags ) == s.required_tags )
+            if( ( s.supported_tags & required_tags ) == required_tags )
                 return s.s;
-        }
 
         return std::nullopt;
     }
@@ -98,7 +88,7 @@ struct TagMatch : IScheduler
     )
     {
         /// fixme: b or a ?
-        if( auto sub_scheduler = get_matching_scheduler( b.get_locked().required_scheduler_tags ) )
+        if( auto sub_scheduler = get_matching_scheduler( b.get().required_scheduler_tags ) )
             (*sub_scheduler)->task_dependency_type( a, b );
         else
             throw std::runtime_error("no scheduler found for task");
@@ -107,7 +97,7 @@ struct TagMatch : IScheduler
     void
     activate_task( TaskPtr task_ptr )
     {
-        if( auto sub_scheduler = get_matching_scheduler( task_ptr.get_locked().required_scheduler_tags ) )
+        if( auto sub_scheduler = get_matching_scheduler( task_ptr.locked_get().required_scheduler_tags ) )
             (*sub_scheduler)->activate_task( task_ptr );
         else
             throw std::runtime_error("no scheduler found for task");

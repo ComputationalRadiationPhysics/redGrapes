@@ -118,6 +118,12 @@ public:
         }
     };
 
+    static std::optional< TaskPtr > & current_task()
+    {
+        static thread_local std::optional< TaskPtr > current_task;
+        return current_task;
+    }
+
     // destruction order is important here!
     SchedulingGraph< TaskID, TaskPtr > scheduling_graph;
     std::shared_ptr< PrecedenceGraph > main_graph;
@@ -141,7 +147,7 @@ public:
 public:
     using EventID = typename Scheduler<TaskID, TaskPtr, PrecedenceGraph>::EventID;
 
-    Manager( int n_threads = std::thread::hardware_concurrency() )
+    Manager( )
         : main_graph( std::make_shared<PrecedenceGraph>() )
         , scheduling_graph(
               [this] ( TaskPtr a, TaskPtr b )
@@ -151,13 +157,18 @@ public:
         , scheduler(
               main_graph,
               scheduling_graph,
-              n_threads,
-              [this] ( TaskPtr task_ptr )
-              {
-                  this->finish_task( task_ptr );
-              }
+              [this] ( TaskPtr task_ptr ) { run_task( task_ptr ); },
+              [this] ( TaskPtr task_ptr ) { finish_task( task_ptr ); }
           )
     {}
+
+    ~Manager()
+    {
+        while( ! scheduling_graph.empty() )
+            redGrapes::thread::idle();
+
+        scheduler.notify();
+    }
 
     auto & getScheduler()
     {
@@ -223,23 +234,42 @@ public:
     //! enqueue a child of the current task
     TaskPtr push( Task && task )
     {
-        if( auto parent = scheduler.get_current_task() )
+        if( auto parent = current_task() )
+        {
             task.parent = WeakTaskPtr(*parent);
-
-        task.impl->scope_level = thread::scope_level + 1;
+            task.impl->scope_level = task.parent->locked_get().impl->scope_level + 1;
+        }
+        else
+            task.impl->scope_level = 1;
 
         auto g = get_current_graph();
         auto g_lock = g->unique_lock();
+            auto vertex = g->push( task );
+            TaskPtr task_ptr { g, vertex };
 
-        auto vertex = g->push( task );
-        TaskPtr task_ptr { g, vertex };
-        scheduling_graph.add_task( task_ptr );
-
+            scheduling_graph.add_task( task_ptr );
         g_lock.unlock();
 
         scheduler.activate_task( task_ptr );
 
         return task_ptr;
+    }
+
+    //! execute task
+    void run_task( TaskPtr task_ptr )
+    {
+        auto tl = task_ptr.graph->unique_lock();
+        auto impl = task_ptr.get().impl;
+        auto task_id = task_ptr.get().task_id;
+        tl.unlock();
+
+        current_task() = task_ptr;
+        scheduling_graph.task_start( task_id );
+
+        (*impl)();
+
+        scheduling_graph.task_end( task_id );
+        current_task() = std::nullopt;
     }
 
     //! remove task from precedence graph and activate all followers
@@ -275,13 +305,15 @@ public:
         // notify scheduler to consider potentially ready tasks
         for( auto task_ptr : followers )
             scheduler.activate_task( task_ptr );
+
+        scheduler.notify();
     }
 
     std::experimental::optional< TaskID >
     get_current_task_id( void )
     {
-        if( auto task_ptr = scheduler.get_current_task() )
-            return task_ptr->locked_get().task_id;
+        if( current_task() )
+            return current_task()->locked_get().task_id;
         else
             return std::experimental::nullopt;
     }
@@ -289,23 +321,24 @@ public:
     void reach_event( EventID event_id )
     {
         scheduling_graph.reach_event( event_id );
+        scheduler.notify();
     }
 
     //! create an event on which the termination of the current task depends
-    std::experimental::optional< EventID >
+    std::optional< EventID >
     create_event()
     {
         if( auto task_id = get_current_task_id() )
             return scheduling_graph.add_post_dependency( *task_id );
         else
-            return std::experimental::nullopt;
+            return std::nullopt;
     }
 
     //! get the subgraph which contains all children of the currently running task
     std::shared_ptr< PrecedenceGraph >
     get_current_graph( void )
     {
-        if( auto task_ptr = scheduler.get_current_task() )
+        if( auto task_ptr = current_task() )
         {
             auto parent_graph = task_ptr->graph;
             auto l = parent_graph->shared_lock();
@@ -330,11 +363,11 @@ public:
     //! apply a patch to the properties of the currently running task
     void update_properties( typename TaskProperties::Patch const & patch )
     {
-        if( auto task_ptr = scheduler.get_current_task() )
+        if( auto task_ptr = current_task() )
         {
             task_ptr->locked_get().apply_patch( patch );
 
-            auto vertices = scheduler.update_task( task_ptr );
+            auto vertices = scheduling_graph.update_task( task_ptr );
             for( auto v : vertices )
             {
                 TaskPtr following_task{ task_ptr.graph, v };
@@ -350,7 +383,16 @@ public:
     //! pause the currently running task at least until event_id is reached
     void yield( EventID event_id )
     {
-        scheduler.yield( event_id );
+        if( auto task_id = get_current_task_id() )
+            scheduling_graph.task_pause( *task_id, event_id );
+
+        while( ! scheduling_graph.is_event_reached( event_id ) )
+        {
+            if( current_task() )
+                current_task()->locked_get().impl->yield();
+            else
+                thread::idle();
+        }
     }
 
     //! get backtrace from currently running task
@@ -359,9 +401,9 @@ public:
     {
         std::vector< TaskProperties > bt;
 
-        std::experimental::optional< WeakTaskPtr > task_ptr;
+        std::optional< WeakTaskPtr > task_ptr;
 
-        if( auto parent = scheduler.get_current_task() )
+        if( auto parent = current_task() )
             task_ptr = WeakTaskPtr( *parent );
 
         while( task_ptr )

@@ -10,9 +10,9 @@
 #include <mutex>
 #include <functional>
 #include <vector>
+#include <optional>
 
 #include <boost/context/continuation.hpp>
-#include <akrzemi/optional.hpp>
 
 #include <redGrapes/thread/thread_local.hpp>
 
@@ -32,8 +32,9 @@ struct TaskImplBase
             resume_cont = boost::context::callcc(
                 [this]( boost::context::continuation && c )
                 {
-                    this->yield_cont = std::move(c);
+                    this->yield_cont = std::move( c );
                     this->run();
+
                     return std::move( this->yield_cont );
                 }
             );
@@ -41,21 +42,17 @@ struct TaskImplBase
             resume_cont = resume_cont->resume();
     }
 
-    void yield( unsigned int event_id )
+    void yield( )
     {
-        this->event_id = event_id;
         yield_cont = yield_cont.resume();
     }
-
-    unsigned int event_id;
 
     unsigned int scope_level;
 
 private:
     boost::context::continuation yield_cont;
-    std::experimental::optional< boost::context::continuation > resume_cont;
+    std::optional< boost::context::continuation > resume_cont;
 };
-
 
 // TODO: just use std::function
 template< typename NullaryCallable >

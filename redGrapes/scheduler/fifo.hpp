@@ -1,4 +1,4 @@
-/* Copyright 2019 Michael Sippel
+/* Copyright 2019-2020 Michael Sippel
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -9,9 +9,14 @@
 
 #include <mutex>
 #include <queue>
-#include <redGrapes/scheduler/states.hpp>
+#include <optional>
+
+#include <redGrapes/scheduler/scheduler.hpp>
+#include <redGrapes/thread/thread_local.hpp>
 
 namespace redGrapes
+{
+namespace scheduler
 {
 
 template <
@@ -19,50 +24,148 @@ template <
     typename TaskPtr,
     typename PrecedenceGraph
 >
-struct FIFOScheduler
-    : StateScheduler< TaskID, TaskPtr, PrecedenceGraph >
+struct FIFO : IScheduler< TaskPtr >
 {
-    using typename StateScheduler<TaskID, TaskPtr, PrecedenceGraph>::Job;
-
-    FIFOScheduler( std::shared_ptr<PrecedenceGraph> & pg, size_t n_threads )
-        : StateScheduler< TaskID, TaskPtr, PrecedenceGraph >(  pg, n_threads )
+    enum TaskState { uninitialized = 0, pending, ready, running, paused, done };
+    struct TaskProperties
     {
-        for( auto & t : this->schedule )
-            t.set_request_hook( [this,&t]{ get_job(t); } );
+        TaskState state;
+    };
+
+    std::shared_ptr< PrecedenceGraph > precedence_graph;
+    redGrapes::SchedulingGraph< TaskID, TaskPtr > & scheduling_graph;
+
+    std::recursive_mutex mutex;
+    std::unordered_map< TaskID, TaskState > states;
+    std::vector< TaskPtr > active_tasks; // contains ready, running & done tasks
+
+    std::queue< TaskPtr > task_queue;
+
+    std::function< void ( TaskPtr ) > run_task;
+    std::function< void ( TaskPtr ) > finish_task;
+
+    FIFO(
+        std::shared_ptr< PrecedenceGraph > precedence_graph,
+        redGrapes::SchedulingGraph<TaskID, TaskPtr> & scheduling_graph,
+        std::function< void ( TaskPtr ) > mgr_run_task,
+        std::function< void ( TaskPtr ) > mgr_finish_task
+    ) :
+        precedence_graph( precedence_graph ),
+        scheduling_graph( scheduling_graph ),
+        run_task( mgr_run_task ),
+        finish_task( mgr_finish_task )
+    {}
+
+    std::optional< TaskPtr > get_job()
+    {
+        std::lock_guard< std::recursive_mutex > l( mutex );
+
+        if( task_queue.empty() )
+            update();
+
+        if( ! task_queue.empty() )
+        {
+            auto task_ptr = task_queue.front();
+            task_queue.pop();
+
+            return task_ptr;
+        }
+        else
+            return std::nullopt;
     }
 
-private:
-    std::mutex queue_mutex;
-    std::queue< Job > job_queue;
-
-    void get_job( ThreadSchedule< Job > & thread )
+    void consume()
     {
-        std::unique_lock< std::mutex > lock( queue_mutex );
-        if( job_queue.empty() )
+        std::unique_lock< std::recursive_mutex > l( mutex );
+        if( auto task_ptr = get_job() )
         {
-            lock.unlock();
+            auto task_id = task_ptr->locked_get().task_id;
 
-            if( ! this->uptodate.test_and_set() )
+            states[ task_id ] = running;
+            l.unlock();
+
+            run_task( *task_ptr );
+
+            l.lock();
+            states[ task_id ] = done;
+        }
+    }
+
+    void push( TaskPtr task_ptr )
+    {
+        std::lock_guard< std::recursive_mutex > l( mutex );
+        task_queue.push( task_ptr );
+    }
+
+    //! update all active tasks
+    void update()
+    {
+        std::lock_guard< std::recursive_mutex > lock( mutex );
+
+        for( int i = 0; i < active_tasks.size(); ++i )
+        {
+            if( update_task( active_tasks[i] ) )
             {
-                auto ready_tasks = this->update_graph();
+                active_tasks.erase( active_tasks.begin() + i );
+                -- i;
+            }
+        }
+    }
 
-                lock.lock();
-                for( auto job : ready_tasks )
-                    job_queue.push( job );
+    /*!
+     * @return true if task was removed
+     */
+    bool update_task( TaskPtr task_ptr )
+    {
+        std::lock_guard< std::recursive_mutex > l( mutex );
+        auto task_id = task_ptr.locked_get().task_id;
 
-                lock.unlock();
+        switch( states[ task_id ] )
+        {
+        case TaskState::done:
+            if( scheduling_graph.is_task_finished( task_id ) )
+            {
+                // remove task from both graphs and activate its followers
+                finish_task( task_ptr );
+                return true;
+            }
+            break;
+
+        case TaskState::paused:
+        case TaskState::pending:
+            if( scheduling_graph.is_task_ready( task_id ) )
+            {
+                states[ task_id ] = ready;
+
+                push( task_ptr );
+            }
+            break;
+        }
+
+        return false;
+    }
+
+    void activate_task( TaskPtr task_ptr )
+    {
+        std::lock_guard< std::recursive_mutex > l( mutex );
+        auto task_id = task_ptr.locked_get().task_id;
+
+        if( ! scheduling_graph.is_task_finished( task_id ) )
+        {
+            std::cout << "activate task " << task_id << std::endl;
+
+            if( ! states.count( task_id ) ) // || states[ task_id ] = uninitialized
+            {
+                states[ task_id ] = pending;
+                active_tasks.push_back( task_ptr );
             }
 
-            lock.lock();
-        }
-
-        if( ! job_queue.empty() )
-        {
-            auto job = job_queue.front();
-            job_queue.pop();
-            thread.push( job );
+            update_task( task_ptr );
         }
     }
+
 };
+
+} // namespace scheduler
 
 } // namespace redGrapes
