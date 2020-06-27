@@ -12,6 +12,7 @@
 #include <map>
 #include <memory>
 
+
 namespace redGrapes
 {
 namespace helpers
@@ -19,7 +20,7 @@ namespace helpers
 namespace mpi
 {
 
-template <typename Manager>
+template < typename Manager >
 struct RequestPool
 {
     using EventID = typename Manager::EventID;
@@ -35,13 +36,13 @@ struct RequestPool
         : mgr(mgr)
     {}
 
-    /**
+    /*!
      * Tests all currently active MPI requests
      * and notifies the corresponding events if the requests finished
      */
     void poll()
     {
-        std::lock_guard< std::mutex > lock(mutex);
+        std::lock_guard< std::mutex > lock( mutex );
 
         if( ! requests.empty() )
         {
@@ -51,7 +52,7 @@ struct RequestPool
 
             int outcount;
             std::vector< int > indices( requests.size() );
-            std::vector< MPI_Status > out_statuses ( requests.size() );
+            std::vector< MPI_Status > out_statuses( requests.size() );
 
             MPI_Testsome(
                 requests.size(),
@@ -81,33 +82,29 @@ struct RequestPool
         }
     }
 
-    /**
-     * Adds a new MPI request to the pool and creates a child task
-     * that finishes after the request is done. While waiting
-     * for this request, other tasks will be executed
+    /*!
+     * Adds a new MPI request to the pool and
+     * yields until the request is done. While waiting
+     * for this request, other tasks will be executed.
      *
      * @param request The MPI request to wait for
-     * @return future to the resulting MPI status of the request
+     * @return the resulting MPI status of the request
      */
-    auto wait( MPI_Request request )
+    MPI_Status get_status( MPI_Request request )
     {
-        return mgr.emplace_task(
-            [this, request]
-            {
-                auto status = std::make_shared< MPI_Status >();
-                auto event = *mgr.create_event();
+        auto status = std::make_shared< MPI_Status >();
+        auto event_id = *mgr.create_event();
 
-                {
-                    std::lock_guard<std::mutex> lock(mutex);
-                    requests.push_back( request );
-                    events.push_back( event );
-                    statuses.push_back( status );
-                }
+        {
+            std::lock_guard<std::mutex> lock( mutex );
+            requests.push_back( request );
+            events.push_back( event_id );
+            statuses.push_back( status );
+        }
 
-                mgr.yield( event );
-                return *status;
-            }
-        );
+        mgr.yield( event_id );
+
+        return *status;
     }
 };
 
