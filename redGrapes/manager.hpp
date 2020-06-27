@@ -72,7 +72,7 @@ public:
         template < typename F >
         Task( F && f, T_TaskProperties prop )
             : TaskProperties(prop)
-            , impl( new FunctorTask<F>(std::move(f)) )
+            , impl( new FunctorTask<decltype(std::bind(f, this->task_id))>(std::bind(std::move(f), this->task_id)) )
         {}
     };
 
@@ -205,9 +205,11 @@ public:
         EventID result_event = scheduling_graph.new_event();
 
         Task task(
-            [this, delayed{ std::move(delayed) }, result_event] () mutable
+            [this, delayed{ std::move(delayed) }, result_event] ( TaskID task_id ) mutable
             {
+                scheduling_graph.task_start( task_id );
                 delayed();
+                scheduling_graph.task_end( task_id );
                 reach_event( result_event );
             },
             builder
@@ -264,11 +266,7 @@ public:
         tl.unlock();
 
         current_task() = task_ptr;
-        scheduling_graph.task_start( task_id );
-
         (*impl)();
-
-        scheduling_graph.task_end( task_id );
         current_task() = std::nullopt;
     }
 
@@ -305,8 +303,6 @@ public:
         // notify scheduler to consider potentially ready tasks
         for( auto task_ptr : followers )
             scheduler.activate_task( task_ptr );
-
-        scheduler.notify();
     }
 
     std::experimental::optional< TaskID >
