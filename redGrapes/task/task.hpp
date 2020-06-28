@@ -24,7 +24,14 @@ struct TaskImplBase
     virtual ~TaskImplBase() {};
     virtual void run() = 0;
 
-    void operator() ()
+    bool finished;
+
+    TaskImplBase()
+        : finished( false )
+    {
+    }
+    
+    bool operator() ()
     {
         thread::scope_level = scope_level;
 
@@ -35,11 +42,15 @@ struct TaskImplBase
                     this->yield_cont = std::move( c );
                     this->run();
 
+                    finished = true;
+                    
                     return std::move( this->yield_cont );
                 }
             );
         else
             resume_cont = resume_cont->resume();
+
+        return finished;
     }
 
     void yield( )

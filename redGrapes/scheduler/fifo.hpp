@@ -41,13 +41,13 @@ struct FIFO : IScheduler< TaskPtr >
 
     std::queue< TaskPtr > task_queue;
 
-    std::function< void ( TaskPtr ) > run_task;
+    std::function< bool ( TaskPtr ) > run_task;
     std::function< void ( TaskPtr ) > finish_task;
 
     FIFO(
         std::shared_ptr< PrecedenceGraph > precedence_graph,
         redGrapes::SchedulingGraph<TaskID, TaskPtr> & scheduling_graph,
-        std::function< void ( TaskPtr ) > mgr_run_task,
+        std::function< bool ( TaskPtr ) > mgr_run_task,
         std::function< void ( TaskPtr ) > mgr_finish_task
     ) :
         precedence_graph( precedence_graph ),
@@ -74,27 +74,26 @@ struct FIFO : IScheduler< TaskPtr >
             return std::nullopt;
     }
 
-    void consume()
+    bool consume()
     {
         std::unique_lock< std::recursive_mutex > l( mutex );
+
         if( auto task_ptr = get_job() )
         {
             auto task_id = task_ptr->locked_get().task_id;
 
             states[ task_id ] = running;
+
             l.unlock();
-
-            run_task( *task_ptr );
-
+            bool finished = run_task( *task_ptr );
             l.lock();
-            states[ task_id ] = done;
-        }
-    }
 
-    void push( TaskPtr task_ptr )
-    {
-        std::lock_guard< std::recursive_mutex > l( mutex );
-        task_queue.push( task_ptr );
+            states[ task_id ] = finished ? done : paused;
+
+            return true;
+        }
+        else
+            return false;
     }
 
     //! update all active tasks
@@ -136,8 +135,7 @@ struct FIFO : IScheduler< TaskPtr >
             if( scheduling_graph.is_task_ready( task_id ) )
             {
                 states[ task_id ] = ready;
-
-                push( task_ptr );
+                task_queue.push( task_ptr );
             }
             break;
         }
@@ -152,8 +150,6 @@ struct FIFO : IScheduler< TaskPtr >
 
         if( ! scheduling_graph.is_task_finished( task_id ) )
         {
-            std::cout << "activate task " << task_id << std::endl;
-
             if( ! states.count( task_id ) ) // || states[ task_id ] = uninitialized
             {
                 states[ task_id ] = pending;

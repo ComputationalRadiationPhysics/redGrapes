@@ -157,7 +157,7 @@ public:
         , scheduler(
               main_graph,
               scheduling_graph,
-              [this] ( TaskPtr task_ptr ) { run_task( task_ptr ); },
+              [this] ( TaskPtr task_ptr ) { return run_task( task_ptr ); },
               [this] ( TaskPtr task_ptr ) { finish_task( task_ptr ); }
           )
     {}
@@ -210,6 +210,7 @@ public:
                 scheduling_graph.task_start( task_id );
                 delayed();
                 scheduling_graph.task_end( task_id );
+
                 reach_event( result_event );
             },
             builder
@@ -258,7 +259,7 @@ public:
     }
 
     //! execute task
-    void run_task( TaskPtr task_ptr )
+    bool run_task( TaskPtr task_ptr )
     {
         auto tl = task_ptr.graph->unique_lock();
         auto impl = task_ptr.get().impl;
@@ -266,8 +267,12 @@ public:
         tl.unlock();
 
         current_task() = task_ptr;
-        (*impl)();
+        std::cout << "run task " << task_id << std::endl;
+        bool finished = (*impl)();
+        std::cout << "returned/paused task "<< task_id << std::endl;
         current_task() = std::nullopt;
+
+        return finished;
     }
 
     //! remove task from precedence graph and activate all followers
@@ -379,13 +384,15 @@ public:
     //! pause the currently running task at least until event_id is reached
     void yield( EventID event_id )
     {
-        if( auto task_id = get_current_task_id() )
-            scheduling_graph.task_pause( *task_id, event_id );
-
         while( ! scheduling_graph.is_event_reached( event_id ) )
         {
             if( current_task() )
-                current_task()->locked_get().impl->yield();
+            {
+                auto & task = current_task()->locked_get();
+                scheduling_graph.task_pause( task.task_id, event_id );
+                task.impl->yield();
+                std::cout << "resume" << std::endl;
+            }
             else
                 thread::idle();
         }
