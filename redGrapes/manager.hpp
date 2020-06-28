@@ -209,7 +209,6 @@ public:
             {
                 scheduling_graph.task_start( task_id );
                 delayed();
-                scheduling_graph.task_end( task_id );
 
                 reach_event( result_event );
             },

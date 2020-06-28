@@ -26,23 +26,38 @@ template <
 >
 struct FIFO : IScheduler< TaskPtr >
 {
-    enum TaskState { uninitialized = 0, pending, ready, running, paused, done };
+    enum TaskState
+    {
+        uninitialized = 0,
+        pending,
+        ready,
+        running,
+        paused,
+        done
+    };
+
     struct TaskProperties
     {
         TaskState state;
     };
 
-    std::shared_ptr< PrecedenceGraph > precedence_graph;
-    redGrapes::SchedulingGraph< TaskID, TaskPtr > & scheduling_graph;
-
     std::recursive_mutex mutex;
     std::unordered_map< TaskID, TaskState > states;
-    std::vector< TaskPtr > active_tasks; // contains ready, running & done tasks
 
+    //! contains ready, running and paused tasks
+    std::vector< TaskPtr > active_tasks;
+    
+    //! contains ready tasks
     std::queue< TaskPtr > task_queue;
 
+    /*
+     * manager callbacks
+     */
     std::function< bool ( TaskPtr ) > run_task;
-    std::function< void ( TaskPtr ) > finish_task;
+    std::function< void ( TaskPtr ) > remove_task;
+
+    std::shared_ptr< PrecedenceGraph > precedence_graph;
+    redGrapes::SchedulingGraph< TaskID, TaskPtr > & scheduling_graph;
 
     FIFO(
         std::shared_ptr< PrecedenceGraph > precedence_graph,
@@ -53,15 +68,19 @@ struct FIFO : IScheduler< TaskPtr >
         precedence_graph( precedence_graph ),
         scheduling_graph( scheduling_graph ),
         run_task( mgr_run_task ),
-        finish_task( mgr_finish_task )
+        remove_task( mgr_finish_task )
     {}
 
     std::optional< TaskPtr > get_job()
     {
-        std::lock_guard< std::recursive_mutex > l( mutex );
+        std::unique_lock< std::recursive_mutex > l( mutex );
 
         if( task_queue.empty() )
-            update();
+        {
+            //l.unlock();
+            update( l );
+            //l.lock();
+        }
 
         if( ! task_queue.empty() )
         {
@@ -76,19 +95,24 @@ struct FIFO : IScheduler< TaskPtr >
 
     bool consume()
     {
-        std::unique_lock< std::recursive_mutex > l( mutex );
-
         if( auto task_ptr = get_job() )
         {
             auto task_id = task_ptr->locked_get().task_id;
 
-            states[ task_id ] = running;
+            {
+                std::unique_lock< std::recursive_mutex > l( mutex );
+                states[ task_id ] = running;
+            }
 
-            l.unlock();
             bool finished = run_task( *task_ptr );
-            l.lock();
 
-            states[ task_id ] = finished ? done : paused;
+            {
+                std::unique_lock< std::recursive_mutex > l( mutex );
+                states[ task_id ] = finished ? done : paused;
+
+                if( finished )
+                    scheduling_graph.task_end( task_id );
+            }
 
             return true;
         }
@@ -97,55 +121,51 @@ struct FIFO : IScheduler< TaskPtr >
     }
 
     //! update all active tasks
-    void update()
+    void update( std::unique_lock< std::recursive_mutex > & l )
     {
-        std::lock_guard< std::recursive_mutex > lock( mutex );
+        //( mutex );
 
         for( int i = 0; i < active_tasks.size(); ++i )
         {
-            if( update_task( active_tasks[i] ) )
+            auto task_ptr = active_tasks[ i ];
+            auto task_id = task_ptr.locked_get().task_id;
+
+            switch( states[ task_id ] )
             {
-                active_tasks.erase( active_tasks.begin() + i );
-                -- i;
+            case TaskState::done:
+                /* if there are there events which must precede the tasks post-event
+                 * we can not remove the task yet.
+                 */
+                if( scheduling_graph.is_task_finished( task_id ) )
+                {
+                    // remove task from active_tasks
+                    active_tasks.erase( active_tasks.begin() + i );
+                    -- i;
+
+                    l.unlock();
+
+                    // remove task from both graphs and activate its followers
+                    remove_task( task_ptr );
+
+                    l.lock();
+                }
+                break;
+
+            case TaskState::paused:
+            case TaskState::pending:
+                if( scheduling_graph.is_task_ready( task_id ) )
+                {
+                    states[ task_id ] = ready;
+                    task_queue.push( task_ptr );
+                }
+                break;
             }
         }
-    }
-
-    /*!
-     * @return true if task was removed
-     */
-    bool update_task( TaskPtr task_ptr )
-    {
-        std::lock_guard< std::recursive_mutex > l( mutex );
-        auto task_id = task_ptr.locked_get().task_id;
-
-        switch( states[ task_id ] )
-        {
-        case TaskState::done:
-            if( scheduling_graph.is_task_finished( task_id ) )
-            {
-                // remove task from both graphs and activate its followers
-                finish_task( task_ptr );
-                return true;
-            }
-            break;
-
-        case TaskState::paused:
-        case TaskState::pending:
-            if( scheduling_graph.is_task_ready( task_id ) )
-            {
-                states[ task_id ] = ready;
-                task_queue.push( task_ptr );
-            }
-            break;
-        }
-
-        return false;
     }
 
     void activate_task( TaskPtr task_ptr )
     {
-        std::lock_guard< std::recursive_mutex > l( mutex );
+        std::unique_lock< std::recursive_mutex > l( mutex );
         auto task_id = task_ptr.locked_get().task_id;
 
         if( ! scheduling_graph.is_task_finished( task_id ) )
@@ -156,12 +176,21 @@ struct FIFO : IScheduler< TaskPtr >
                 active_tasks.push_back( task_ptr );
             }
 
-            update_task( task_ptr );
+            switch( states[ task_id ] )
+            {
+            case TaskState::paused:
+            case TaskState::pending:                
+                if( scheduling_graph.is_task_ready( task_id ) )
+                {
+                    states[ task_id ] = ready;
+                    task_queue.push( task_ptr );
+                }            
+            }
         }
     }
-
 };
 
 } // namespace scheduler
 
 } // namespace redGrapes
+
