@@ -180,8 +180,9 @@ public:
               {
                   return false;
               }
-    )
-        : task_dependency_type( task_dependency_type )
+    ) :
+        task_dependency_type( task_dependency_type ),
+        event_id_counter( 0 )
     {}
 
     //! are all events reached?
