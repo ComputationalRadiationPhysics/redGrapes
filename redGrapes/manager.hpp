@@ -158,7 +158,7 @@ public:
               main_graph,
               scheduling_graph,
               [this] ( TaskPtr task_ptr ) { return run_task( task_ptr ); },
-              [this] ( TaskPtr task_ptr ) { finish_task( task_ptr ); }
+              [this] ( TaskPtr task_ptr ) { remove_task( task_ptr ); }
           )
     {}
 
@@ -266,16 +266,14 @@ public:
         tl.unlock();
 
         current_task() = task_ptr;
-        std::cout << "run task " << task_id << std::endl;
         bool finished = (*impl)();
-        std::cout << "returned/paused task "<< task_id << std::endl;
         current_task() = std::nullopt;
 
         return finished;
     }
 
     //! remove task from precedence graph and activate all followers
-    void finish_task( TaskPtr task_ptr )
+    void remove_task( TaskPtr task_ptr )
     {
         auto graph_lock = task_ptr.graph->unique_lock();
         auto task_id = task_ptr.get().task_id;
