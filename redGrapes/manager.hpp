@@ -278,11 +278,12 @@ public:
     void finish_task( TaskPtr task_ptr )
     {
         auto graph_lock = task_ptr.graph->unique_lock();
-
         auto task_id = task_ptr.get().task_id;
 
         // collect all following tasks
         std::vector< TaskPtr > followers;
+        followers.reserve( boost::out_degree( task_ptr.vertex, task_ptr.graph->graph() ) );
+
         for(
             auto edge_it = boost::out_edges( task_ptr.vertex, task_ptr.graph->graph() );
             edge_it.first != edge_it.second;
@@ -301,7 +302,6 @@ public:
         // remove task from graph, so the followers potentially get ready
         task_ptr.graph->finish( task_ptr.vertex );
         graph_lock.unlock();
-
         scheduling_graph.remove_task( task_id );
 
         // notify scheduler to consider potentially ready tasks
