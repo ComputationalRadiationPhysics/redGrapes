@@ -24,12 +24,12 @@ int main( int, char*[] )
     redGrapes::Manager<
         TaskProperties,
         redGrapes::ResourceEnqueuePolicy
-    > mgr( 4 );
+    > mgr;
 
     mgr.emplace_task(
         [&mgr]
         {
-            std::cout << "f1 on thread " << redGrapes::thread::id << "..." << std::endl;
+            std::cout << "f1" << "..." << std::endl;
             
             int i = 0;
             for( auto t : mgr.backtrace() )
@@ -40,13 +40,13 @@ int main( int, char*[] )
 
             mgr.emplace_task(
                 []{
-                    std::cout << "Refinement 1 on thread " << redGrapes::thread::id << std::endl;
+                    std::cout << "Refinement 1" << std::endl;
                     std::this_thread::sleep_for( std::chrono::seconds(1) );
                 });
 
             mgr.emplace_task(
                 [&mgr]{
-                    std::cout << "Refinement 2 on thread " << redGrapes::thread::id << std::endl;
+                    std::cout << "Refinement 2" << std::endl;
                     std::this_thread::sleep_for( std::chrono::seconds(1) );
 
                     int i = 0;

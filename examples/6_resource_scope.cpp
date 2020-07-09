@@ -19,7 +19,7 @@ int main()
     redGrapes::Manager<
         Properties,
         redGrapes::ResourceEnqueuePolicy
-    > mgr( 0 );
+    > mgr;
 
     redGrapes::IOResource<int> a; // scope-level=0
 

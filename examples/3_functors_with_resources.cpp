@@ -21,7 +21,7 @@ int main(void)
     redGrapes::Manager<
         Properties,
         redGrapes::ResourceEnqueuePolicy
-    > mgr( 4 );
+    > mgr;
 
     redGrapes::IOResource<int> a, b;
 

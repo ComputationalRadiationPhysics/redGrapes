@@ -21,8 +21,9 @@
 #include <redGrapes/task/task.hpp>
 
 #include <redGrapes/property/inherit.hpp>
-
 #include <redGrapes/property/trait.hpp>
+
+#include <redGrapes/scheduler/default_scheduler.hpp>
 
 namespace redGrapes
 {
@@ -35,9 +36,9 @@ struct DefaultEnqueuePolicy
 };
 
 template <
-    typename T_TaskProperties,// = TaskProperties<>,
-    typename EnqueuePolicy,// = DefaultEnqueuePolicy< T_TaskProperties >,
-    template <typename, typename, typename> class Scheduler// = FIFOScheduler
+    typename T_TaskProperties = TaskProperties<>,
+    typename EnqueuePolicy = DefaultEnqueuePolicy< T_TaskProperties >,
+    template < typename, typename > class Scheduler = scheduler::DefaultScheduler
 >
 class Manager
 {
@@ -127,7 +128,7 @@ public:
     // destruction order is important here!
     SchedulingGraph< TaskID, TaskPtr > scheduling_graph;
     std::shared_ptr< PrecedenceGraph > main_graph;
-    Scheduler< TaskID, TaskPtr, PrecedenceGraph > scheduler;
+    Scheduler< TaskID, TaskPtr > scheduler;
 
     template < typename... Args >
     static inline void pass( Args&&... ) {}
@@ -145,7 +146,7 @@ public:
     };
 
 public:
-    using EventID = typename Scheduler<TaskID, TaskPtr, PrecedenceGraph>::EventID;
+    using EventID = typename Scheduler< TaskID, TaskPtr >::EventID;
 
     Manager( )
         : main_graph( std::make_shared<PrecedenceGraph>() )
@@ -298,6 +299,8 @@ public:
         graph_lock.unlock();
 
         scheduling_graph.remove_task( task_id );
+
+        scheduler.notify();
     }
 
     std::experimental::optional< TaskID >

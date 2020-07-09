@@ -11,7 +11,7 @@
 
 static auto & mgr()
 {
-    static redGrapes::Manager<> m( 1 /* number of threads */ );
+    static redGrapes::Manager<> m;
     return m;
 }
 
