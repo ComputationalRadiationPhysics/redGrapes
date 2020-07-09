@@ -12,7 +12,7 @@
 #include <optional>
 
 #include <redGrapes/scheduler/scheduler.hpp>
-#include <redGrapes/thread/thread_local.hpp>
+#include <redGrapes/thread_local.hpp>
 
 namespace redGrapes
 {
@@ -45,9 +45,8 @@ private:
     //! contains ready tasks that are queued for execution
     std::queue< TaskPtr > task_queue;
 
-    SchedulingGraph< TaskID, TaskPtr > & scheduling_graph;
-
     //! todo: manager interface
+    SchedulingGraph< TaskID, TaskPtr > & scheduling_graph;
     std::function< bool ( TaskPtr ) > mgr_run_task;
     std::function< void ( TaskPtr ) > mgr_activate_followers;
     std::function< void ( TaskPtr ) > mgr_remove_task;

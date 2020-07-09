@@ -14,7 +14,7 @@
 
 #include <boost/context/continuation.hpp>
 
-#include <redGrapes/thread/thread_local.hpp>
+#include <redGrapes/thread_local.hpp>
 
 namespace redGrapes
 {
@@ -41,9 +41,7 @@ struct TaskImplBase
                 {
                     this->yield_cont = std::move( c );
                     this->run();
-
                     finished = true;
-                    
                     return std::move( this->yield_cont );
                 }
             );
