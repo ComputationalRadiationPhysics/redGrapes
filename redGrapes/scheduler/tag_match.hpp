@@ -89,7 +89,7 @@ struct TagMatch : IScheduler< TaskPtr >
     {
         /// fixme: b or a ?
         if( auto sub_scheduler = get_matching_scheduler( b.get().required_scheduler_tags ) )
-            (*sub_scheduler)->task_dependency_type( a, b );
+            return (*sub_scheduler)->task_dependency_type( a, b );
         else
             throw std::runtime_error("no scheduler found for task");
     }
@@ -98,7 +98,7 @@ struct TagMatch : IScheduler< TaskPtr >
     activate_task( TaskPtr task_ptr )
     {
         if( auto sub_scheduler = get_matching_scheduler( task_ptr.get().required_scheduler_tags ) )
-            (*sub_scheduler)->activate_task( task_ptr );
+            return (*sub_scheduler)->activate_task( task_ptr );
         else
             throw std::runtime_error("no scheduler found for task");
     }
