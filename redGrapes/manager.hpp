@@ -359,17 +359,19 @@ public:
     {
         if( auto task_ptr = current_task() )
         {
-            auto lock = task_ptr->graph->shared_lock();
+            auto lock = task_ptr->graph->unique_lock();
             task_ptr->get().apply_patch( patch );
 
-            auto vertices = scheduling_graph.update_task( task_ptr );
-            for( auto v : vertices )
-            {
-                TaskPtr following_task{ task_ptr.graph, v };
-                auto task_id = following_task.get().task_id;
+            auto vertices = task_ptr->graph->update_vertex( task_ptr->vertex );
 
-                scheduler.activate_task( task_id );
-            }
+            std::vector< TaskPtr > followers;
+            for( auto v : vertices )
+                followers.push_back( TaskPtr{ task_ptr->graph, v } );
+
+            scheduling_graph.update_task( *task_ptr, followers );
+
+            for( auto following_task : followers )
+                scheduler.activate_task( following_task );
         }
         else
             throw std::runtime_error("update_properties: currently no task running");

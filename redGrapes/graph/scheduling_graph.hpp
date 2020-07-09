@@ -362,40 +362,29 @@ public:
     }
 
     //! remove revoked dependencies (e.g. after access demotion)
-    auto update_task( TaskPtr const & task_ptr )
+    void update_task( TaskPtr const & task_ptr, std::vector< TaskPtr > const & followers )
     {
-        auto lock = task_ptr.graph->unique_lock();
-        auto vertices = task_ptr.graph->update_vertex( task_ptr.vertex );
         auto task_id = task_ptr.get().task_id;
 
         {
             std::lock_guard< std::mutex > lock( mutex );
-            for( auto v : vertices )
-            {
-                TaskPtr other_task_ptr
-                {
-                    v,
-                    task_ptr.graph
-                };
 
+            for( auto other_task_ptr : followers )
+            {
                 auto other_task_id = other_task_ptr.get().task_id;
 
                 if( ! task_dependency_type( task_ptr, other_task_ptr ) )
+                {
                     remove_edge(
                         task_events[ task_id ].post_event,
                         task_events[ other_task_id ].pre_event
                     );
+
+                    notify_event( task_events[ other_task_id ].pre_event );                    
+                }
                 // else: the pre-event of task_ptr's task shouldn't exist at this point, so we do nothing
             }
-
-            for( auto v : vertices )
-            {
-                auto other_task_id = graph_get(v, task_ptr.graph->graph()).first.task_id;
-                notify_event( task_events[ other_task_id ].pre_event );
-            }
         }
-
-        return vertices;
     }
 
 }; // class SchedulingGraph
