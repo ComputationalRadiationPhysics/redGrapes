@@ -72,7 +72,7 @@ public:
         template < typename F >
         Task( F && f, T_TaskProperties prop )
             : TaskProperties(prop)
-            , impl( new FunctorTask<decltype(std::bind(f, this->task_id))>(std::bind(std::move(f), this->task_id)) )
+            , impl( new FunctorTask< F >( std::move( f ) ) )
         {}
     };
 
@@ -153,11 +153,12 @@ public:
               [this] ( TaskPtr a, TaskPtr b )
               {
                   return this->scheduler.task_dependency_type( a, b );
-              })
+              }
+          )
         , scheduler(
-              main_graph,
               scheduling_graph,
               [this] ( TaskPtr task_ptr ) { return run_task( task_ptr ); },
+              [this] ( TaskPtr task_ptr ) { activate_followers( task_ptr ); },
               [this] ( TaskPtr task_ptr ) { remove_task( task_ptr ); }
           )
     {}
@@ -205,11 +206,9 @@ public:
         EventID result_event = scheduling_graph.new_event();
 
         Task task(
-            [this, delayed{ std::move(delayed) }, result_event] ( TaskID task_id ) mutable
+            [this, delayed{ std::move(delayed) }, result_event] () mutable
             {
-                scheduling_graph.task_start( task_id );
                 delayed();
-
                 reach_event( result_event );
             },
             builder
@@ -246,18 +245,17 @@ public:
 
         auto g = get_current_graph();
         auto g_lock = g->unique_lock();
-            auto vertex = g->push( task );
-            TaskPtr task_ptr { g, vertex };
 
-            scheduling_graph.add_task( task_ptr );
-        g_lock.unlock();
+        auto vertex = g->push( task );
+        TaskPtr task_ptr { g, vertex };
+
+        scheduling_graph.add_task( task_ptr );
 
         scheduler.activate_task( task_ptr );
 
         return task_ptr;
     }
 
-    //! execute task
     bool run_task( TaskPtr task_ptr )
     {
         auto tl = task_ptr.graph->unique_lock();
@@ -272,16 +270,9 @@ public:
         return finished;
     }
 
-    //! remove task from precedence graph and activate all followers
-    void remove_task( TaskPtr task_ptr )
+    void activate_followers( TaskPtr task_ptr )
     {
         auto graph_lock = task_ptr.graph->unique_lock();
-        auto task_id = task_ptr.get().task_id;
-
-        // collect all following tasks
-        std::vector< TaskPtr > followers;
-        followers.reserve( boost::out_degree( task_ptr.vertex, task_ptr.graph->graph() ) );
-
         for(
             auto edge_it = boost::out_edges( task_ptr.vertex, task_ptr.graph->graph() );
             edge_it.first != edge_it.second;
@@ -294,17 +285,19 @@ public:
                     task_ptr.graph->graph()
                 );
 
-            followers.push_back( TaskPtr{ task_ptr.graph, target_vertex } );
+            scheduler.activate_task( TaskPtr{ task_ptr.graph, target_vertex } );
         }
+    }
 
-        // remove task from graph, so the followers potentially get ready
+    //! remove task from precedence graph and scheduling graph
+    void remove_task( TaskPtr task_ptr )
+    {
+        auto graph_lock = task_ptr.graph->unique_lock();
+        auto task_id = task_ptr.get().task_id;
         task_ptr.graph->finish( task_ptr.vertex );
         graph_lock.unlock();
-        scheduling_graph.remove_task( task_id );
 
-        // notify scheduler to consider potentially ready tasks
-        for( auto task_ptr : followers )
-            scheduler.activate_task( task_ptr );
+        scheduling_graph.remove_task( task_id );
     }
 
     std::experimental::optional< TaskID >
@@ -363,13 +356,14 @@ public:
     {
         if( auto task_ptr = current_task() )
         {
-            task_ptr->locked_get().apply_patch( patch );
+            auto lock = task_ptr->graph->shared_lock();
+            task_ptr->get().apply_patch( patch );
 
             auto vertices = scheduling_graph.update_task( task_ptr );
             for( auto v : vertices )
             {
                 TaskPtr following_task{ task_ptr.graph, v };
-                auto task_id = following_task.locked_get().task_id;
+                auto task_id = following_task.get().task_id;
 
                 scheduler.activate_task( task_id );
             }
@@ -388,7 +382,6 @@ public:
                 auto & task = current_task()->locked_get();
                 scheduling_graph.task_pause( task.task_id, event_id );
                 task.impl->yield();
-                std::cout << "resume" << std::endl;
             }
             else
                 thread::idle();

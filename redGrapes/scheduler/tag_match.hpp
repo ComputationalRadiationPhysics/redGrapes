@@ -97,7 +97,7 @@ struct TagMatch : IScheduler< TaskPtr >
     void
     activate_task( TaskPtr task_ptr )
     {
-        if( auto sub_scheduler = get_matching_scheduler( task_ptr.locked_get().required_scheduler_tags ) )
+        if( auto sub_scheduler = get_matching_scheduler( task_ptr.get().required_scheduler_tags ) )
             (*sub_scheduler)->activate_task( task_ptr );
         else
             throw std::runtime_error("no scheduler found for task");

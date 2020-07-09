@@ -21,8 +21,7 @@ namespace scheduler
 
 template <
     typename TaskID,
-    typename TaskPtr,
-    typename PrecedenceGraph
+    typename TaskPtr
 >
 struct FIFO : IScheduler< TaskPtr >
 {
@@ -36,51 +35,102 @@ struct FIFO : IScheduler< TaskPtr >
         done
     };
 
-    struct TaskProperties
-    {
-        TaskState state;
-    };
-
-    std::recursive_mutex mutex;
+private:
+    std::mutex mutex;
     std::unordered_map< TaskID, TaskState > states;
 
-    //! contains ready, running and paused tasks
-    std::vector< TaskPtr > active_tasks;
-    
-    //! contains ready tasks
+    //! contains activated, not yet removed tasks (ready, paused, running)
+    std::vector< std::pair< TaskID, TaskPtr > > active_tasks;
+
+    //! contains ready tasks that are queued for execution
     std::queue< TaskPtr > task_queue;
 
-    /*
-     * manager callbacks
-     */
-    std::function< bool ( TaskPtr ) > run_task;
-    std::function< void ( TaskPtr ) > remove_task;
+    SchedulingGraph< TaskID, TaskPtr > & scheduling_graph;
 
-    std::shared_ptr< PrecedenceGraph > precedence_graph;
-    redGrapes::SchedulingGraph< TaskID, TaskPtr > & scheduling_graph;
+    //! todo: manager interface
+    std::function< bool ( TaskPtr ) > mgr_run_task;
+    std::function< void ( TaskPtr ) > mgr_activate_followers;
+    std::function< void ( TaskPtr ) > mgr_remove_task;
 
+public:
     FIFO(
-        std::shared_ptr< PrecedenceGraph > precedence_graph,
-        redGrapes::SchedulingGraph<TaskID, TaskPtr> & scheduling_graph,
+        SchedulingGraph<TaskID, TaskPtr> & scheduling_graph,
         std::function< bool ( TaskPtr ) > mgr_run_task,
-        std::function< void ( TaskPtr ) > mgr_finish_task
+        std::function< void ( TaskPtr ) > mgr_activate_followers,
+        std::function< void ( TaskPtr ) > mgr_remove_task
     ) :
-        precedence_graph( precedence_graph ),
         scheduling_graph( scheduling_graph ),
-        run_task( mgr_run_task ),
-        remove_task( mgr_finish_task )
+        mgr_run_task( mgr_run_task ),
+        mgr_activate_followers( mgr_activate_followers ),
+        mgr_remove_task( mgr_remove_task )
     {}
 
+    //! returns true if a job was consumed, false if queue is empty
+    bool consume()
+    {
+        if( auto task_ptr = get_job() )
+        {
+            auto task_id = task_ptr->locked_get().task_id;
+            scheduling_graph.task_start( task_id );
+
+            {
+                std::unique_lock< std::mutex > l( mutex );
+                states[ task_id ] = running;
+            }
+
+            bool finished = mgr_run_task( *task_ptr );
+
+            if( finished )
+            {
+                scheduling_graph.task_end( task_id );
+                mgr_activate_followers( *task_ptr );
+            }
+
+            {
+                std::unique_lock< std::mutex > l( mutex );
+                states[ task_id ] = finished ? done : paused;
+            }
+
+            return true;
+        }
+        else
+            return false;
+    }
+
+    // precedence graph must be locked
+    void activate_task( TaskPtr task_ptr )
+    {
+        std::unique_lock< std::mutex > l( mutex );
+        auto task_id = task_ptr.get().task_id;
+
+        if( ! scheduling_graph.is_task_finished( task_id ) )
+        {
+            if( ! states.count( task_id ) ) // || states[ task_id ] = uninitialized
+            {
+                states[ task_id ] = pending;
+                active_tasks.push_back( std::make_pair( task_id, task_ptr ) );
+            }
+
+            switch( states[ task_id ] )
+            {
+            case TaskState::paused:
+            case TaskState::pending:
+                if( scheduling_graph.is_task_ready( task_id ) )
+                {
+                    states[ task_id ] = ready;
+                    task_queue.push( task_ptr );
+                }
+            }
+        }
+    }
+
+private:
     std::optional< TaskPtr > get_job()
     {
-        std::unique_lock< std::recursive_mutex > l( mutex );
+        std::unique_lock< std::mutex > l( mutex );
 
         if( task_queue.empty() )
-        {
-            //l.unlock();
             update( l );
-            //l.lock();
-        }
 
         if( ! task_queue.empty() )
         {
@@ -93,42 +143,13 @@ struct FIFO : IScheduler< TaskPtr >
             return std::nullopt;
     }
 
-    bool consume()
-    {
-        if( auto task_ptr = get_job() )
-        {
-            auto task_id = task_ptr->locked_get().task_id;
-
-            {
-                std::unique_lock< std::recursive_mutex > l( mutex );
-                states[ task_id ] = running;
-            }
-
-            bool finished = run_task( *task_ptr );
-
-            {
-                std::unique_lock< std::recursive_mutex > l( mutex );
-                states[ task_id ] = finished ? done : paused;
-
-                if( finished )
-                    scheduling_graph.task_end( task_id );
-            }
-
-            return true;
-        }
-        else
-            return false;
-    }
-
     //! update all active tasks
-    void update( std::unique_lock< std::recursive_mutex > & l )
+    void update( std::unique_lock< std::mutex > & l )
     {
-        //( mutex );
-
         for( int i = 0; i < active_tasks.size(); ++i )
         {
-            auto task_ptr = active_tasks[ i ];
-            auto task_id = task_ptr.locked_get().task_id;
+            auto task_id = active_tasks[ i ].first;
+            auto task_ptr = active_tasks[ i ].second;
 
             switch( states[ task_id ] )
             {
@@ -138,15 +159,11 @@ struct FIFO : IScheduler< TaskPtr >
                  */
                 if( scheduling_graph.is_task_finished( task_id ) )
                 {
-                    // remove task from active_tasks
                     active_tasks.erase( active_tasks.begin() + i );
                     -- i;
 
                     l.unlock();
-
-                    // remove task from both graphs and activate its followers
-                    remove_task( task_ptr );
-
+                    mgr_remove_task( task_ptr );
                     l.lock();
                 }
                 break;
@@ -159,32 +176,6 @@ struct FIFO : IScheduler< TaskPtr >
                     task_queue.push( task_ptr );
                 }
                 break;
-            }
-        }
-    }
-
-    void activate_task( TaskPtr task_ptr )
-    {
-        std::unique_lock< std::recursive_mutex > l( mutex );
-        auto task_id = task_ptr.locked_get().task_id;
-
-        if( ! scheduling_graph.is_task_finished( task_id ) )
-        {
-            if( ! states.count( task_id ) ) // || states[ task_id ] = uninitialized
-            {
-                states[ task_id ] = pending;
-                active_tasks.push_back( task_ptr );
-            }
-
-            switch( states[ task_id ] )
-            {
-            case TaskState::paused:
-            case TaskState::pending:                
-                if( scheduling_graph.is_task_ready( task_id ) )
-                {
-                    states[ task_id ] = ready;
-                    task_queue.push( task_ptr );
-                }            
             }
         }
     }
