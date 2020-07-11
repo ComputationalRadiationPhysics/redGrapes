@@ -9,12 +9,7 @@
 
 #include <mutex>
 #include <cassert>
-#include <condition_variable>
-#include <boost/graph/adjacency_list.hpp>
-#include <redGrapes/graph/recursive_graph.hpp>
 #include <redGrapes/graph/precedence_graph.hpp>
-#include <redGrapes/graph/util.hpp>
-#include <redGrapes/task/task.hpp>
 
 namespace redGrapes
 {
