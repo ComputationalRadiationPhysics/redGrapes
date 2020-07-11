@@ -23,7 +23,7 @@ namespace redGrapes
  *
  * Multiple events need to be related, so that they
  * form a partial order (i.e. an antisymmetric quasiorder).
- * This order is an homomorph image from the timeline of
+ * This order is an homomorphic image from the timeline of
  * execution states.
  *
  *
@@ -356,8 +356,18 @@ public:
         events[ task_events[ task.task_id ].pre_event ].down();
     }
 
-    //! remove revoked dependencies (e.g. after access demotion)
-    void update_task( TaskPtr const & task_ptr, std::vector< TaskPtr > const & followers )
+    /*! remove revoked dependencies (e.g. after access demotion)
+     *
+     * @param task_ptr the demoted task
+     * @param followers set of tasks following task_ptr
+     *                  whose dependency on it got removed
+     *
+     * The precedence graph containing task_ptr is assumed to be locked.
+     */
+    void update_task(
+        TaskPtr const & task_ptr,
+        std::vector< TaskPtr > const & followers
+    )
     {
         auto task_id = task_ptr.get().task_id;
 
