@@ -79,8 +79,8 @@ private:
 
     struct TaskEvents
     {
-        TaskID pre_event;
-        TaskID post_event;
+        EventID pre_event;
+        EventID post_event;
     };
 
     std::mutex mutex;
