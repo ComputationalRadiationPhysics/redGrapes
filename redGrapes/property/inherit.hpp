@@ -93,6 +93,11 @@ struct TaskProperties
             : TaskPropertiesInherit< Policies..., PropEnd_t >::template Builder< Builder >( *this )
         {}
 
+        Builder( TaskProperties const & prop )
+            : TaskPropertiesInherit< Policies..., PropEnd_t >::template Builder< Builder >( *this )
+            , prop(prop)
+        {}
+
         Builder( Builder const & b )
             : prop( b.prop )
             , TaskPropertiesInherit< Policies..., PropEnd_t >::template Builder< Builder >( *this )
