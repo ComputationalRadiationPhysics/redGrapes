@@ -7,10 +7,13 @@
 
 #pragma once
 
-//#include <cuda_runtime.h>
+#include <cuda.h>
+#include <cuda_runtime.h>
 #include <unordered_map>
-
+#include <queue>
+#include <optional>
 #include <redGrapes/scheduler/scheduler.hpp>
+#include <redGrapes/graph/scheduling_graph.hpp>
 #include <redGrapes/helpers/cuda/event_pool.hpp>
 
 namespace redGrapes
@@ -47,7 +50,7 @@ struct CudaStream
 
     ~CudaStream()
     {
-        cudaStreamDestroy( &cuda_stream );
+        cudaStreamDestroy( cuda_stream );
     }
 
     // returns the finished task
@@ -72,19 +75,17 @@ struct CudaStream
 
     void wait_event( cudaEvent_t e )
     {
-        cudaStreamWaitEvent( cuda_stream, e );        
+        cudaStreamWaitEvent( cuda_stream, e, 0 );
     }
 
     cudaEvent_t push( TaskPtr & task_ptr )
     {
-        scheduling_graph.begin_task( task_ptr.locked_get().task_id );
-
         // todo: is there a better way than setting a global variable?
         thread::current_cuda_stream = cuda_stream;
         mgr_run_task( task_ptr );
 
         cudaEvent_t cuda_event = EventPool::get().alloc();
-        cudaEventRecord( &cuda_event, cuda_stream );
+        cudaEventRecord( cuda_event, cuda_stream );
 
         events.push( std::make_pair( cuda_event, task_ptr ) );
 
@@ -92,11 +93,15 @@ struct CudaStream
     }
 };
 
-struct CudaScheduler : IScheduler
+template <
+    typename TaskID,
+    typename TaskPtr
+>
+struct CudaScheduler : redGrapes::scheduler::IScheduler< TaskPtr >
 {
 private:
     //! todo: manager interface
-    SchedulingGraph< TaskID, TaskPtr > & scheduling_graph;
+    redGrapes::SchedulingGraph< TaskID, TaskPtr > & scheduling_graph;
     std::function< bool ( TaskPtr ) > mgr_run_task;
     std::function< void ( TaskPtr ) > mgr_activate_followers;
     std::function< void ( TaskPtr ) > mgr_remove_task;
@@ -106,7 +111,7 @@ private:
     bool cuda_graph_enabled;
 
     unsigned int current_stream;
-    std::vector< CudaStream > streams;
+    std::vector< CudaStream< TaskPtr > > streams;
 
     std::unordered_map<
         TaskID,
@@ -120,7 +125,7 @@ public:
     };
 
     CudaScheduler(
-        SchedulingGraph<TaskID, TaskPtr> & scheduling_graph,
+        redGrapes::SchedulingGraph< TaskID, TaskPtr> & scheduling_graph,
         std::function< bool ( TaskPtr ) > mgr_run_task,
         std::function< void ( TaskPtr ) > mgr_activate_followers,
         std::function< void ( TaskPtr ) > mgr_remove_task,
@@ -165,11 +170,14 @@ public:
     {
         current_stream = ( current_stream + 1 ) % streams.size();
 
-        assert( cuda_dependencies.count( task_id ) );        
+        auto task_id = task_ptr.locked_get().task_id;
+
+        assert( cuda_dependencies.count( task_id ) );
         for( int stream_id = 0; stream_id < streams.size(); ++stream_id )
             if( auto cuda_event = cuda_dependencies[ task_id ][ stream_id ] )
                 streams[ current_stream ].wait_event( *cuda_event );
 
+        scheduling_graph.begin_task( task_id );
         cudaEvent_t cuda_event = streams[ current_stream ].push( task_ptr );
         /* TODO
         for( f in task.followers )
@@ -187,9 +195,9 @@ public:
     //! checks if some cuda calls finished and notify the redGrapes manager
     void poll()
     {
-        for( int stream_id = 0; i < streams.size(); ++i )
+        for( int stream_id = 0; stream_id < streams.size(); ++stream_id )
         {
-            if( auto task_id = streams[ stream_id ].poll() )
+            if( auto task_ptr = streams[ stream_id ].poll() )
             {
                 /* TODO
                 for( f in followers( task_id ) )
@@ -202,7 +210,7 @@ public:
                 }
                 */
 
-                scheduling_graph.task_end( task_id );
+                scheduling_graph.task_end( task_ptr.locked_get().task_id );
                 mgr_activate_followers( task_ptr );
                 mgr_remove_task( task_ptr );
             }

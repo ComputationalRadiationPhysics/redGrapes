@@ -207,11 +207,12 @@ public:
         EventID result_event = scheduling_graph.new_event();
 
         Task task(
-            [this, delayed{ std::move(delayed) }, result_event] () mutable
+                  std::bind(
+                           [this, result_event]( auto && delayed ) mutable
             {
                 delayed();
                 reach_event( result_event );
-            },
+            }, std::move(delayed) ),
             builder
         );
 
