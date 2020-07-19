@@ -23,7 +23,7 @@ template <
     typename TaskID,
     typename TaskPtr
 >
-struct FIFO : IScheduler< TaskPtr >
+struct FIFO : public SchedulerBase< TaskID, TaskPtr >
 {
     enum TaskState
     {
@@ -45,44 +45,26 @@ private:
     //! contains ready tasks that are queued for execution
     std::queue< TaskPtr > task_queue;
 
-    //! todo: manager interface
-    SchedulingGraph< TaskID, TaskPtr > & scheduling_graph;
-    std::function< bool ( TaskPtr ) > mgr_run_task;
-    std::function< void ( TaskPtr ) > mgr_activate_followers;
-    std::function< void ( TaskPtr ) > mgr_remove_task;
-
 public:
-    FIFO(
-        SchedulingGraph<TaskID, TaskPtr> & scheduling_graph,
-        std::function< bool ( TaskPtr ) > mgr_run_task,
-        std::function< void ( TaskPtr ) > mgr_activate_followers,
-        std::function< void ( TaskPtr ) > mgr_remove_task
-    ) :
-        scheduling_graph( scheduling_graph ),
-        mgr_run_task( mgr_run_task ),
-        mgr_activate_followers( mgr_activate_followers ),
-        mgr_remove_task( mgr_remove_task )
-    {}
-
     //! returns true if a job was consumed, false if queue is empty
     bool consume()
     {
         if( auto task_ptr = get_job() )
         {
             auto task_id = task_ptr->locked_get().task_id;
-            scheduling_graph.task_start( task_id );
+            this->scheduling_graph->task_start( task_id );
 
             {
                 std::unique_lock< std::mutex > l( mutex );
                 states[ task_id ] = running;
             }
 
-            bool finished = mgr_run_task( *task_ptr );
+            bool finished = this->run_task( *task_ptr );
 
             if( finished )
             {
-                scheduling_graph.task_end( task_id );
-                mgr_activate_followers( *task_ptr );
+                this->scheduling_graph->task_end( task_id );
+                this->activate_followers( *task_ptr );
             }
 
             {
@@ -102,7 +84,7 @@ public:
         std::unique_lock< std::mutex > l( mutex );
         auto task_id = task_ptr.get().task_id;
 
-        if( ! scheduling_graph.is_task_finished( task_id ) )
+        if( ! this->scheduling_graph->is_task_finished( task_id ) )
         {
             if( ! states.count( task_id ) ) // || states[ task_id ] = uninitialized
             {
@@ -114,7 +96,7 @@ public:
             {
             case TaskState::paused:
             case TaskState::pending:
-                if( scheduling_graph.is_task_ready( task_id ) )
+                if( this->scheduling_graph->is_task_ready( task_id ) )
                 {
                     states[ task_id ] = ready;
                     task_queue.push( task_ptr );
@@ -156,20 +138,20 @@ private:
                 /* if there are there events which must precede the tasks post-event
                  * we can not remove the task yet.
                  */
-                if( scheduling_graph.is_task_finished( task_id ) )
+                if( this->scheduling_graph->is_task_finished( task_id ) )
                 {
                     active_tasks.erase( active_tasks.begin() + i );
                     -- i;
 
                     l.unlock();
-                    mgr_remove_task( task_ptr );
+                    this->remove_task( task_ptr );
                     l.lock();
                 }
                 break;
 
             case TaskState::paused:
             case TaskState::pending:
-                if( scheduling_graph.is_task_ready( task_id ) )
+                if( this->scheduling_graph->is_task_ready( task_id ) )
                 {
                     states[ task_id ] = ready;
                     task_queue.push( task_ptr );

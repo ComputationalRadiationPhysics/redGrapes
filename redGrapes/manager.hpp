@@ -37,8 +37,7 @@ struct DefaultEnqueuePolicy
 
 template <
     typename T_TaskProperties = TaskProperties<>,
-    typename EnqueuePolicy = DefaultEnqueuePolicy< T_TaskProperties >,
-    template < typename, typename > class Scheduler = scheduler::DefaultScheduler
+    typename EnqueuePolicy = DefaultEnqueuePolicy< T_TaskProperties >
 >
 class Manager
 {
@@ -125,10 +124,12 @@ public:
         return current_task;
     }
 
-    // destruction order is important here!
-    SchedulingGraph< TaskID, TaskPtr > scheduling_graph;
+    // destruction order is important here! now really?
+public:
+    std::shared_ptr< SchedulingGraph< TaskID, TaskPtr > > scheduling_graph;
+private:
     std::shared_ptr< PrecedenceGraph > main_graph;
-    Scheduler< TaskID, TaskPtr > scheduler;
+    std::shared_ptr< scheduler::IScheduler< TaskID, TaskPtr > > scheduler;
 
     template < typename... Args >
     static inline void pass( Args&&... ) {}
@@ -146,35 +147,40 @@ public:
     };
 
 public:
-    using EventID = typename Scheduler< TaskID, TaskPtr >::EventID;
+    using EventID = typename SchedulingGraph< TaskID, TaskPtr >::EventID;
 
     Manager( )
-        : main_graph( std::make_shared<PrecedenceGraph>() )
+        : main_graph( std::make_shared< PrecedenceGraph >() )
         , scheduling_graph(
-              [this] ( TaskPtr a, TaskPtr b )
-              {
-                  return this->scheduler.task_dependency_type( a, b );
-              }
-          )
-        , scheduler(
-              scheduling_graph,
-              [this] ( TaskPtr task_ptr ) { return run_task( task_ptr ); },
-              [this] ( TaskPtr task_ptr ) { activate_followers( task_ptr ); },
-              [this] ( TaskPtr task_ptr ) { remove_task( task_ptr ); }
-          )
+              std::make_shared< SchedulingGraph< TaskID, TaskPtr > >(
+                  [this] ( TaskPtr a, TaskPtr b )
+                  {
+                      return this->scheduler->task_dependency_type( a, b );
+                  }))
     {}
 
     ~Manager()
     {
-        while( ! scheduling_graph.empty() )
+        while( ! scheduling_graph->empty() )
             redGrapes::thread::idle();
 
-        scheduler.notify();
+        scheduler->notify();
     }
 
     auto & getScheduler()
     {
         return scheduler;
+    }
+
+    void set_scheduler( std::shared_ptr< scheduler::IScheduler< TaskID, TaskPtr > > scheduler )
+    {
+        this->scheduler = scheduler;
+        this->scheduler->init_mgr_callbacks(
+            scheduling_graph,
+            [this] ( TaskPtr task_ptr ) { return run_task( task_ptr ); },
+            [this] ( TaskPtr task_ptr ) { activate_followers( task_ptr ); },
+            [this] ( TaskPtr task_ptr ) { remove_task( task_ptr ); }        
+        );
     }
 
     /*! create a new task, as child of the currently running task (if there is one)
@@ -204,15 +210,17 @@ public:
         auto delayed = make_delayed_functor( std::move(impl) );
         auto future = delayed.get_future();
 
-        EventID result_event = scheduling_graph.new_event();
+        EventID result_event = scheduling_graph->new_event();
 
         Task task(
-                  std::bind(
-                           [this, result_event]( auto && delayed ) mutable
-            {
-                delayed();
-                reach_event( result_event );
-            }, std::move(delayed) ),
+            std::bind(
+                [this, result_event]( auto && delayed ) mutable
+                {
+                    delayed();
+                    reach_event( result_event );
+                },
+                std::move(delayed)
+            ),
             builder
         );
 
@@ -251,9 +259,9 @@ public:
         auto vertex = g->push( task );
         TaskPtr task_ptr { g, vertex };
 
-        scheduling_graph.add_task( task_ptr );
+        scheduling_graph->add_task( task_ptr );
 
-        scheduler.activate_task( task_ptr );
+        scheduler->activate_task( task_ptr );
 
         return task_ptr;
     }
@@ -287,7 +295,7 @@ public:
                     task_ptr.graph->graph()
                 );
 
-            scheduler.activate_task( TaskPtr{ task_ptr.graph, target_vertex } );
+            scheduler->activate_task( TaskPtr{ task_ptr.graph, target_vertex } );
         }
     }
 
@@ -299,9 +307,9 @@ public:
         task_ptr.graph->finish( task_ptr.vertex );
         graph_lock.unlock();
 
-        scheduling_graph.remove_task( task_id );
+        scheduling_graph->remove_task( task_id );
 
-        scheduler.notify();
+        scheduler->notify();
     }
 
     std::experimental::optional< TaskID >
@@ -315,8 +323,8 @@ public:
 
     void reach_event( EventID event_id )
     {
-        scheduling_graph.reach_event( event_id );
-        scheduler.notify();
+        scheduling_graph->reach_event( event_id );
+        scheduler->notify();
     }
 
     //! create an event on which the termination of the current task depends
@@ -324,7 +332,7 @@ public:
     create_event()
     {
         if( auto task_id = get_current_task_id() )
-            return scheduling_graph.add_post_dependency( *task_id );
+            return scheduling_graph->add_post_dependency( *task_id );
         else
             return std::nullopt;
     }
@@ -369,10 +377,10 @@ public:
             for( auto v : vertices )
                 followers.push_back( TaskPtr{ task_ptr->graph, v } );
 
-            scheduling_graph.update_task( *task_ptr, followers );
+            scheduling_graph->update_task( *task_ptr, followers );
 
             for( auto following_task : followers )
-                scheduler.activate_task( following_task );
+                scheduler->activate_task( following_task );
         }
         else
             throw std::runtime_error("update_properties: currently no task running");
@@ -381,12 +389,12 @@ public:
     //! pause the currently running task at least until event_id is reached
     void yield( EventID event_id )
     {
-        while( ! scheduling_graph.is_event_reached( event_id ) )
+        while( ! scheduling_graph->is_event_reached( event_id ) )
         {
             if( current_task() )
             {
                 auto & task = current_task()->locked_get();
-                scheduling_graph.task_pause( task.task_id, event_id );
+                scheduling_graph->task_pause( task.task_id, event_id );
                 task.impl->yield();
             }
             else

@@ -21,11 +21,10 @@ template <
     typename TaskID,
     typename TaskPtr
 >
-struct DefaultScheduler : public IScheduler< TaskPtr >
+struct DefaultScheduler : public IScheduler< TaskID, TaskPtr >
 {
     using EventID = typename redGrapes::SchedulingGraph< TaskID, TaskPtr >::EventID;
 
-    redGrapes::SchedulingGraph< TaskID, TaskPtr > & scheduling_graph;
     std::shared_ptr< redGrapes::scheduler::FIFO< TaskID, TaskPtr > > fifo;
     std::vector< std::shared_ptr< redGrapes::scheduler::WorkerThread<> > > threads;
     redGrapes::scheduler::DefaultWorker main_thread_worker;
@@ -35,27 +34,10 @@ struct DefaultScheduler : public IScheduler< TaskPtr >
     std::condition_variable cv;
     std::atomic_flag wait = ATOMIC_FLAG_INIT;
 
-    DefaultScheduler(
-        redGrapes::SchedulingGraph< TaskID, TaskPtr > & scheduling_graph,
-        std::function< bool ( TaskPtr ) > mgr_run_task,
-        std::function< void ( TaskPtr ) > mgr_activate_followers,
-        std::function< void ( TaskPtr ) > mgr_remove_task
-    ) :
-        scheduling_graph( scheduling_graph ),
-        fifo(
-            std::make_shared<
-                redGrapes::scheduler::FIFO< TaskID, TaskPtr >
-            >(
-                scheduling_graph,
-                mgr_run_task,
-                mgr_activate_followers,
-                mgr_remove_task
-            )
-        ),
-        main_thread_worker( [this]{ return false; } )
+    DefaultScheduler( size_t n_threads = std::thread::hardware_concurrency() ) :
+        main_thread_worker( [this]{ return false; } ),
+        fifo( std::make_shared< redGrapes::scheduler::FIFO< TaskID, TaskPtr > >() )
     {
-        // spawn worker threads
-        int n_threads = std::thread::hardware_concurrency();
         for( int i = 0; i < n_threads; ++i )
             threads.emplace_back(
                  std::make_shared< redGrapes::scheduler::WorkerThread<> >(
@@ -71,6 +53,17 @@ struct DefaultScheduler : public IScheduler< TaskPtr >
             };
     }
 
+    void init_mgr_callbacks(
+        std::shared_ptr< redGrapes::SchedulingGraph< TaskID, TaskPtr > > scheduling_graph,
+        std::function< bool ( TaskPtr ) > run_task,
+        std::function< void ( TaskPtr ) > activate_followers,
+        std::function< void ( TaskPtr ) > remove_task
+    )
+    {
+        fifo->init_mgr_callbacks( scheduling_graph, run_task, activate_followers, remove_task );
+    }
+
+    
     //! wakeup sleeping worker threads
     void notify()
     {

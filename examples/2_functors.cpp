@@ -27,6 +27,15 @@ auto square (int x)
 
 int main()
 {
+    auto scheduler = std::make_shared<
+        redGrapes::scheduler::DefaultScheduler<
+            redGrapes::Manager<>::TaskID,
+            redGrapes::Manager<>::TaskPtr
+        >
+    >( 2 /* number of threads */ );
+
+    mgr().set_scheduler( scheduler );
+
     std::cout << "square(2) = " << square(2).get() << std::endl;
 
     return 0;
