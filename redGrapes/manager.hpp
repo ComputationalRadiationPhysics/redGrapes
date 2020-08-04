@@ -263,6 +263,9 @@ public:
 
         scheduler->activate_task( task_ptr );
 
+        g_lock.unlock();
+        scheduler->notify();
+
         return task_ptr;
     }
 
@@ -297,6 +300,9 @@ public:
 
             scheduler->activate_task( TaskPtr{ task_ptr.graph, target_vertex } );
         }
+
+        graph_lock.unlock();
+        scheduler->notify();
     }
 
     //! remove task from precedence graph and scheduling graph
@@ -308,8 +314,6 @@ public:
         graph_lock.unlock();
 
         scheduling_graph->remove_task( task_id );
-
-        scheduler->notify();
     }
 
     std::experimental::optional< TaskID >
@@ -381,6 +385,10 @@ public:
 
             for( auto following_task : followers )
                 scheduler->activate_task( following_task );
+
+            lock.unlock();
+
+            scheduler->notify();
         }
         else
             throw std::runtime_error("update_properties: currently no task running");

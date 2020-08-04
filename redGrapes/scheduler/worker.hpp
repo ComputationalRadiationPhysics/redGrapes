@@ -30,7 +30,7 @@ private:
     std::mutex m;
     std::condition_variable cv;
 
-    bool m_stop;
+    std::atomic_bool m_stop;
     std::atomic_flag wait = ATOMIC_FLAG_INIT;
 
     std::function< bool () > consume;

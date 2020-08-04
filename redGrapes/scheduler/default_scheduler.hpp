@@ -25,15 +25,15 @@ struct DefaultScheduler : public IScheduler< TaskID, TaskPtr >
 {
     using EventID = typename redGrapes::SchedulingGraph< TaskID, TaskPtr >::EventID;
 
-    std::shared_ptr< redGrapes::scheduler::FIFO< TaskID, TaskPtr > > fifo;
-    std::vector< std::shared_ptr< redGrapes::scheduler::WorkerThread<> > > threads;
-    redGrapes::scheduler::DefaultWorker main_thread_worker;
-
     //  main thread idle
     std::mutex m;
     std::condition_variable cv;
     std::atomic_flag wait = ATOMIC_FLAG_INIT;
 
+
+    std::shared_ptr< redGrapes::scheduler::FIFO< TaskID, TaskPtr > > fifo;
+    std::vector< std::shared_ptr< redGrapes::scheduler::WorkerThread<> > > threads;
+    redGrapes::scheduler::DefaultWorker main_thread_worker;
     DefaultScheduler( size_t n_threads = std::thread::hardware_concurrency() ) :
         main_thread_worker( [this]{ return false; } ),
         fifo( std::make_shared< redGrapes::scheduler::FIFO< TaskID, TaskPtr > >() )
@@ -81,7 +81,6 @@ struct DefaultScheduler : public IScheduler< TaskID, TaskPtr >
     activate_task( TaskPtr task_ptr )
     {
         fifo->activate_task( task_ptr );
-        notify();
     }
 };
 
