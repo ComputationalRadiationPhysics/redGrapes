@@ -48,6 +48,9 @@ int main( int, char * [] )
         TaskProperties,
         redGrapes::ResourceEnqueuePolicy
     > mgr;
+    using TaskID = typename decltype(mgr)::TaskID;
+    using TaskPtr = typename decltype(mgr)::TaskPtr;
+    mgr.set_scheduler( std::make_shared< redGrapes::scheduler::DefaultScheduler< TaskID, TaskPtr > >() );
 
     using Buffer =
         std::array<

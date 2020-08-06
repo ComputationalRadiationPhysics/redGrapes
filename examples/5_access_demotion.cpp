@@ -10,6 +10,7 @@
 #include <iostream>
 #include <redGrapes/resource/ioresource.hpp>
 #include <redGrapes/manager.hpp>
+#include <redGrapes/scheduler/default_scheduler.hpp>
 
 using Properties = redGrapes::TaskProperties<
     redGrapes::ResourceProperty
@@ -21,6 +22,9 @@ int main( int, char*[] )
         Properties,
         redGrapes::ResourceEnqueuePolicy
     > mgr;
+    using TaskID = typename decltype(mgr)::TaskID;
+    using TaskPtr = typename decltype(mgr)::TaskPtr;
+    mgr.set_scheduler( std::make_shared< redGrapes::scheduler::DefaultScheduler< TaskID, TaskPtr > >() );
 
     redGrapes::IOResource<int> a;
 
