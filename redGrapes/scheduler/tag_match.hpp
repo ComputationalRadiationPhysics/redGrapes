@@ -78,6 +78,12 @@ struct TagMatch : IScheduler< TaskID, TaskPtr >
             s.s->init_mgr_callbacks( scheduling_graph, run_task, activate_followers, remove_task );
     }
 
+    void notify()
+    {
+        for( auto & s : sub_schedulers )
+            s.s->notify();
+    }
+
     std::optional<
         std::shared_ptr< IScheduler< TaskID, TaskPtr > >
     >
