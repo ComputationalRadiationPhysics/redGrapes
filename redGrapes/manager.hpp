@@ -116,6 +116,28 @@ public:
             auto lock = graph->shared_lock();
             return graph_get(vertex, graph->graph()).first;
         }
+
+        std::vector< TaskPtr > get_followers() const
+        {
+            std::vector< TaskPtr > followers;
+
+            for(
+                auto edge_it = boost::out_edges( vertex, graph->graph() );
+                edge_it.first != edge_it.second;
+                ++edge_it.first
+            )
+            {
+                auto target_vertex =
+                    boost::target(
+                        *edge_it.first,
+                        graph->graph()
+                    );
+
+                followers.push_back( TaskPtr{ graph, target_vertex } );
+            }
+
+            return followers;
+        }
     };
 
     static std::optional< TaskPtr > & current_task()
