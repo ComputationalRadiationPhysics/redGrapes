@@ -7,6 +7,10 @@
 
 #pragma once
 
+#include <functional>
+#include <memory>
+#include <redGrapes/graph/scheduling_graph.hpp>
+
 namespace redGrapes
 {
 namespace scheduler

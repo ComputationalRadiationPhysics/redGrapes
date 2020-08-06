@@ -11,11 +11,14 @@
 #include <iostream>
 #include <functional>
 #include <chrono>
+
 #include <redGrapes/helpers/cuda/scheduler.hpp>
-#include <redGrapes/manager.hpp>
+#include <redGrapes/scheduler/default_scheduler.hpp>
+#include <redGrapes/scheduler/tag_match.hpp>
 #include <redGrapes/resource/fieldresource.hpp>
 #include <redGrapes/resource/ioresource.hpp>
 #include <redGrapes/property/resource.hpp>
+#include <redGrapes/manager.hpp>
 
 namespace rg = redGrapes;
 
@@ -48,7 +51,19 @@ __global__ void mandelbrot(double begin_x, double end_x, double begin_y, double 
         out[index] = Color{cosf(float(i) / 7.0), cosf(2.0 + float(i) / 11.0), cosf(4.0 + float(i) / 13.0)};
 }
 
-using TaskProperties = rg::TaskProperties< rg::ResourceProperty >;
+enum SchedulerTag
+{
+    SCHED_MPI,
+    SCHED_CUDA
+};
+
+using TaskProperties =
+    rg::TaskProperties<
+        rg::ResourceProperty,
+        rg::helpers::cuda::CudaTaskProperties,
+        rg::scheduler::SchedulingTagProperties< 64 >
+    >;
+
 int main()
 {
     rg::Manager<
@@ -56,6 +71,30 @@ int main()
         rg::ResourceEnqueuePolicy
     > mgr;
 
+    using TaskID = typename decltype(mgr)::TaskID;
+    using TaskPtr = typename decltype(mgr)::TaskPtr;
+
+    auto tag_match = std::make_shared< rg::scheduler::TagMatch< TaskID, TaskPtr > >();
+
+    auto cuda_scheduler = std::make_shared< rg::helpers::cuda::CudaScheduler< TaskID, TaskPtr > >();
+    
+    tag_match->add_scheduler(
+        std::bitset<64>(),
+        std::make_shared< rg::scheduler::DefaultScheduler< TaskID, TaskPtr > >()
+    );
+    tag_match->add_scheduler(
+        std::bitset<64>().set( SCHED_CUDA ),
+	cuda_scheduler
+    );
+
+    rg::thread::idle =
+        [cuda_scheduler]
+        {
+	    cuda_scheduler->poll();
+	};
+
+    mgr.set_scheduler( tag_match );
+    
     double mid_x = 0.41820187155955555;
     double mid_y = 0.32743154895555555;
 
@@ -122,6 +161,7 @@ int main()
 		    *device_buffer
 	        );
             },
+            TaskProperties::Builder().scheduling_tags( std::bitset<64>().set( SCHED_CUDA ) ),
             device_buffer.write());
 
         /*
@@ -131,6 +171,7 @@ int main()
             [area]( auto host_buffer, auto device_buffer ) {
 	      cudaMemcpyAsync(*host_buffer, *device_buffer, area * sizeof(Color), cudaMemcpyDeviceToHost, rg::thread::current_cuda_stream);
             },
+	    TaskProperties::Builder().scheduling_tags( std::bitset<64>().set( SCHED_CUDA ) ),
             host_buffer.write(),
             device_buffer.read());
 

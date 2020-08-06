@@ -12,6 +12,7 @@
 #include <unordered_map>
 #include <queue>
 #include <optional>
+#include <functional>
 #include <redGrapes/scheduler/scheduler.hpp>
 #include <redGrapes/graph/scheduling_graph.hpp>
 #include <redGrapes/helpers/cuda/event_pool.hpp>
@@ -78,11 +79,14 @@ struct CudaStream
         cudaStreamWaitEvent( cuda_stream, e, 0 );
     }
 
+    std::function< void( TaskPtr ) > run_task;
+
     cudaEvent_t push( TaskPtr & task_ptr )
     {
-        // todo: is there a better way than setting a global variable?
+        // TODO: is there a better way than setting a global variable?
         thread::current_cuda_stream = cuda_stream;
-        mgr_run_task( task_ptr );
+
+        this->run_task( task_ptr );
 
         cudaEvent_t cuda_event = EventPool::get().alloc();
         cudaEventRecord( cuda_event, cuda_stream );
@@ -93,20 +97,44 @@ struct CudaStream
     }
 };
 
+struct CudaTaskProperties
+{
+    bool cuda_flag;
+
+    template < typename PropertiesBuilder >
+    struct Builder
+    {
+        PropertiesBuilder & builder;
+
+        Builder( PropertiesBuilder & b )
+            : builder(b)
+        {}
+
+        PropertiesBuilder cuda_task()
+        {
+            builder.prop.cuda_flag = true;
+            return builder;
+        }
+    };
+
+    struct Patch
+    {
+        template <typename PatchBuilder>
+        struct Builder
+        {
+            Builder( PatchBuilder & ) {}
+        };
+    };
+    void apply_patch( Patch const & ) {};
+};
+
 template <
     typename TaskID,
     typename TaskPtr
 >
-struct CudaScheduler : redGrapes::scheduler::IScheduler< TaskPtr >
+struct CudaScheduler : redGrapes::scheduler::SchedulerBase< TaskID, TaskPtr >
 {
 private:
-    //! todo: manager interface
-    redGrapes::SchedulingGraph< TaskID, TaskPtr > & scheduling_graph;
-    std::function< bool ( TaskPtr ) > mgr_run_task;
-    std::function< void ( TaskPtr ) > mgr_activate_followers;
-    std::function< void ( TaskPtr ) > mgr_remove_task;
-
-
     bool recording;
     bool cuda_graph_enabled;
 
@@ -119,34 +147,23 @@ private:
     > cuda_dependencies;
 
 public:
-    struct TaskProperties
-    {
-        bool cuda_flag;
-    };
-
     CudaScheduler(
-        redGrapes::SchedulingGraph< TaskID, TaskPtr> & scheduling_graph,
-        std::function< bool ( TaskPtr ) > mgr_run_task,
-        std::function< void ( TaskPtr ) > mgr_activate_followers,
-        std::function< void ( TaskPtr ) > mgr_remove_task,
-
-        size_t stream_count = 1
+        size_t stream_count = 1,
+        bool cuda_graph_enabled = false
     ) :
-        scheduling_graph( scheduling_graph ),
-        mgr_run_task( mgr_run_task ),
-        mgr_activate_followers( mgr_activate_followers ),
-        mgr_remove_task( mgr_remove_task ),
-
         streams( stream_count ),
         current_stream( 0 ),
-        cuda_graph_enabled( false )
-    {}
+        cuda_graph_enabled( cuda_graph_enabled )
+    {
+        for( auto & s : streams )
+            s.run_task = this->run_task;
+    }
 
     void activate_task( TaskPtr task_ptr )
     {
         auto task_id = task_ptr.locked_get().task_id;
 
-        if( scheduling_graph.is_task_ready( task_id ) )
+        if( this->scheduling_graph->is_task_ready( task_id ) )
         {
             if( cuda_graph_enabled && ! recording )
             {
@@ -177,7 +194,7 @@ public:
             if( auto cuda_event = cuda_dependencies[ task_id ][ stream_id ] )
                 streams[ current_stream ].wait_event( *cuda_event );
 
-        scheduling_graph.begin_task( task_id );
+        this->scheduling_graph->task_start( task_id );
         cudaEvent_t cuda_event = streams[ current_stream ].push( task_ptr );
         /* TODO
         for( f in task.followers )
@@ -189,7 +206,7 @@ public:
             }
         }
         */
-        mgr_activate_followers( task_id );
+        this->activate_followers( task_ptr );
     }
 
     //! checks if some cuda calls finished and notify the redGrapes manager
@@ -199,6 +216,8 @@ public:
         {
             if( auto task_ptr = streams[ stream_id ].poll() )
             {
+                auto task_id = task_ptr->locked_get().task_id;
+
                 /* TODO
                 for( f in followers( task_id ) )
                 {
@@ -210,9 +229,9 @@ public:
                 }
                 */
 
-                scheduling_graph.task_end( task_ptr.locked_get().task_id );
-                mgr_activate_followers( task_ptr );
-                mgr_remove_task( task_ptr );
+                this->scheduling_graph->task_end( task_id );
+                this->activate_followers( *task_ptr );
+                this->remove_task( *task_ptr );
             }
         }
     }
