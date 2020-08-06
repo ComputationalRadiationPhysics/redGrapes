@@ -44,19 +44,19 @@ template <
     typename TaskPtr,
     std::size_t T_tag_count = 64
 >
-struct TagMatch : IScheduler< TaskPtr >
+struct TagMatch : IScheduler< TaskID, TaskPtr >
 {
     struct SubScheduler
     {
         std::bitset< T_tag_count > supported_tags;
-        std::shared_ptr< IScheduler< TaskPtr > > s;
+        std::shared_ptr< IScheduler< TaskID, TaskPtr > > s;
     };
 
     std::vector< SubScheduler > sub_schedulers;
 
     void add_scheduler(
         std::bitset< T_tag_count > supported_tags,
-        std::shared_ptr< IScheduler< TaskPtr > > s
+        std::shared_ptr< IScheduler< TaskID, TaskPtr > > s
     )
     {
         sub_schedulers.push_back(
@@ -66,9 +66,20 @@ struct TagMatch : IScheduler< TaskPtr >
                 s
             });
     }
+    
+    void init_mgr_callbacks(
+        std::shared_ptr< redGrapes::SchedulingGraph< TaskID, TaskPtr > > scheduling_graph,
+        std::function< bool ( TaskPtr ) > run_task,
+        std::function< void ( TaskPtr ) > activate_followers,
+        std::function< void ( TaskPtr ) > remove_task
+    )
+    {
+        for( auto & s : sub_schedulers )
+            s.s->init_mgr_callbacks( scheduling_graph, run_task, activate_followers, remove_task );
+    }
 
     std::optional<
-        std::shared_ptr< IScheduler< TaskPtr > >
+        std::shared_ptr< IScheduler< TaskID, TaskPtr > >
     >
     get_matching_scheduler(
         std::bitset< T_tag_count > const & required_tags
