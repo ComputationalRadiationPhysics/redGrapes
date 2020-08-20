@@ -69,6 +69,7 @@ struct CudaStream
 
                 return task_ptr;
             }
+
         }
 
         return std::nullopt;
@@ -79,14 +80,12 @@ struct CudaStream
         cudaStreamWaitEvent( cuda_stream, e, 0 );
     }
 
-    std::function< void( TaskPtr ) > run_task;
-
     cudaEvent_t push( TaskPtr & task_ptr )
     {
         // TODO: is there a better way than setting a global variable?
         thread::current_cuda_stream = cuda_stream;
 
-        this->run_task( task_ptr );
+        task_ptr.get().impl->run();
 
         cudaEvent_t cuda_event = EventPool::get().alloc();
         cudaEventRecord( cuda_event, cuda_stream );
@@ -100,6 +99,11 @@ struct CudaStream
 struct CudaTaskProperties
 {
     bool cuda_flag;
+    std::optional< cudaEvent_t > cuda_event;
+
+    CudaTaskProperties()
+        : cuda_flag( false )
+    {}
 
     template < typename PropertiesBuilder >
     struct Builder
@@ -141,36 +145,31 @@ private:
     unsigned int current_stream;
     std::vector< CudaStream< TaskPtr > > streams;
 
-    std::unordered_map<
-        TaskID,
-        std::vector< std::optional< cudaEvent_t > >
-    > cuda_dependencies;
-
 public:
     CudaScheduler(
-        size_t stream_count = 1,
+        size_t stream_count = 8,
         bool cuda_graph_enabled = false
     ) :
         streams( stream_count ),
         current_stream( 0 ),
         cuda_graph_enabled( cuda_graph_enabled )
-    {
-        for( auto & s : streams )
-            s.run_task = this->run_task;
-    }
+    {}
 
     void activate_task( TaskPtr task_ptr )
     {
-        auto task_id = task_ptr.locked_get().task_id;
+        auto task_id = task_ptr.get().task_id;
 
-        if( this->scheduling_graph->is_task_ready( task_id ) )
+        if(
+            this->scheduling_graph->is_task_ready( task_id ) &&
+            ! task_ptr.get().cuda_event
+        )
         {
             if( cuda_graph_enabled && ! recording )
             {
                 recording = true;
                 //TODO: cudaBeginGraphRecord();
 
-                dispatch_task( task_ptr );
+                dispatch_task( task_ptr, task_id );
 
                 //TODO: cudaEndGraphRecord();
                 recording = false;
@@ -178,34 +177,22 @@ public:
                 //TODO: submitGraph();
             }
             else
-                dispatch_task( task_ptr );
+                dispatch_task( task_ptr, task_id );
         }
     }
 
     //! submits the call to the cuda runtime
-    void dispatch_task( TaskPtr task_ptr )
+    void dispatch_task( TaskPtr task_ptr, TaskID task_id )
     {
         current_stream = ( current_stream + 1 ) % streams.size();
 
-        auto task_id = task_ptr.locked_get().task_id;
-
-        assert( cuda_dependencies.count( task_id ) );
-        for( int stream_id = 0; stream_id < streams.size(); ++stream_id )
-            if( auto cuda_event = cuda_dependencies[ task_id ][ stream_id ] )
-                streams[ current_stream ].wait_event( *cuda_event );
+        for( auto predecessor_ptr : task_ptr.get_predecessors() )
+            if( auto cuda_event = predecessor_ptr.get().cuda_event )
+                streams[current_stream].wait_event( *cuda_event );
 
         this->scheduling_graph->task_start( task_id );
-        cudaEvent_t cuda_event = streams[ current_stream ].push( task_ptr );
-        /* TODO
-        for( f in task.followers )
-        {
-            if( task_ptr.get().cuda_flag )
-            {
-                cuda_dependencies[ f ].resize( streams.size() );
-                cuda_dependencies[ f ][ current_stream ] = cuda_event;
-            }
-        }
-        */
+        task_ptr.get().cuda_event = streams[ current_stream ].push( task_ptr );
+
         this->activate_followers( task_ptr );
     }
 
@@ -217,17 +204,6 @@ public:
             if( auto task_ptr = streams[ stream_id ].poll() )
             {
                 auto task_id = task_ptr->locked_get().task_id;
-
-                /* TODO
-                for( f in followers( task_id ) )
-                {
-                    if( cuda_dependencies.count( f ) )
-                    {
-                        assert( cuda_dependencies[ f ].size() == streams.size() );
-                        cuda_dependencies[ f ][ stream_id ] = std::nullopt;
-                    }
-                }
-                */
 
                 this->scheduling_graph->task_end( task_id );
                 this->activate_followers( *task_ptr );

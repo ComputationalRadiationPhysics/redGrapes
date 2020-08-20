@@ -117,6 +117,28 @@ public:
             return graph_get(vertex, graph->graph()).first;
         }
 
+        std::vector< TaskPtr > get_predecessors() const
+        {
+            std::vector< TaskPtr > predecessors;
+
+            for(
+                auto edge_it = boost::in_edges( vertex, graph->graph() );
+                edge_it.first != edge_it.second;
+                ++edge_it.first
+            )
+            {
+                auto target_vertex =
+                    boost::source(
+                        *edge_it.first,
+                        graph->graph()
+                    );
+
+                predecessors.push_back( TaskPtr{ graph, target_vertex } );
+            }
+
+            return predecessors;
+        }
+
         std::vector< TaskPtr > get_followers() const
         {
             std::vector< TaskPtr > followers;
@@ -280,12 +302,14 @@ public:
 
         auto vertex = g->push( task );
         TaskPtr task_ptr { g, vertex };
-
         scheduling_graph->add_task( task_ptr );
 
-        scheduler->activate_task( task_ptr );
-
         g_lock.unlock();
+        {
+            auto g_lock = g->shared_lock();
+            scheduler->activate_task( task_ptr );
+        }
+
         scheduler->notify();
 
         return task_ptr;
@@ -307,7 +331,7 @@ public:
 
     void activate_followers( TaskPtr task_ptr )
     {
-        auto graph_lock = task_ptr.graph->unique_lock();
+        auto graph_lock = task_ptr.graph->shared_lock();
         for(
             auto edge_it = boost::out_edges( task_ptr.vertex, task_ptr.graph->graph() );
             edge_it.first != edge_it.second;

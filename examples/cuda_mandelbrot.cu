@@ -6,7 +6,7 @@
  */
 
 #include <cuda.h>
-//#include <pngwriter.h>
+#include <pngwriter.h>
 #include <iomanip>
 #include <iostream>
 #include <functional>
@@ -27,6 +27,7 @@ struct Color
     float r, g, b;
 };
 
+__global__ void hello_world() {}
 __global__ void mandelbrot(double begin_x, double end_x, double begin_y, double end_y, int buffer_width, int buffer_height, Color * out)
 {
     int xi = blockIdx.x * blockDim.x + threadIdx.x;
@@ -53,7 +54,6 @@ __global__ void mandelbrot(double begin_x, double end_x, double begin_y, double 
 
 enum SchedulerTag
 {
-    SCHED_MPI,
     SCHED_CUDA
 };
 
@@ -75,12 +75,10 @@ int main()
     using TaskPtr = typename decltype(mgr)::TaskPtr;
 
     auto tag_match = std::make_shared< rg::scheduler::TagMatch< TaskID, TaskPtr > >();
-
-    auto cuda_scheduler = std::make_shared< rg::helpers::cuda::CudaScheduler< TaskID, TaskPtr > >();
-    
+    auto cuda_scheduler = std::make_shared< rg::helpers::cuda::CudaScheduler< TaskID, TaskPtr > >( 8 /* number of cuda streams */ );
     tag_match->add_scheduler(
         std::bitset<64>(),
-        std::make_shared< rg::scheduler::DefaultScheduler< TaskID, TaskPtr > >()
+        std::make_shared< rg::scheduler::DefaultScheduler< TaskID, TaskPtr > >(8 /* number of cpu threads */)
     );
     tag_match->add_scheduler(
         std::bitset<64>().set( SCHED_CUDA ),
@@ -94,18 +92,13 @@ int main()
 	};
 
     mgr.set_scheduler( tag_match );
-    
+
     double mid_x = 0.41820187155955555;
     double mid_y = 0.32743154895555555;
 
     size_t width = 4096;
     size_t height = 4096;
     size_t area = width * height;
-
-    //rg::helpers::cuda::StreamResource< rg::helpers::cuda::PollingEventStream<decltype(mgr)> > cuda_stream(mgr, s);
-    //mgr.getScheduler().schedule[1].set_wait_hook([cuda_stream] { cuda_stream->poll(); });
-    //std::thread polling_thread( [cuda_stream]{ while(1){cuda_stream->poll(); }} );
-    //polling_thread.detach();
 
     rg::IOResource<Color *> host_buffer;
     rg::IOResource<Color *> device_buffer;
@@ -127,13 +120,13 @@ int main()
         device_buffer.write());
 
     // warmup cuda
-    //hello_world<<< 1, 1, 0, cuda_stream >>>();
-    //cudaMemcpyAsync(*host_buffer, *device_buffer, sizeof(Color), cudaMemcpyDeviceToHost, cuda_stream);
+    hello_world<<< 1, 1, 0, 0 >>>();
+    cudaMemcpy(*host_buffer, *device_buffer, sizeof(Color), cudaMemcpyDeviceToHost);
 
     auto t1 = std::chrono::high_resolution_clock::now();
 
     float w = 1.0;
-    for(int i = 0; i < 200; ++i)
+    for(int i = 0; i < 10; ++i)
     {
         w *= 0.75;
         /*
@@ -160,8 +153,9 @@ int main()
 		    width, height,
 		    *device_buffer
 	        );
+		std::cout << "launched kernel to stream " << rg::thread::current_cuda_stream << std::endl;
             },
-            TaskProperties::Builder().scheduling_tags( std::bitset<64>().set( SCHED_CUDA ) ),
+            TaskProperties::Builder().scheduling_tags( std::bitset<64>().set( SCHED_CUDA ) ).cuda_task(),
             device_buffer.write());
 
         /*
@@ -170,8 +164,9 @@ int main()
         mgr.emplace_task(
             [area]( auto host_buffer, auto device_buffer ) {
 	      cudaMemcpyAsync(*host_buffer, *device_buffer, area * sizeof(Color), cudaMemcpyDeviceToHost, rg::thread::current_cuda_stream);
+	      std::cout << "launched memcpy to stream " << rg::thread::current_cuda_stream << std::endl;
             },
-	    TaskProperties::Builder().scheduling_tags( std::bitset<64>().set( SCHED_CUDA ) ),
+	    TaskProperties::Builder().scheduling_tags( std::bitset<64>().set( SCHED_CUDA ) ).cuda_task(),
             host_buffer.write(),
             device_buffer.read());
 
@@ -182,7 +177,7 @@ int main()
             [width, height, i]( auto host_buffer ) {
                 std::stringstream step;
                 step << std::setw(6) << std::setfill('0') << i;
-		/*
+
                 std::string filename("mandelbrot_" + step.str() + ".png");
                 pngwriter png(width, height, 0, filename.c_str());
                 png.setcompressionlevel(9);
@@ -197,12 +192,13 @@ int main()
                 }
 
                 png.close();
-		*/
+		std::cout << "wrote png" << std::endl;
             },
             host_buffer.read());
     }
 
-    mgr.emplace_task([](auto x) { cudaDeviceSynchronize(); }, host_buffer.write()).get();
+    mgr.emplace_task([](auto b){}, host_buffer.write()).get();
+
     auto t2 = std::chrono::high_resolution_clock::now();
     std::cout << "runtime: " << std::chrono::duration_cast<std::chrono::microseconds>( t2 - t1 ).count() << " μs" << std::endl;
 

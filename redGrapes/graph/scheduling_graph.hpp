@@ -332,7 +332,7 @@ public:
                         task_events[ preceding_task_id ].pre_event
                     :
                         task_events[ preceding_task_id ].post_event;
-
+                
                 if( events.count( preceding_event_id ) )
                     add_edge(
                         preceding_event_id,
