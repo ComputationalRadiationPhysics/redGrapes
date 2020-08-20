@@ -10,8 +10,8 @@
 #include <mpi.h>
 #include <mutex>
 #include <map>
-#include <akrzemi/optional.hpp>
-#include <redGrapes/resource/ioresource.hpp>
+#include <memory>
+
 
 namespace redGrapes
 {
@@ -20,7 +20,7 @@ namespace helpers
 namespace mpi
 {
 
-template <typename Manager>
+template < typename Manager >
 struct RequestPool
 {
     using EventID = typename Manager::EventID;
@@ -30,20 +30,20 @@ struct RequestPool
 
     std::vector< MPI_Request > requests;
     std::vector< EventID > events;
-    std::vector< ioresource::WriteGuard< MPI_Status > > statuses;
+    std::vector< std::shared_ptr< MPI_Status > > statuses;
 
     RequestPool( Manager & mgr )
         : mgr(mgr)
     {}
 
-    /**
+    /*!
      * Tests all currently active MPI requests
      * and notifies the corresponding events if the requests finished
      */
     void poll()
     {
-        std::lock_guard< std::mutex > lock(mutex);
-        
+        std::lock_guard< std::mutex > lock( mutex );
+
         if( ! requests.empty() )
         {
             int index;
@@ -52,7 +52,7 @@ struct RequestPool
 
             int outcount;
             std::vector< int > indices( requests.size() );
-            std::vector< MPI_Status > out_statuses ( requests.size() );
+            std::vector< MPI_Status > out_statuses( requests.size() );
 
             MPI_Testsome(
                 requests.size(),
@@ -82,39 +82,29 @@ struct RequestPool
         }
     }
 
-    /**
-     * Adds a new MPI request to the pool and creates a child task
-     * that finishes after the request is done. While waiting
-     * for this request, other tasks will be executed
+    /*!
+     * Adds a new MPI request to the pool and
+     * yields until the request is done. While waiting
+     * for this request, other tasks will be executed.
      *
      * @param request The MPI request to wait for
-     * @return resulting MPI status of the request
+     * @return the resulting MPI status of the request
      */
-    MPI_Status wait( MPI_Request request )
+    MPI_Status get_status( MPI_Request request )
     {
-        IOResource< MPI_Status > status;
+        auto status = std::make_shared< MPI_Status >();
+        auto event_id = *mgr.create_event();
 
-        // create task that blocks status until notified from poll()
-        mgr.emplace_task(
-            [this, request]( auto status )
-            {
-                auto event = *mgr.create_event();
+        {
+            std::lock_guard<std::mutex> lock( mutex );
+            requests.push_back( request );
+            events.push_back( event_id );
+            statuses.push_back( status );
+        }
 
-                std::lock_guard<std::mutex> lock(mutex);
-                requests.push_back( request );
-                events.push_back( event );
-                statuses.push_back( status );
-            },
-            status.write()
-        );
+        mgr.yield( event_id );
 
-        return mgr.emplace_task(
-            []( auto status )
-            {
-                return *status;
-            },
-            status.read()
-        ).get();
+        return *status;
     }
 };
 

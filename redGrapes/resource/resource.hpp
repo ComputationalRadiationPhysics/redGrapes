@@ -18,7 +18,7 @@
 #include <iostream>
 #include <functional>
 
-#include <redGrapes/thread/thread_local.hpp>
+#include <redGrapes/thread_local.hpp>
 
 namespace redGrapes
 {

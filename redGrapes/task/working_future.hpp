@@ -1,4 +1,4 @@
-/* Copyright 2019 Michael Sippel
+/* Copyright 2019-2020 Michael Sippel
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -18,26 +18,26 @@ namespace redGrapes
 /**
  * Wrapper for std::future which consumes jobs
  * instead of waiting in get()
- *
- * @tparam T delayed type
- * @tparam Worker nullary Callable
  */
-template <typename T, typename Worker>
+template <
+    typename T,
+    typename Manager
+>
 struct WorkingFuture : std::future<T>
 {
-    WorkingFuture( std::future<T>&& future_, Worker & work_ )
-      : std::future<T>(std::move(future_)), work(work_)
+    WorkingFuture( std::future<T> && future, Manager & mgr, typename Manager::EventID result_event )
+        : std::future<T>(std::move(future)), mgr(mgr), result_event( result_event )
     {}
 
     /**
-     * Calls worker until the future has a valid result
+     * yields until the task has a valid result
      * and retrieves it.
      *
      * @return the result
      */
     T get(void)
     {
-        this->work( [this]{ return this->is_ready(); } );
+        mgr.yield( result_event );
         return this->std::future<T>::get();
     }
 
@@ -49,13 +49,18 @@ struct WorkingFuture : std::future<T>
     }
 
   private:
-    Worker & work;
+    Manager & mgr;
+    typename Manager::EventID result_event;
 }; // struct WorkingFuture
 
-template <typename T, typename Worker>
-WorkingFuture<T, Worker> make_working_future(std::future<T>&& future, Worker & work)
+template <
+    typename T,
+    typename Manager
+>
+WorkingFuture<T, Manager> make_working_future(std::future<T>&& future, Manager & mgr, typename Manager::EventID event )
 {
-    return WorkingFuture<T, Worker>( std::move(future), work );
+    return WorkingFuture< T, Manager >( std::move(future), mgr, event );
 }
 
 } // namespace redGrapes
+
