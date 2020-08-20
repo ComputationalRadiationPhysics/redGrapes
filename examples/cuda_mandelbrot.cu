@@ -72,7 +72,6 @@ int main()
     > mgr;
 
     auto default_scheduler = rg::scheduler::make_default_scheduler( mgr, 8 /* number of threads */);
-
     auto cuda_scheduler = rg::helpers::cuda::make_cuda_scheduler( mgr, 8 /* number of cuda streams */ );
     rg::thread::idle =
         [cuda_scheduler]
@@ -80,11 +79,11 @@ int main()
 	    cuda_scheduler->poll();
 	};
 
-    auto tag_match = rg::scheduler::make_tag_match_scheduler( mgr );
-    tag_match->add_scheduler( {}, default_scheduler );
-    tag_match->add_scheduler( { SCHED_CUDA }, cuda_scheduler );
-
-    mgr.set_scheduler( tag_match );
+    mgr.set_scheduler(
+        rg::scheduler::make_tag_match_scheduler( mgr )
+            .add({}, default_scheduler)
+            .add({SCHED_CUDA}, cuda_scheduler)
+    );
 
     double mid_x = 0.41820187155955555;
     double mid_y = 0.32743154895555555;

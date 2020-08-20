@@ -36,8 +36,8 @@ struct DefaultEnqueuePolicy
 };
 
 template <
-    typename T_TaskProperties = TaskProperties<>,
-    typename EnqueuePolicy = DefaultEnqueuePolicy< T_TaskProperties >
+    typename TT_TaskProperties = TaskProperties<>,
+    typename EnqueuePolicy = DefaultEnqueuePolicy< TT_TaskProperties >
 >
 class Manager
 {
@@ -54,6 +54,7 @@ public:
     struct TaskPtr;
     struct WeakTaskPtr;
 
+    using T_TaskProperties = TT_TaskProperties;
     struct TaskProperties : T_TaskProperties
     {
         TaskID task_id;

@@ -135,6 +135,23 @@ struct TagMatch : IScheduler< TaskID, TaskPtr >
 
 /*! Factory function to easily create a tag-match-scheduler object
  */
+template < typename Manager >
+struct TagMatchBuilder
+{
+    std::shared_ptr< TagMatch< typename Manager::TaskID, typename Manager::TaskPtr > > tag_match;
+
+    operator std::shared_ptr< IScheduler< typename Manager::TaskID, typename Manager::TaskPtr > > () const
+    {
+        return tag_match;
+    }
+
+    TagMatchBuilder add( std::initializer_list<unsigned> tags, std::shared_ptr< IScheduler< typename Manager::TaskID, typename Manager::TaskPtr > > s )
+    {
+        tag_match->add_scheduler( tags, s );
+        return *this;
+    }
+};
+
 template <
     typename Manager,
     size_t T_tag_count = 64
@@ -143,13 +160,15 @@ auto make_tag_match_scheduler(
     Manager & m
 )
 {
-    return std::make_shared<
+    return TagMatchBuilder< Manager > {
+        std::make_shared<
                TagMatch<
                    typename Manager::TaskID,
                    typename Manager::TaskPtr,
                    T_tag_count
                >
-           >();
+        >()
+    };
 }
 
 
