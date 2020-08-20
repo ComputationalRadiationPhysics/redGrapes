@@ -58,7 +58,7 @@ int main()
     > mgr;
 
     auto default_scheduler = rg::scheduler::make_default_scheduler( mgr );
-    auto mpi_scheduler = rg::helpers::mpi::make_mpi_scheduler( mgr, TaskProperties::Builder().scheduling_tags( std::bitset<64>().set(SCHED_MPI) ) );
+    auto mpi_scheduler = rg::helpers::mpi::make_mpi_scheduler( mgr, TaskProperties::Builder().scheduling_tags({ SCHED_MPI }) );
 
     // initialize main thread to execute tasks from the mpi-queue and poll
     rg::thread::idle =
@@ -123,7 +123,7 @@ int main()
                     }
                 );
             },
-            TaskProperties::Builder().scheduling_tags( std::bitset<64>().set(SCHED_MPI) ),
+            TaskProperties::Builder().scheduling_tags({ SCHED_MPI }),
             field[current].at({3}).read(),
             mpi_config.read()
         );
@@ -145,7 +145,7 @@ int main()
                 int recv_data_count;
                 MPI_Get_count( &status, MPI_CHAR, &recv_data_count );
             },
-            TaskProperties::Builder().scheduling_tags( std::bitset<64>().set(SCHED_MPI) ),
+            TaskProperties::Builder().scheduling_tags({ SCHED_MPI }),
             field[current].at({0}).write(),
             mpi_config.read()
         );
@@ -186,7 +186,7 @@ int main()
         {
             MPI_Finalize();
         },
-        TaskProperties::Builder().scheduling_tags( std::bitset<64>().set(SCHED_MPI) ),
+        TaskProperties::Builder().scheduling_tags({ SCHED_MPI }),
         mpi_config.write()
     );
 }

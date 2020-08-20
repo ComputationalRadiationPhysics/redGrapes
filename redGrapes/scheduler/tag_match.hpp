@@ -31,7 +31,14 @@ struct SchedulingTagProperties
             : builder(b)
         {}
 
-        // fixme: return reference?
+        PropertiesBuilder scheduling_tags( std::initializer_list< unsigned > tags )
+        {
+            std::bitset< T_tag_count > tags_bitset;
+            for( auto tag : tags )
+                tags_bitset.set( tag );
+            return scheduling_tags( tags_bitset );
+        }
+
         PropertiesBuilder scheduling_tags( std::bitset< T_tag_count > tags )
         {
             builder.prop.required_scheduler_tags |= tags;

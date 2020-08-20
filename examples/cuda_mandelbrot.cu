@@ -147,7 +147,7 @@ int main()
 	        );
 		std::cout << "launched kernel to stream " << rg::thread::current_cuda_stream << std::endl;
             },
-            TaskProperties::Builder().scheduling_tags( std::bitset<64>().set( SCHED_CUDA ) ).cuda_task(),
+            TaskProperties::Builder().scheduling_tags({ SCHED_CUDA }).cuda_task(),
             device_buffer.write());
 
         /*
@@ -158,7 +158,7 @@ int main()
 	      cudaMemcpyAsync(*host_buffer, *device_buffer, area * sizeof(Color), cudaMemcpyDeviceToHost, rg::thread::current_cuda_stream);
 	      std::cout << "launched memcpy to stream " << rg::thread::current_cuda_stream << std::endl;
             },
-	    TaskProperties::Builder().scheduling_tags( std::bitset<64>().set( SCHED_CUDA ) ).cuda_task(),
+	    TaskProperties::Builder().scheduling_tags({ SCHED_CUDA }).cuda_task(),
             host_buffer.write(),
             device_buffer.read());
 
