@@ -19,9 +19,7 @@ using TaskProperties = redGrapes::TaskProperties< redGrapes::ResourceProperty >;
 int main()
 {
     redGrapes::Manager< TaskProperties, redGrapes::ResourceEnqueuePolicy > mgr;
-    using TaskID = typename decltype(mgr)::TaskID;
-    using TaskPtr = typename decltype(mgr)::TaskPtr;
-    mgr.set_scheduler( std::make_shared< redGrapes::scheduler::DefaultScheduler< TaskID, TaskPtr > >() );
+    mgr.set_scheduler( redGrapes::scheduler::make_default_scheduler( mgr ) );
 
     redGrapes::Resource< redGrapes::access::IOAccess > r1;
 

@@ -71,25 +71,18 @@ int main()
         rg::ResourceEnqueuePolicy
     > mgr;
 
-    using TaskID = typename decltype(mgr)::TaskID;
-    using TaskPtr = typename decltype(mgr)::TaskPtr;
+    auto default_scheduler = rg::scheduler::make_default_scheduler( mgr, 8 /* number of threads */);
 
-    auto tag_match = std::make_shared< rg::scheduler::TagMatch< TaskID, TaskPtr > >();
-    auto cuda_scheduler = std::make_shared< rg::helpers::cuda::CudaScheduler< TaskID, TaskPtr > >( 8 /* number of cuda streams */ );
-    tag_match->add_scheduler(
-        std::bitset<64>(),
-        std::make_shared< rg::scheduler::DefaultScheduler< TaskID, TaskPtr > >(8 /* number of cpu threads */)
-    );
-    tag_match->add_scheduler(
-        std::bitset<64>().set( SCHED_CUDA ),
-	cuda_scheduler
-    );
-
+    auto cuda_scheduler = rg::helpers::cuda::make_cuda_scheduler( mgr, 8 /* number of cuda streams */ );
     rg::thread::idle =
         [cuda_scheduler]
         {
 	    cuda_scheduler->poll();
 	};
+
+    auto tag_match = rg::scheduler::make_tag_match_scheduler( mgr );
+    tag_match->add_scheduler( std::bitset<64>(), default_scheduler );
+    tag_match->add_scheduler( std::bitset<64>().set( SCHED_CUDA ), cuda_scheduler );
 
     mgr.set_scheduler( tag_match );
 

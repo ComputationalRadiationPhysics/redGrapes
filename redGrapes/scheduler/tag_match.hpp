@@ -9,6 +9,7 @@
 
 #include <bitset>
 #include <optional>
+#include <memory>
 #include <redGrapes/scheduler/scheduler.hpp>
 
 namespace redGrapes
@@ -66,7 +67,7 @@ struct TagMatch : IScheduler< TaskID, TaskPtr >
                 s
             });
     }
-    
+
     void init_mgr_callbacks(
         std::shared_ptr< redGrapes::SchedulingGraph< TaskID, TaskPtr > > scheduling_graph,
         std::function< bool ( TaskPtr ) > run_task,
@@ -120,6 +121,26 @@ struct TagMatch : IScheduler< TaskID, TaskPtr >
             throw std::runtime_error("no scheduler found for task");
     }
 };
+
+/*! Factory function to easily create a tag-match-scheduler object
+ */
+template <
+    typename Manager,
+    size_t T_tag_count = 64
+>
+auto make_tag_match_scheduler(
+    Manager & m
+)
+{
+    return std::make_shared<
+               TagMatch<
+                   typename Manager::TaskID,
+                   typename Manager::TaskPtr,
+                   T_tag_count
+               >
+           >();
+}
+
 
 } // namespace scheduler
 

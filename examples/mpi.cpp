@@ -56,24 +56,20 @@ int main()
         TaskProperties,
         rg::ResourceEnqueuePolicy
     > mgr;
-    using TaskID = typename decltype(mgr)::TaskID;
-    using TaskPtr = typename decltype(mgr)::TaskPtr;
 
-    auto tag_match = std::make_shared< rg::scheduler::TagMatch< TaskID, TaskPtr > >();
+    auto tag_match = rg::scheduler::make_tag_match_scheduler( mgr );
 
     /* Default Queue
      */
     tag_match->add_scheduler(
         std::bitset<64>(),
-        std::make_shared<
-            rg::scheduler::DefaultScheduler< TaskID, TaskPtr >
-        >()
+        rg::scheduler::make_default_scheduler( mgr )
     );
 
     /* MPI Queue
      */
     auto mpi_request_pool = std::make_shared< rg::helpers::mpi::RequestPool<decltype(mgr)> >( mgr );
-    auto mpi_queue = std::make_shared< rg::scheduler::FIFO< TaskID, TaskPtr > >();
+    auto mpi_queue = rg::scheduler::make_fifo_scheduler( mgr );
 
     // initialize main thread to execute tasks from the mpi-queue and poll
     rg::thread::idle =

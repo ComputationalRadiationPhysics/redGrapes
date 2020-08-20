@@ -13,6 +13,7 @@
 #include <queue>
 #include <optional>
 #include <functional>
+#include <memory>
 #include <redGrapes/scheduler/scheduler.hpp>
 #include <redGrapes/graph/scheduling_graph.hpp>
 #include <redGrapes/helpers/cuda/event_pool.hpp>
@@ -218,6 +219,29 @@ public:
         return a.get().cuda_flag;
     }
 };
+
+
+/*! Factory function to easily create a cuda-scheduler object
+ */
+template <
+    typename Manager
+>
+auto make_cuda_scheduler(
+    Manager & m,
+    size_t n_streams = 8,
+    bool graph_enabled = false
+)
+{
+    return std::make_shared<
+               CudaScheduler<
+                   typename Manager::TaskID,
+                   typename Manager::TaskPtr
+               >
+           >(
+               n_streams,
+               graph_enabled
+           );
+}
 
 } // namespace cuda
 

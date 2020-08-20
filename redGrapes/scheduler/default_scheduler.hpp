@@ -62,7 +62,6 @@ struct DefaultScheduler : public IScheduler< TaskID, TaskPtr >
         fifo->init_mgr_callbacks( scheduling_graph, run_task, activate_followers, remove_task );
     }
 
-    
     //! wakeup sleeping worker threads
     void notify()
     {
@@ -82,6 +81,24 @@ struct DefaultScheduler : public IScheduler< TaskID, TaskPtr >
         fifo->activate_task( task_ptr );
     }
 };
+
+/*! Factory function to easily create a default-scheduler object
+ */
+template <
+    typename Manager
+>
+auto make_default_scheduler(
+    Manager & m,
+    size_t n_threads = std::thread::hardware_concurrency()
+)
+{
+    return std::make_shared<
+               DefaultScheduler<
+                   typename Manager::TaskID,
+                   typename Manager::TaskPtr
+               >
+           >( n_threads );
+}
 
 } // namespace scheduler
 

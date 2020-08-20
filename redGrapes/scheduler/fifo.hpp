@@ -162,6 +162,24 @@ private:
     }
 };
 
+/*! Factory function to easily create a fifo-scheduler object
+ */
+template <
+    typename Manager
+>
+auto make_fifo_scheduler(
+    Manager & m
+)
+{
+    return std::make_shared<
+               FIFO<
+                   typename Manager::TaskID,
+                   typename Manager::TaskPtr
+               >
+           >();
+}
+
+
 } // namespace scheduler
 
 } // namespace redGrapes
