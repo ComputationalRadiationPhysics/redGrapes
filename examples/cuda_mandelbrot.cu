@@ -81,8 +81,8 @@ int main()
 	};
 
     auto tag_match = rg::scheduler::make_tag_match_scheduler( mgr );
-    tag_match->add_scheduler( std::bitset<64>(), default_scheduler );
-    tag_match->add_scheduler( std::bitset<64>().set( SCHED_CUDA ), cuda_scheduler );
+    tag_match->add_scheduler( {}, default_scheduler );
+    tag_match->add_scheduler( { SCHED_CUDA }, cuda_scheduler );
 
     mgr.set_scheduler( tag_match );
 

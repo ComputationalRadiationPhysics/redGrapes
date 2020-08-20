@@ -68,6 +68,17 @@ struct TagMatch : IScheduler< TaskID, TaskPtr >
             });
     }
 
+    void add_scheduler(
+        std::initializer_list< unsigned > tag_list,
+        std::shared_ptr< IScheduler< TaskID, TaskPtr > > s                       
+    )
+    {
+        std::bitset< T_tag_count > supported_tags;
+        for( auto tag : tag_list )
+            supported_tags.set( tag );
+        this->add_scheduler( supported_tags, s );
+    }
+    
     void init_mgr_callbacks(
         std::shared_ptr< redGrapes::SchedulingGraph< TaskID, TaskPtr > > scheduling_graph,
         std::function< bool ( TaskPtr ) > run_task,

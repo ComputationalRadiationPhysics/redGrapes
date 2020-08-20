@@ -61,10 +61,7 @@ int main()
 
     /* Default Queue
      */
-    tag_match->add_scheduler(
-        std::bitset<64>(),
-        rg::scheduler::make_default_scheduler( mgr )
-    );
+    tag_match->add_scheduler({}, rg::scheduler::make_default_scheduler( mgr ));
 
     /* MPI Queue
      */
@@ -79,10 +76,7 @@ int main()
             mpi_request_pool->poll();
         };
 
-    tag_match->add_scheduler(
-        std::bitset<64>().set( SCHED_MPI ),
-        mpi_queue
-    );
+    tag_match->add_scheduler({ SCHED_MPI }, mpi_queue);
 
     mgr.set_scheduler( tag_match );
 
