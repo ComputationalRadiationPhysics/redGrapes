@@ -43,7 +43,7 @@ struct CuplaStream
         >
     > events;
 
-    CuplaStream()
+    Cuplastream()
     {
         cuplaStreamCreate( &cupla_stream );
     }
@@ -97,12 +97,9 @@ struct CuplaStream
 
 struct CuplaTaskProperties
 {
-    bool cupla_flag;
     std::optional< cuplaEvent_t > cupla_event;
 
-    CuplaTaskProperties()
-        : cupla_flag( false )
-    {}
+    CuplaTaskProperties() {}
 
     template < typename PropertiesBuilder >
     struct Builder
@@ -112,12 +109,6 @@ struct CuplaTaskProperties
         Builder( PropertiesBuilder & b )
             : builder(b)
         {}
-
-        PropertiesBuilder cupla_task()
-        {
-            builder.prop.cupla_flag = true;
-            return builder;
-        }
     };
 
     struct Patch
@@ -128,6 +119,7 @@ struct CuplaTaskProperties
             Builder( PatchBuilder & ) {}
         };
     };
+
     void apply_patch( Patch const & ) {};
 };
 
@@ -144,11 +136,15 @@ private:
     unsigned int current_stream;
     std::vector< CuplaStream< TaskPtr > > streams;
 
+    std::function< bool(TaskPtr) > is_cupla_task;
+
 public:
     CuplaScheduler(
+        std::function< bool(TaskPtr) > is_cupla_task,
         size_t stream_count = 8,
         bool cupla_graph_enabled = false
     ) :
+        is_cupla_task( is_cupla_task ),
         streams( stream_count ),
         current_stream( 0 ),
         cupla_graph_enabled( cupla_graph_enabled )
@@ -184,13 +180,17 @@ public:
     void dispatch_task( TaskPtr task_ptr, TaskID task_id )
     {
         current_stream = ( current_stream + 1 ) % streams.size();
-
+        std::cout << "cupla task: " << task_id << " \""<< task_ptr.get().label <<"\", take stream" << current_stream << std::endl;
         for( auto predecessor_ptr : task_ptr.get_predecessors() )
             if( auto cupla_event = predecessor_ptr.get().cupla_event )
+            {
+                std::cout << "cupla task: " << task_id << " \""<< task_ptr.get().label <<"\", wait for " << *cupla_event << std::endl;
                 streams[current_stream].wait_event( *cupla_event );
+            }
 
         this->scheduling_graph->task_start( task_id );
         task_ptr.get().cupla_event = streams[ current_stream ].push( task_ptr );
+        std::cout << "cupla task: " << task_id << " \""<< task_ptr.get().label <<"\", event= " << *task_ptr.get().cupla_event << std::endl;
 
         this->activate_followers( task_ptr );
     }
@@ -203,6 +203,7 @@ public:
             if( auto task_ptr = streams[ stream_id ].poll() )
             {
                 auto task_id = task_ptr->locked_get().task_id;
+                std::cout << "cupla task: " << task_id << " done" << std::endl;
 
                 this->scheduling_graph->task_end( task_id );
                 this->activate_followers( *task_ptr );
@@ -213,8 +214,8 @@ public:
 
     bool task_dependency_type( TaskPtr a, TaskPtr b )
     {
-        assert( b.get().cupla_flag );
-        return a.get().cupla_flag;
+        assert( is_cupla_task( b ) );
+        return is_cupla_task( a );
     }
 };
 
@@ -226,6 +227,7 @@ template <
 >
 auto make_cupla_scheduler(
     Manager & m,
+    std::function< bool(typename Manager::TaskPtr) > is_cupla_task,
     size_t n_streams = 8,
     bool graph_enabled = false
 )
@@ -236,6 +238,7 @@ auto make_cupla_scheduler(
                    typename Manager::TaskPtr
                >
            >(
+               is_cupla_task,
                n_streams,
                graph_enabled
            );
