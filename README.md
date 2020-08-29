@@ -157,3 +157,6 @@ RedGrapes further depends on the following libraries:
 
 * [Boost Graph](https://www.boost.org/doc/libs/1_71_0/libs/graph/doc/)
 * [optional for C++14](https://github.com/akrzemi1/Optional) by [Andrzej Krzemienski](https://github.com/akrzemi1)
+* [termcolor](https://github.com/ikalnytskyi/termcolor) by [Ihor Kalnytskyi](https://github.com/ikalnytskyi)
+* [ostream_indenter](https://github.com/spacemoose/ostream_indenter) by [Spacemoose](https://github.com/spacemoose)
+* (Optionally for testing) [Catch2](https://github.com/catchorg/Catch2)
