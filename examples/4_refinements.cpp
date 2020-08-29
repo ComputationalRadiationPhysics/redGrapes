@@ -15,12 +15,13 @@
 #include <redGrapes/manager.hpp>
 
 using TaskProperties = redGrapes::TaskProperties<
-    redGrapes::ResourceProperty,
-    redGrapes::LabelProperty
+    redGrapes::LabelProperty,
+    redGrapes::ResourceProperty
 >;
 
 int main( int, char*[] )
 {
+    std::ios_base::sync_with_stdio(false);
     redGrapes::Manager<
         TaskProperties,
         redGrapes::ResourceEnqueuePolicy
@@ -35,7 +36,7 @@ int main( int, char*[] )
             int i = 0;
             for( auto t : mgr.backtrace() )
             {
-                std::cout << "f1 backtrace[" << i << "]: " << t.label << std::endl;
+                std::cout << "f1 backtrace[" << i << "]: " << std::endl << indent_manip::push << t << indent_manip::pop << std::endl;
                 i++;
             }
 
@@ -53,7 +54,7 @@ int main( int, char*[] )
                     int i = 0;
                     for( auto t : mgr.backtrace() )
                     {
-                        std::cout << "refinement 2 backtrace[" << i << "]: " << t.label << std::endl;
+                        std::cout << "refinement 2 backtrace[" << i << "]: " << std::endl << indent_manip::push << t << indent_manip::pop << std::endl;
                         i++;
                     }
                 },

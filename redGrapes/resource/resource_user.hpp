@@ -14,6 +14,9 @@
 #include <list>
 #include <redGrapes/resource/resource.hpp>
 
+#include <ostream_indenter/indent_facet.hpp>
+#include <termcolor/termcolor.hpp>
+
 namespace redGrapes
 {
 
@@ -67,10 +70,10 @@ class ResourceUser
 
     friend std::ostream& operator<<(std::ostream& out, ResourceUser const& r)
     {
-        out << "ResourceUser {" << std::endl;
+        out << termcolor::yellow << "Resources {" << termcolor::reset << std::endl << indent_manip::push;
         for( auto & access : r.access_list )
-            out << access << "," << std::endl; 
-	out << "}";
+            out << access << std::endl;
+	out << indent_manip::pop << termcolor::yellow << "}" << termcolor::reset;
 	return out;
     }
 }; // class ResourceUser

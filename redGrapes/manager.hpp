@@ -25,6 +25,9 @@
 
 #include <redGrapes/scheduler/default_scheduler.hpp>
 
+#include <ostream_indenter/indent_facet.hpp>
+#include <termcolor/termcolor.hpp>
+
 namespace redGrapes
 {
 
@@ -64,6 +67,18 @@ public:
             : T_TaskProperties( p )
             , task_id(gen_task_id())
         {}
+
+        friend std::ostream & operator<< ( std::ostream & out, TaskProperties const & prop )
+        {
+            out << termcolor::grey << termcolor::bold << "Task "
+                << termcolor::magenta << prop.task_id << termcolor::reset
+                << termcolor::grey << termcolor::bold << " {" << termcolor::reset << std::endl
+
+                << indent_manip::push << (T_TaskProperties&) prop << indent_manip::pop
+
+                << termcolor::grey << termcolor::bold << "}" << termcolor::reset << std::endl;
+            return out;
+        }
     };
 
     struct Task : TaskProperties

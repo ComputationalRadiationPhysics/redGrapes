@@ -18,9 +18,10 @@
 #include <iostream>
 #include <functional>
 
-
 #include <redGrapes/thread_local.hpp>
 #include <redGrapes/property/trait.hpp>
+
+#include <termcolor/termcolor.hpp>
 
 namespace redGrapes
 {
@@ -216,7 +217,7 @@ struct DefaultAccessPolicy
  * @class Resource
  * @tparam AccessPolicy Defines the access-modes (e.g. read/write) that are possible
  *                      with this resource. Required to implement the concept @ref AccessPolicy
- *                      
+ *
  * Represents a concrete resource.
  * Copied objects represent the same resource.
  */
@@ -271,8 +272,14 @@ protected:
 
         std::ostream& write(std::ostream& out)
         {
-            out << "Resource(" << this->resource.id << " [" << this->resource.scope_level << "])::";
-	    out << policy;
+            out << termcolor::magenta
+                << "Resource("
+                << termcolor::dark << termcolor::yellow << termcolor::bold << this->resource.id
+                << termcolor::reset << termcolor::yellow << termcolor::dark << " [scope=" << this->resource.scope_level << "]"
+                << termcolor::reset << termcolor::magenta << ")"
+                << termcolor::grey << termcolor::bold << "::" << termcolor::reset
+                << policy;
+
             return out;
         }
 

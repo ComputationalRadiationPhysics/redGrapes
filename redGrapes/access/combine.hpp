@@ -15,6 +15,9 @@
 #include <utility>
 #include <iostream>
 
+#include <ostream_indenter/indent_facet.hpp>
+#include <termcolor/termcolor.hpp>
+
 namespace redGrapes
 {
 namespace access
@@ -87,10 +90,11 @@ struct ArrayAccess : std::array<Access, N>
 
     friend std::ostream& operator<<(std::ostream& out, ArrayAccess<Access, N, Op> const& a)
     {
-        out << "ArrayAccess::{" << std::endl;
+        out << termcolor::italic << termcolor::cyan << "ArrayAccess"
+            << termcolor::reset << termcolor::cyan << " {" << std::endl << indent_manip::push;
 	for(std::size_t i = 0; i < N; ++i)
 	    out << a[i] << "," << std::endl;
-	out << "}";
+	out << indent_manip::pop << termcolor::cyan << "}" << termcolor::reset;
 	return out;
     }
 }; // struct ArrayAccess
@@ -153,10 +157,11 @@ struct CombineAccess : std::pair<Acc1, Acc2>
 
     friend std::ostream& operator<<(std::ostream& out, CombineAccess<Acc1, Acc2, Op> const& a)
     {
-        out << "CombineAccess::{" << std::endl;
-	out << a.first << ";" << std::endl;
-	out << a.second << ";" << std::endl;
-	out << "}";
+        out << termcolor::italic << termcolor::cyan << "CombineAccess"
+            << termcolor::reset << termcolor::cyan << " {" << std::endl << indent_manip::push;
+	out << a.first << std::endl;
+	out << a.second << std::endl;
+	out << indent_manip::pop << termcolor::cyan << "}" << termcolor::reset;
 	return out;
     }
 }; // struct CombineAccess

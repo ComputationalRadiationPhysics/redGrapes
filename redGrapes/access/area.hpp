@@ -15,6 +15,8 @@
 #include <array>
 #include <iostream>
 
+#include <termcolor/termcolor.hpp>
+
 namespace redGrapes
 {
 namespace access
@@ -59,7 +61,9 @@ struct AreaAccess : std::array<size_t, 2>
 
     friend std::ostream& operator<<(std::ostream& out, AreaAccess const& a)
     {
-        out << "AreaAccess::[" << a[0] << ", " << a[1] << "]";
+        out << termcolor::italic << termcolor::cyan << "AreaAccess"
+            << termcolor::reset << termcolor::grey << termcolor::bold << "::"
+            << termcolor::reset << "[" << a[0] << ", " << a[1] << "]";
 	return out;
     }
 }; // struct AreaAccess

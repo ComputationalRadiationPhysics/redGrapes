@@ -1,4 +1,4 @@
-/* Copyright 2019 Michael Sippel
+/* Copyright 2019-2020 Michael Sippel
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -56,6 +56,13 @@ struct TaskPropertiesInherit
         T_Head::apply_patch( patch );
         TaskPropertiesInherit< T_Tail ... >::apply_patch( patch );
     }
+
+    friend std::ostream & operator<< ( std::ostream & out, TaskPropertiesInherit const & p )
+    {
+        out << ( (T_Head &) p ) << std::endl
+            << ( (TaskPropertiesInherit< T_Tail ... > &) p );
+        return out;
+    }
 };
 
 struct PropEnd_t {};
@@ -77,7 +84,12 @@ struct TaskPropertiesInherit< PropEnd_t >
             Builder( PatchBuilder & ) {}
         };        
     };
+
     void apply_patch( Patch const & ) {}
+
+    friend std::ostream & operator<< ( std::ostream & out, TaskPropertiesInherit const & p )
+    {
+    }
 };
 
 template < typename... Policies >

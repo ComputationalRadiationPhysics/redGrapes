@@ -15,6 +15,8 @@
 #include <redGrapes/access/dependency_manager.hpp>
 #include <iostream>
 
+#include <termcolor/termcolor.hpp>
+
 namespace redGrapes
 {
 namespace access
@@ -62,15 +64,16 @@ struct IOAccess
 
     friend std::ostream& operator<<(std::ostream& out, IOAccess const& a)
     {
-        out << "IOAccess::";
+        out  << termcolor::italic << termcolor::cyan << "IOAccess" << termcolor::reset << termcolor::grey << termcolor::bold << "::";
 	switch(a.mode)
 	{
-            case root: out << "Root"; break;
-            case read: out << "Read"; break;
-            case write: out << "Write"; break;
-            case aadd: out << "AtomicAdd"; break;
-            case amul: out << "AtomicMul"; break;
+            case root: out << termcolor::red << "Root"; break;
+            case read: out << termcolor::green << "Read"; break;
+            case write: out << termcolor::red << "Write"; break;
+            case aadd: out << termcolor::yellow << "AtomicAdd"; break;
+            case amul: out << termcolor::yellow << "AtomicMul"; break;
 	}
+        out << termcolor::reset;
 	return out;
     }
 

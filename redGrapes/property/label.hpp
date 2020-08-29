@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include <termcolor/termcolor.hpp>
+
 namespace redGrapes
 {
 
@@ -42,7 +44,14 @@ struct LabelProperty
             Builder( PatchBuilder & ) {}
         };
     };
+
     void apply_patch( Patch const & ) {};
+
+    friend std::ostream & operator<< ( std::ostream & out, LabelProperty const & prop )
+    {
+        out << termcolor::white << termcolor::bold << prop.label << termcolor::reset;
+        return out;
+    }
 };
 
 } // namespace redGrapes

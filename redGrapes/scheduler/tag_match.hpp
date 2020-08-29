@@ -17,7 +17,7 @@ namespace redGrapes
 namespace scheduler
 {
 
-template < std::size_t T_tag_count = 64 >
+template < typename Tag, std::size_t T_tag_count = 64 >
 struct SchedulingTagProperties
 {
     std::bitset< T_tag_count > required_scheduler_tags;
@@ -45,6 +45,28 @@ struct SchedulingTagProperties
             return builder;
         }
     };
+
+    friend std::ostream & operator<< ( std::ostream & out, SchedulingTagProperties const & prop )
+    {
+        out << termcolor::blue << "SchedulingTags { ";
+        bool first = true;
+
+        for( int i = 0; i < T_tag_count; ++i )
+        {
+            if( prop.required_scheduler_tags.test(i) )
+            {
+                if( ! first )
+                    out << ", ";
+
+                first = false;
+                out << termcolor::blue << termcolor::bold
+                    << (Tag)i
+                    << termcolor::reset << termcolor::blue;
+            }
+        }
+        out << " }" << termcolor::reset;
+        return out;
+    }
 };
 
 template <
