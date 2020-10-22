@@ -325,7 +325,11 @@ public:
 
             auto & preceding_task_id = preceding_task_ptr.get().task_id;
 
-            if( task_events.count( preceding_task_id ) )
+            if(
+                task_events.count( preceding_task_id ) &&
+                events.count( task_events[ preceding_task_id ].post_event ) &&
+                !events[ task_events[ preceding_task_id ].post_event ].is_reached()
+            )
             {
                 EventID preceding_event_id =
                     task_dependency_type( preceding_task_ptr, task_ptr ) ?
