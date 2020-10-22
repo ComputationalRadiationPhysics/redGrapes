@@ -43,7 +43,7 @@ struct CuplaStream
         >
     > events;
 
-    Cuplastream()
+    CuplaStream()
     {
         cuplaStreamCreate( &cupla_stream );
     }
