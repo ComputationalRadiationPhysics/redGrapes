@@ -28,6 +28,8 @@
 #include <ostream_indenter/indent_facet.hpp>
 #include <termcolor/termcolor.hpp>
 
+#include <spdlog/spdlog.h>
+
 namespace redGrapes
 {
 
@@ -50,8 +52,10 @@ public:
     {
         static TaskID id = 0;
         static std::mutex m;
+
         std::unique_lock<std::mutex> l(m);
-        return id++;
+        TaskID i = ++id;
+        return i;
     }
 
     struct TaskPtr;
@@ -239,7 +243,7 @@ public:
             scheduling_graph,
             [this] ( TaskPtr task_ptr ) { return run_task( task_ptr ); },
             [this] ( TaskPtr task_ptr ) { activate_followers( task_ptr ); },
-            [this] ( TaskPtr task_ptr ) { remove_task( task_ptr ); }        
+            [this] ( TaskPtr task_ptr ) { remove_task( task_ptr ); }
         );
     }
 
@@ -284,6 +288,7 @@ public:
             builder
         );
 
+        spdlog::debug("emplace_task {}: {}", task.task_id, task.label);
         this->push( std::move( task ) );
 
         return make_working_future( std::move(future), *this, result_event );
@@ -336,6 +341,9 @@ public:
         auto tl = task_ptr.graph->unique_lock();
         auto impl = task_ptr.get().impl;
         auto task_id = task_ptr.get().task_id;
+
+        spdlog::info("run task {} \"{}\"", task_id, task_ptr.get().label);
+
         tl.unlock();
 
         current_task() = task_ptr;
@@ -348,6 +356,11 @@ public:
     void activate_followers( TaskPtr task_ptr )
     {
         auto graph_lock = task_ptr.graph->shared_lock();
+        spdlog::debug(
+            "activate followers of task {} \"{}\"",
+            task_ptr.get().task_id,
+            task_ptr.get().label );
+
         for(
             auto edge_it = boost::out_edges( task_ptr.vertex, task_ptr.graph->graph() );
             edge_it.first != edge_it.second;
@@ -360,6 +373,8 @@ public:
                     task_ptr.graph->graph()
                 );
 
+            auto p = TaskPtr{ task_ptr.graph, target_vertex };
+            spdlog::debug("activate follower: {} \"{}\"", p.get().task_id, p.get().label);
             scheduler->activate_task( TaskPtr{ task_ptr.graph, target_vertex } );
         }
 
@@ -371,6 +386,7 @@ public:
     void remove_task( TaskPtr task_ptr )
     {
         auto graph_lock = task_ptr.graph->unique_lock();
+        spdlog::info("mgr: remove task {}", task_ptr.get().task_id);
         auto task_id = task_ptr.get().task_id;
         task_ptr.graph->finish( task_ptr.vertex );
         graph_lock.unlock();
@@ -464,6 +480,7 @@ public:
             if( current_task() )
             {
                 auto & task = current_task()->locked_get();
+                spdlog::trace("pause task {}", task.task_id);
                 scheduling_graph->task_pause( task.task_id, event_id );
                 task.impl->yield();
             }

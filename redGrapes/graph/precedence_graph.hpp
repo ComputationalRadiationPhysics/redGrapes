@@ -23,6 +23,8 @@
 #include <redGrapes/graph/recursive_graph.hpp>
 #include <iostream>
 
+#include <spdlog/spdlog.h>
+
 namespace redGrapes
 {
 
@@ -164,7 +166,10 @@ class QueuedPrecedenceGraph
             if (it != this->queue.end())
                 this->queue.erase(it);
             else
+            {
+                spdlog::error("QueuedPrecedenceGraph: removed vertex {} which is not in queue", vertex);
                 throw std::runtime_error("Queuedprecedencegraph: removed element not in queue");
+            }
         }
 
 private:

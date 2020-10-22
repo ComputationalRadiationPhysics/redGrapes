@@ -64,7 +64,7 @@ public:
             if( finished )
             {
                 this->scheduling_graph->task_end( task_id );
-                this->activate_followers( *task_ptr );
+                //this->activate_followers( *task_ptr );
             }
 
             {
@@ -140,10 +140,12 @@ private:
                  */
                 if( this->scheduling_graph->is_task_finished( task_id ) )
                 {
+                    spdlog::trace("fifo::update(): task {} finished", task_id);
                     active_tasks.erase( active_tasks.begin() + i );
                     -- i;
 
                     l.unlock();
+                    this->activate_followers( task_ptr );
                     this->remove_task( task_ptr );
                     l.lock();
                 }

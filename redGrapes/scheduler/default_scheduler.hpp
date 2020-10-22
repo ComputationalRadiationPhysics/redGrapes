@@ -65,6 +65,7 @@ struct DefaultScheduler : public IScheduler< TaskID, TaskPtr >
     //! wakeup sleeping worker threads
     void notify()
     {
+        spdlog::trace("scheduler notify");
         {
             std::unique_lock< std::mutex > l( m );
             wait.clear();

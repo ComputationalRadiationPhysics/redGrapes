@@ -48,8 +48,13 @@ public:
             while( consume() );
 
             std::unique_lock< std::mutex > l( m );
+            spdlog::trace("Worker waiting..");
             cv.wait( l, [this]{ return !wait.test_and_set(); } );
+
+            spdlog::trace("Worker continued.");
         }
+
+        spdlog::trace("Worker Finished!");
     }
 
     void notify()

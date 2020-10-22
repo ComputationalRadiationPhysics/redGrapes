@@ -10,6 +10,7 @@
 #include <mutex>
 #include <cassert>
 #include <redGrapes/graph/precedence_graph.hpp>
+#include <spdlog/spdlog.h>
 
 namespace redGrapes
 {
@@ -111,6 +112,8 @@ private:
         assert( events.count( a ) );
         assert( events.count( b ) );
 
+        spdlog::trace("sg: add edge event {} -> event {}", a, b);
+        
         events[ a ].followers.push_back( b );
         events[ b ].up();
     }
@@ -135,6 +138,7 @@ private:
      */
     bool notify_event( EventID id )
     {
+        spdlog::trace("notify event {}", id);
         assert( events.count( id ) );
 
         if( events[ id ].is_reached() )
@@ -145,6 +149,8 @@ private:
                 notify_event( follower );
             }
 
+            spdlog::trace("sg: remove event {}", id);
+            
             events.erase( id );
 
             return true;
@@ -222,6 +228,8 @@ public:
     {
         std::unique_lock< std::mutex > lock( mutex );
 
+        spdlog::trace("reach event {}", event_id);
+
         assert( events.count( event_id ) );
         events[ event_id ].down();
 
@@ -259,6 +267,8 @@ public:
     {
         assert( is_task_ready( task_id ) );
 
+        spdlog::debug("sg: task start {}", task_id);
+
         std::lock_guard< std::mutex > lock( mutex );
         if( events.count( task_events[ task_id ].pre_event ) )
             notify_event( task_events[ task_id ].pre_event );
@@ -268,6 +278,7 @@ public:
     void task_end( TaskID task_id )
     {
         std::lock_guard< std::mutex > lock( mutex );
+        spdlog::debug("sg: task end {}", task_id);
 
         assert( task_events.count( task_id ) );
 
@@ -288,6 +299,7 @@ public:
         assert( is_task_finished( task_id ) );
 
         std::lock_guard< std::mutex > lock( mutex );
+        spdlog::debug("sg: remove task {}", task_id);
         task_events.erase( task_id );
     }
 
@@ -310,6 +322,8 @@ public:
         task_events[ task.task_id ].pre_event = make_event();
         task_events[ task.task_id ].post_event = make_event();
 
+        spdlog::trace("sg: add task {}: pre={}, post={}", task.task_id, task_events[task.task_id].pre_event, task_events[task.task_id].post_event);
+
         // add dependencies to tasks which precede the new one
         for(
             auto it = boost::in_edges( task_ptr.vertex, task_ptr.graph->graph() );
@@ -324,6 +338,7 @@ public:
             };
 
             auto & preceding_task_id = preceding_task_ptr.get().task_id;
+            spdlog::trace("sg: preceding task {}", preceding_task_id);
 
             if(
                 task_events.count( preceding_task_id ) &&
@@ -331,6 +346,13 @@ public:
                 !events[ task_events[ preceding_task_id ].post_event ].is_reached()
             )
             {
+                spdlog::debug(
+                   "sg: task {} -> task {}: dependency type {}",
+                   preceding_task_id,
+                   task.task_id,
+                   task_dependency_type( preceding_task_ptr, task_ptr )
+                );
+
                 EventID preceding_event_id =
                     task_dependency_type( preceding_task_ptr, task_ptr ) ?
                         task_events[ preceding_task_id ].pre_event
