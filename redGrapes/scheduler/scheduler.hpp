@@ -16,6 +16,8 @@ namespace redGrapes
 namespace scheduler
 {
 
+/*! Scheduler Interface
+ */
 template <
     typename TaskID,
     typename TaskPtr
@@ -24,6 +26,10 @@ struct IScheduler
 {
     virtual ~IScheduler() {}
 
+    /*! called by Manager on initialization.
+     * The Scheduler cannot hold a reference to the Manager since the type is not known,
+     * so all needed functions are passed as function objects
+     */
     virtual void init_mgr_callbacks(
         std::shared_ptr< redGrapes::SchedulingGraph< TaskID, TaskPtr > > scheduling_graph,
         std::function< bool ( TaskPtr ) > run_task,
@@ -31,13 +37,21 @@ struct IScheduler
         std::function< void ( TaskPtr ) > remove_task
     ) = 0;
 
+    /*! whats the task dependency type for the edge a -> b (task a precedes task b)
+     * @return true if task b depends on the pre event of task a, false if task b depends on the post event of task b.
+     */
     virtual bool task_dependency_type( TaskPtr a, TaskPtr b )
     {
         return false;
     }
 
+    /*! Tell the scheduler to consider dispatching a task.
+     */
     virtual void activate_task( TaskPtr task_ptr ) = 0;
 
+    /*! Notify the scheduler that the scheduling graph has changed.
+     * The scheduler should now reconsider activated tasks which were not ready before
+     */
     virtual void notify() {}
 };
 

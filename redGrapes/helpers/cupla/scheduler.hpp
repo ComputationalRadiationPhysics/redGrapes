@@ -53,7 +53,6 @@ struct CuplaStream
 
     ~CuplaStream()
     {
-        spdlog::debug("destroy cupla stream {}", cupla_stream);
         cuplaStreamDestroy( cupla_stream );
     }
 
@@ -178,9 +177,8 @@ public:
 
         std::unique_lock< std::mutex > lock( mutex );
         
-        auto ready = this->scheduling_graph->is_task_ready( task_id );
         if(
-            ready &&
+            this->scheduling_graph->is_task_ready( task_id ) &&
             ! task_ptr.get().cupla_event
         )
         {
@@ -198,10 +196,6 @@ public:
             }
             else
                 dispatch_task( lock, task_ptr, task_id );
-        }
-        else
-        {
-            spdlog::trace("CuplaScheduler: task {} not dispatched: ready={}, cupla_event={}", task_id, ready, task_ptr.get().cupla_event ? "exists" : "no" );
         }
     }
 

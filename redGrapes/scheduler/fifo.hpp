@@ -181,7 +181,6 @@ auto make_fifo_scheduler(
            >();
 }
 
-
 } // namespace scheduler
 
 } // namespace redGrapes

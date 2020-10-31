@@ -28,6 +28,8 @@
 namespace redGrapes
 {
 
+/*! EnqueuePolicy where all vertices are connected
+ */
 struct AllSequential
 {
     template <typename ID>
@@ -38,6 +40,8 @@ struct AllSequential
     }
 };
 
+/*! EnqueuePolicy where no vertex has edges
+ */
 struct AllParallel
 {
     template <typename ID>
@@ -48,7 +52,7 @@ struct AllParallel
     }
 };
 
-/**
+/*!
  * Base class
  */
 template <
@@ -60,7 +64,8 @@ class PrecedenceGraph : public RecursiveGraph<T, Graph>
     public:
         using typename RecursiveGraph<T, Graph>::VertexID;
 
-        /// remove edges which don't satisfy the precedence policy
+        /*! remove edges which don't satisfy the precedence policy
+         */
         auto remove_out_edges(VertexID vertex, std::function<bool(T const&)> const & pred)
         {
             std::vector<VertexID> vertices;
@@ -80,9 +85,13 @@ class PrecedenceGraph : public RecursiveGraph<T, Graph>
         }
 }; // class PrecedenceGraph
 
-/**
- * Precedence-graph generated from a queue
- * using an enqueue-policy
+
+/*! Specialized precedence-graph that is constructed from a queue and an EnqueuePolicy.
+ *
+ * Vertices are added in a specific order (via the push() method).
+ * On insertion, the new vertex is compared against all previously
+ * inserted vertices. The EnqueuePolicy then decides, to which previously
+ * created vertex an edge is created.
  */
 template<
     typename T,
@@ -104,6 +113,8 @@ class QueuedPrecedenceGraph
             this->parent_vertex = parent_vertex;
         }
 
+        /*! Add vertex to the graph according to the EnqueuePolicy
+         */
         auto push(T a)
         {
             if( auto graph = this->parent_graph.lock() )
@@ -152,11 +163,15 @@ class QueuedPrecedenceGraph
             return v;
         }
 
+        /*! Update all outgoing edges of a vertex
+         */
         auto update_vertex(VertexID a)
         {
             return this->remove_out_edges(a, [this,a](T const & b){ return !EnqueuePolicy::is_serial(graph_get(a, this->graph()).first, b); } );
 	}
 
+        /*! Remove vertex from graph including all its edges
+         */
         void finish(VertexID vertex)
         {
             boost::clear_vertex( vertex, this->graph() );

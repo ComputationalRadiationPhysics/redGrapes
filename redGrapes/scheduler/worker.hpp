@@ -16,14 +16,28 @@ namespace redGrapes
 namespace scheduler
 {
 
+/*! Worker Interface
+ */
 struct IWorker
 {
     virtual ~IWorker() {};
+
+    /*! Start a loop consuming work until stop() is called.
+     */
     virtual void work() = 0;
+
+    /*! Notify worker about potentially new work.
+     * Wakes up worker thread if it was suspended previously.
+     */
     virtual void notify() = 0;
+
+    /*! Causes work() to return.
+     */
     virtual void stop() = 0;
 };
 
+/*! Worker that sleeps when no work is available.
+ */
 struct DefaultWorker : IWorker
 {
 private:
@@ -36,6 +50,10 @@ private:
     std::function< bool () > consume;
 
 public:
+    /*!
+     * @param consume function that executes a task if possible and returns
+     *                if any work is left
+     */
     DefaultWorker( std::function< bool () > consume ) :
         m_stop( false ),
         consume( consume )
@@ -73,6 +91,10 @@ public:
     }
 };
 
+/*! Creates a thread which runs the work() function of Worker.
+ *
+ * @tparam Worker must satisfy the IWorker concept/interface
+ */
 template < typename Worker = DefaultWorker >
 struct WorkerThread
 {
@@ -84,6 +106,10 @@ struct WorkerThread
         thread(
             [this]
             {
+                /* since we are in a worker, there should always
+                 * be a task running and therefore a yield() should
+                 * always do a context-switch instead of idling
+                 */
                 redGrapes::thread::idle =
                     [this]
                     {

@@ -5,7 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-/**
+/*!
  * @file redGrapes/working_future.hpp
  */
 #pragma once
@@ -15,7 +15,7 @@
 namespace redGrapes
 {
 
-/**
+/*!
  * Wrapper for std::future which consumes jobs
  * instead of waiting in get()
  */
@@ -29,7 +29,7 @@ struct WorkingFuture : std::future<T>
         : std::future<T>(std::move(future)), mgr(mgr), result_event( result_event )
     {}
 
-    /**
+    /*!
      * yields until the task has a valid result
      * and retrieves it.
      *
@@ -41,7 +41,7 @@ struct WorkingFuture : std::future<T>
         return this->std::future<T>::get();
     }
 
-    /** check if the result is already computed
+    /*! check if the result is already computed
      */
     bool is_ready(void) const
     {

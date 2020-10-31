@@ -107,7 +107,7 @@ struct TagMatch : IScheduler< TaskID, TaskPtr >
             supported_tags.set( tag );
         this->add_scheduler( supported_tags, s );
     }
-    
+
     void init_mgr_callbacks(
         std::shared_ptr< redGrapes::SchedulingGraph< TaskID, TaskPtr > > scheduling_graph,
         std::function< bool ( TaskPtr ) > run_task,
