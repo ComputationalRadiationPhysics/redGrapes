@@ -236,6 +236,9 @@ public:
         return scheduler;
     }
 
+    /*! Initialize the scheduler to work with this manager.
+     * Must be called at initialization before any call to `emplace_task`.
+     */
     void set_scheduler( std::shared_ptr< scheduler::IScheduler< TaskID, TaskPtr > > scheduler )
     {
         this->scheduler = scheduler;
@@ -250,9 +253,40 @@ public:
     /*! create a new task, as child of the currently running task (if there is one)
      *
      * @param f callable that takes "proprty-building" objects as args
+     * @param args are forwarded to f after the each arg added its
+     *             properties to the task
+     *
+     * For the argument-types can a trait be implemented which
+     * defines a hook to add task properties depending the the
+     * argument.
+     *
+     * @return future from f's result
+     */
+    template <
+        typename Callable,
+        typename... Args
+    >
+    auto emplace_task(
+        Callable && f,
+        Args&&... args
+    )
+    {
+        typename TaskProperties::Builder builder;
+        return emplace_task( f, builder, std::forward<Args>(args)... );
+    }
+
+    /*! create a new task, as child of the currently running task (if there is one)
+     *
+     * @param f callable that takes "proprty-building" objects as args
      * @param builder used sequentially by property-builders of each arg
      * @param args are forwarded to f after the each arg added its
      *             properties to the task
+     *
+     * Firstly the task properties get initialized through
+     * the builder-object.
+     * Secondly, for the argument-types can a trait be implemented which
+     * defines a hook to add further task properties depending the the
+     * argument.
      *
      * @return future from f's result
      */
@@ -291,24 +325,18 @@ public:
         spdlog::debug("emplace_task {}: {}", task.task_id, task.label);
         this->push( std::move( task ) );
 
+        this->push_task( std::move( task ) );
+
         return make_working_future( std::move(future), *this, result_event );
     }
 
-    template <
-        typename Callable,
-        typename... Args
-    >
-    auto emplace_task(
-        Callable && f,
-        Args&&... args
-    )
-    {
-        typename TaskProperties::Builder builder;
-        return emplace_task( f, builder, std::forward<Args>(args)... );
-    }
-
-    //! enqueue a child of the current task
-    TaskPtr push( Task && task )
+    /*! Enqueue a task object into the precedence graph of
+     *  the currently running parent task (or the root graph
+     *  if there is no parent).
+     *
+     * @return Wrapper object for accessing task information
+     */
+    TaskPtr push_task( Task && task )
     {
         if( auto parent = current_task() )
         {
@@ -336,13 +364,17 @@ public:
         return task_ptr;
     }
 
+    /*! Start the execution of a task.
+     *
+     * @return true if the task finished, false if it was paused.
+     */
     bool run_task( TaskPtr task_ptr )
     {
         auto tl = task_ptr.graph->unique_lock();
         auto impl = task_ptr.get().impl;
         auto task_id = task_ptr.get().task_id;
 
-        spdlog::info("run task {} \"{}\"", task_id, task_ptr.get().label);
+        spdlog::debug( "run task {}", task_id );
 
         tl.unlock();
 
@@ -353,13 +385,11 @@ public:
         return finished;
     }
 
+    //! tell the scheduler to look at all tasks following the given one.
     void activate_followers( TaskPtr task_ptr )
     {
         auto graph_lock = task_ptr.graph->shared_lock();
-        spdlog::debug(
-            "activate followers of task {} \"{}\"",
-            task_ptr.get().task_id,
-            task_ptr.get().label );
+        spdlog::debug( "activate followers of task {}", task_ptr.get().task_id );
 
         for(
             auto edge_it = boost::out_edges( task_ptr.vertex, task_ptr.graph->graph() );
@@ -374,7 +404,6 @@ public:
                 );
 
             auto p = TaskPtr{ task_ptr.graph, target_vertex };
-            spdlog::debug("activate follower: {} \"{}\"", p.get().task_id, p.get().label);
             scheduler->activate_task( TaskPtr{ task_ptr.graph, target_vertex } );
         }
 
@@ -394,8 +423,11 @@ public:
         scheduling_graph->remove_task( task_id );
     }
 
+    /*! Get the TaskID of the currently running task.
+     * @return nullopt if there is no task running currently.
+     */
     std::experimental::optional< TaskID >
-    get_current_task_id( void )
+    get_current_task_id( )
     {
         if( current_task() )
             return current_task()->locked_get().task_id;
@@ -403,13 +435,19 @@ public:
             return std::experimental::nullopt;
     }
 
+    //! flag the state of the event & update
     void reach_event( EventID event_id )
     {
         scheduling_graph->reach_event( event_id );
         scheduler->notify();
     }
 
-    //! create an event on which the termination of the current task depends
+    /*! Create an event on which the termination of the current task depends.
+     *  A task must currently be running.
+     *
+     * @return Handle to flag the event with `reach_event` later.
+     *         nullopt if there is no task running currently
+     */
     std::optional< EventID >
     create_event()
     {
@@ -480,7 +518,7 @@ public:
             if( current_task() )
             {
                 auto & task = current_task()->locked_get();
-                spdlog::trace("pause task {}", task.task_id);
+                spdlog::trace( "pause task {}", task.task_id );
                 scheduling_graph->task_pause( task.task_id, event_id );
                 task.impl->yield();
             }
