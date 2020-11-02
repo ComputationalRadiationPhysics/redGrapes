@@ -45,28 +45,6 @@ struct SchedulingTagProperties
             return builder;
         }
     };
-
-    friend std::ostream & operator<< ( std::ostream & out, SchedulingTagProperties const & prop )
-    {
-        out << termcolor::blue << "SchedulingTags { ";
-        bool first = true;
-
-        for( int i = 0; i < T_tag_count; ++i )
-        {
-            if( prop.required_scheduler_tags.test(i) )
-            {
-                if( ! first )
-                    out << ", ";
-
-                first = false;
-                out << termcolor::blue << termcolor::bold
-                    << (Tag)i
-                    << termcolor::reset << termcolor::blue;
-            }
-        }
-        out << " }" << termcolor::reset;
-        return out;
-    }
 };
 
 template <
@@ -204,4 +182,42 @@ auto make_tag_match_scheduler(
 } // namespace scheduler
 
 } // namespace redGrapes
+
+template < typename Tag, std::size_t T_tag_count >
+struct fmt::formatter<
+    redGrapes::scheduler::SchedulingTagProperties< Tag, T_tag_count >
+>
+{
+    constexpr auto parse( format_parse_context& ctx )
+    {
+        return ctx.begin();
+    }
+
+    template < typename FormatContext >
+    auto format(
+        redGrapes::scheduler::SchedulingTagProperties< Tag, T_tag_count > const & prop,
+        FormatContext & ctx
+    )
+    {
+        auto out = ctx.out();
+
+        out = fmt::format_to( out, "\"schedulingTags\" : [" );
+
+        bool first = true;
+        for( int i = 0; i < T_tag_count; ++i )
+        {
+            if( prop.required_scheduler_tags.test(i) )
+            {
+                if( ! first )
+                    out = format_to( out, ", " );
+
+                first = false;
+                out = format_to( out, "{}", (Tag) i );
+            }
+        }
+
+        out = fmt::format_to( out, "]" );
+        return out;
+    }
+};
 

@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include <termcolor/termcolor.hpp>
+#include <fmt/format.h>
 
 namespace redGrapes
 {
@@ -46,12 +46,29 @@ struct LabelProperty
     };
 
     void apply_patch( Patch const & ) {};
-
-    friend std::ostream & operator<< ( std::ostream & out, LabelProperty const & prop )
-    {
-        out << termcolor::white << termcolor::bold << prop.label << termcolor::reset;
-        return out;
-    }
 };
 
 } // namespace redGrapes
+
+template <>
+struct fmt::formatter< redGrapes::LabelProperty >
+{
+    constexpr auto parse( format_parse_context& ctx )
+    {
+        return ctx.begin();
+    }
+
+    template < typename FormatContext >
+    auto format(
+        redGrapes::LabelProperty const & label_prop,
+        FormatContext & ctx
+    )
+    {
+        return format_to(
+                   ctx.out(),
+                   "\"label\" : \"{}\"",
+                   label_prop.label
+               );
+    }
+};
+

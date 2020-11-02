@@ -35,13 +35,35 @@ struct MPIConfig
     int world_size;
 };
 
+enum SchedulerTags { SCHED_MPI };
+
+template <>
+struct fmt::formatter< SchedulerTags >
+{
+    constexpr auto parse( format_parse_context& ctx )
+    {
+        return ctx.begin();
+    }
+
+    template < typename FormatContext >
+    auto format(
+        SchedulerTags const & tag,
+        FormatContext & ctx
+    )
+    {
+        switch(tag)
+        {
+        case SCHED_MPI: return fmt::format_to(ctx.out(), "\"MPI\"");
+        default: return fmt::format_to(ctx.out(), "\"undefined\"");
+        }
+    }
+};
+
 using TaskProperties =
     rg::TaskProperties<
         rg::ResourceProperty,
-        rg::scheduler::SchedulingTagProperties< 64 >
+        rg::scheduler::SchedulingTagProperties< SchedulerTags >
     >;
-
-enum SchedulerTags { SCHED_MPI };
 
 int main()
 {
@@ -51,11 +73,13 @@ int main()
     assert( prov == MPI_THREAD_MULTIPLE );
     */
     MPI_Init( nullptr, nullptr );
-
+    
     rg::Manager<
         TaskProperties,
         rg::ResourceEnqueuePolicy
     > mgr;
+
+    spdlog::set_level(spdlog::level::debug);
 
     auto default_scheduler = rg::scheduler::make_default_scheduler( mgr );
     auto mpi_scheduler = rg::helpers::mpi::make_mpi_scheduler( mgr, TaskProperties::Builder().scheduling_tags({ SCHED_MPI }) );

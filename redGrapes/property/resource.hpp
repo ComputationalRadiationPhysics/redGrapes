@@ -13,7 +13,8 @@
 
 #include <stdexcept>
 #include <cstdarg>
-#include <sstream>
+#include <fmt/format.h>
+#include <spdlog/spdlog.h>
 #include <redGrapes/resource/resource_user.hpp>
 
 namespace redGrapes
@@ -125,19 +126,40 @@ struct ResourceEnqueuePolicy
     {
         return redGrapes::ResourceUser::is_serial( a, b );
     }
+
     static void assert_superset(ResourceProperty const & super, ResourceProperty const & sub)
     {
         if(! redGrapes::ResourceUser::is_superset( super, sub ))
         {
-            std::stringstream stream;
-            stream << "Not allowed: " << std::endl
-		   << super << std::endl
-		   << "is no superset of " << std::endl
-	           << sub << std::endl;
-
-            throw std::runtime_error(stream.str());
+            auto msg = fmt::format("Not allowed: {} is no superset of {}\n", super, sub);
+            spdlog::error(msg);
+            throw std::runtime_error(msg);
         }
     }
 };
 
 } // namespace redGrapes
+
+
+template <>
+struct fmt::formatter< redGrapes::ResourceProperty >
+{
+    constexpr auto parse( format_parse_context& ctx )
+    {
+        return ctx.begin();
+    }
+
+    template < typename FormatContext >
+    auto format(
+        redGrapes::ResourceProperty const & label_prop,
+        FormatContext & ctx
+    )
+    {
+        return format_to(
+                   ctx.out(),
+                   "\"resources\" : {}",
+                   ( redGrapes::ResourceUser const & ) label_prop
+               );
+    }
+};
+

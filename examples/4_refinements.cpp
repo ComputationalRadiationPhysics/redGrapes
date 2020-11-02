@@ -21,7 +21,6 @@ using TaskProperties = redGrapes::TaskProperties<
 
 int main( int, char*[] )
 {
-    std::ios_base::sync_with_stdio(false);
     redGrapes::Manager<
         TaskProperties,
         redGrapes::ResourceEnqueuePolicy
@@ -36,25 +35,25 @@ int main( int, char*[] )
             int i = 0;
             for( auto t : mgr.backtrace() )
             {
-                std::cout << "f1 backtrace[" << i << "]: " << std::endl << indent_manip::push << t << indent_manip::pop << std::endl;
+                fmt::print("refinement 1 backtrace [{}]: {}\n", i, (TaskProperties const&)t);
                 i++;
             }
 
             mgr.emplace_task(
                 []{
-                    std::cout << "Refinement 1" << std::endl;
+                    fmt::print("Refinement 1\n");
                     std::this_thread::sleep_for( std::chrono::seconds(1) );
                 });
 
             mgr.emplace_task(
                 [&mgr]{
-                    std::cout << "Refinement 2" << std::endl;
+                    fmt::print("Refinement 2\n");
                     std::this_thread::sleep_for( std::chrono::seconds(1) );
 
                     int i = 0;
                     for( auto t : mgr.backtrace() )
                     {
-                        std::cout << "refinement 2 backtrace[" << i << "]: " << std::endl << indent_manip::push << t << indent_manip::pop << std::endl;
+                        fmt::print("refinement 2 backtrace [{}]: {}\n", i, (TaskProperties const&)t);
                         i++;
                     }
                 },

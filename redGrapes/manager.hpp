@@ -25,10 +25,9 @@
 
 #include <redGrapes/scheduler/default_scheduler.hpp>
 
-#include <ostream_indenter/indent_facet.hpp>
-#include <termcolor/termcolor.hpp>
-
 #include <spdlog/spdlog.h>
+
+#include <sstream>
 
 namespace redGrapes
 {
@@ -47,6 +46,7 @@ template <
 class Manager
 {
 public:
+    // TODO: move ID into a TaskProperty - policy
     using TaskID = unsigned int;
     static TaskID gen_task_id()
     {
@@ -71,20 +71,8 @@ public:
             : T_TaskProperties( p )
             , task_id(gen_task_id())
         {}
-
-        friend std::ostream & operator<< ( std::ostream & out, TaskProperties const & prop )
-        {
-            out << termcolor::grey << termcolor::bold << "Task "
-                << termcolor::magenta << prop.task_id << termcolor::reset
-                << termcolor::grey << termcolor::bold << " {" << termcolor::reset << std::endl
-
-                << indent_manip::push << (T_TaskProperties&) prop << indent_manip::pop
-
-                << termcolor::grey << termcolor::bold << "}" << termcolor::reset << std::endl;
-            return out;
-        }
     };
-
+    
     struct Task : TaskProperties
     {
         std::shared_ptr< TaskImplBase > impl;
@@ -96,7 +84,8 @@ public:
         {}
     };
 
-    using PrecedenceGraph = QueuedPrecedenceGraph<Task, EnqueuePolicy>;
+    // TODO: make EnqueuePolicy a dynamic interface
+    using PrecedenceGraph = QueuedPrecedenceGraph< Task, EnqueuePolicy >;
 
     struct WeakTaskPtr
     {
@@ -223,7 +212,7 @@ public:
                   }))
     {}
 
-    ~Manager()
+    ~Manager( )
     {
         while( ! scheduling_graph->empty() )
             redGrapes::thread::idle();
@@ -322,8 +311,7 @@ public:
             builder
         );
 
-        spdlog::debug("emplace_task {}: {}", task.task_id, task.label);
-        this->push( std::move( task ) );
+        spdlog::debug( "emplace_task {}\n", (TT_TaskProperties const&)task );
 
         this->push_task( std::move( task ) );
 
@@ -370,7 +358,7 @@ public:
      */
     bool run_task( TaskPtr task_ptr )
     {
-        auto tl = task_ptr.graph->unique_lock();
+        auto tl = task_ptr.graph->unique_lock(); // use shared_lock ??
         auto impl = task_ptr.get().impl;
         auto task_id = task_ptr.get().task_id;
 
@@ -415,7 +403,7 @@ public:
     void remove_task( TaskPtr task_ptr )
     {
         auto graph_lock = task_ptr.graph->unique_lock();
-        spdlog::info("mgr: remove task {}", task_ptr.get().task_id);
+        spdlog::debug("mgr: remove task {}", task_ptr.get().task_id);
         auto task_id = task_ptr.get().task_id;
         task_ptr.graph->finish( task_ptr.vertex );
         graph_lock.unlock();
@@ -554,3 +542,4 @@ public:
 };
 
 } // namespace redGrapes
+
