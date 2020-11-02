@@ -11,7 +11,7 @@
 
 static auto & mgr()
 {
-    static redGrapes::Manager<> m( 1 /* number of threads */ );
+    static redGrapes::Manager<> m;
     return m;
 }
 
@@ -27,6 +27,9 @@ auto square (int x)
 
 int main()
 {
+    auto scheduler = redGrapes::scheduler::make_default_scheduler( mgr(),  2 /* number of threads */ );
+    mgr().set_scheduler( scheduler );
+
     std::cout << "square(2) = " << square(2).get() << std::endl;
 
     return 0;

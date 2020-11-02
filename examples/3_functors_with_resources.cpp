@@ -21,7 +21,8 @@ int main(void)
     redGrapes::Manager<
         Properties,
         redGrapes::ResourceEnqueuePolicy
-    > mgr( 4 );
+    > mgr;
+    mgr.set_scheduler( redGrapes::scheduler::make_default_scheduler( mgr ) );
 
     redGrapes::IOResource<int> a, b;
 

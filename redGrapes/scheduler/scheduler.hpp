@@ -1,4 +1,4 @@
-/* Copyright 2019 Michael Sippel
+/* Copyright 2020 Michael Sippel
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -7,96 +7,81 @@
 
 #pragma once
 
-#include <unordered_map>
-#include <boost/graph/adjacency_list.hpp>
-#include <boost/graph/graph_traits.hpp>
-#include <akrzemi/optional.hpp>
+#include <functional>
+#include <memory>
 #include <redGrapes/graph/scheduling_graph.hpp>
-#include <redGrapes/graph/util.hpp>
-
-#include <vector>
 
 namespace redGrapes
 {
+namespace scheduler
+{
+
+/*! Scheduler Interface
+ */
+template <
+    typename TaskID,
+    typename TaskPtr
+>
+struct IScheduler
+{
+    virtual ~IScheduler() {}
+
+    /*! called by Manager on initialization.
+     * The Scheduler cannot hold a reference to the Manager since the type is not known,
+     * so all needed functions are passed as function objects
+     */
+    virtual void init_mgr_callbacks(
+        std::shared_ptr< redGrapes::SchedulingGraph< TaskID, TaskPtr > > scheduling_graph,
+        std::function< bool ( TaskPtr ) > run_task,
+        std::function< void ( TaskPtr ) > activate_followers,
+        std::function< void ( TaskPtr ) > remove_task
+    ) = 0;
+
+    /*! whats the task dependency type for the edge a -> b (task a precedes task b)
+     * @return true if task b depends on the pre event of task a, false if task b depends on the post event of task b.
+     */
+    virtual bool task_dependency_type( TaskPtr a, TaskPtr b )
+    {
+        return false;
+    }
+
+    /*! Tell the scheduler to consider dispatching a task.
+     */
+    virtual void activate_task( TaskPtr task_ptr ) = 0;
+
+    /*! Notify the scheduler that the scheduling graph has changed.
+     * The scheduler should now reconsider activated tasks which were not ready before
+     */
+    virtual void notify() {}
+};
 
 template <
     typename TaskID,
-    typename TaskPtr,
-    typename PrecedenceGraph
+    typename TaskPtr
 >
-struct SchedulerBase
+struct SchedulerBase : IScheduler< TaskID, TaskPtr >
 {
-    struct Job
+    void init_mgr_callbacks(
+        std::shared_ptr< redGrapes::SchedulingGraph< TaskID, TaskPtr > > scheduling_graph,
+        std::function< bool ( TaskPtr ) > run_task,
+        std::function< void ( TaskPtr ) > activate_followers,
+        std::function< void ( TaskPtr ) > remove_task
+    )
     {
-        std::shared_ptr< TaskImplBase > f;
-        TaskPtr task_ptr;
-
-        void operator() ()
-        {
-            (*f)();
-        }
-    };
-
-    using EventID = typename SchedulingGraph< TaskID, TaskPtr >::EventID;
-
-    std::shared_ptr< PrecedenceGraph > precedence_graph;
-    SchedulingGraph< TaskID, TaskPtr > scheduling_graph;
-    std::vector< ThreadSchedule<Job> > schedule;
-
-    std::atomic_flag uptodate;
-    std::atomic_bool finishing;
-
-    SchedulerBase( std::shared_ptr<PrecedenceGraph> precedence_graph, size_t n_threads )
-        : precedence_graph( precedence_graph )
-        , schedule( n_threads + 1 )
-        , finishing( false )
-    {
-        uptodate.clear();
+        this->scheduling_graph = scheduling_graph;
+        this->run_task = run_task;
+        this->activate_followers = activate_followers;
+        this->remove_task = remove_task;
     }
 
-    void notify()
-    {
-        uptodate.clear();
-        for( auto & thread : schedule )
-            thread.notify();
-    }
-
-    void finish()
-    {
-        finishing = true;
-        notify();
-    }
-
-    void update_vertex( TaskPtr p )
-    {
-        scheduling_graph.update_vertex( p );
-        notify();
-    }
-
-    void reach_event( EventID event_id )
-    {
-        scheduling_graph.finish_event( event_id );
-        notify();
-    }
-
-    void operator() ( std::function<bool()> const & pred = []{ return false; } )
-    {
-        auto l = thread::scope_level;
-        while( !pred() && !( finishing && scheduling_graph.empty() ) )
-            schedule[ thread::id ].consume( [this, pred]{ return (finishing && scheduling_graph.empty()) || pred(); } );
-        thread::scope_level = l;
-    }
-
-    std::experimental::optional<TaskPtr> get_current_task()
-    {
-        if( thread::id >= schedule.size() )
-            return std::experimental::nullopt;
-
-        if( std::experimental::optional<Job> job = schedule[ thread::id ].get_current_job() )
-            return std::experimental::optional<TaskPtr>( job->task_ptr );
-        else
-            return std::experimental::nullopt;
-    }
+protected:
+    std::shared_ptr< redGrapes::SchedulingGraph< TaskID, TaskPtr > > scheduling_graph;
+    std::function< bool ( TaskPtr ) > run_task;
+    std::function< void ( TaskPtr ) > activate_followers;
+    std::function< void ( TaskPtr ) > remove_task;
 };
 
+} // namespace scheduler
+
 } // namespace redGrapes
+

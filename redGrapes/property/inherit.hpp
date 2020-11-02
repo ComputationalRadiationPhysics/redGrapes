@@ -1,4 +1,4 @@
-/* Copyright 2019 Michael Sippel
+/* Copyright 2019-2020 Michael Sippel
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include <type_traits>
+#include <fmt/format.h>
 #include <redGrapes/property/trait.hpp>
 
 namespace redGrapes
@@ -77,7 +79,12 @@ struct TaskPropertiesInherit< PropEnd_t >
             Builder( PatchBuilder & ) {}
         };        
     };
+
     void apply_patch( Patch const & ) {}
+
+    friend std::ostream & operator<< ( std::ostream & out, TaskPropertiesInherit const & p )
+    {
+    }
 };
 
 template < typename... Policies >
@@ -93,12 +100,16 @@ struct TaskProperties
             : TaskPropertiesInherit< Policies..., PropEnd_t >::template Builder< Builder >( *this )
         {}
 
+        Builder( TaskProperties const & prop )
+            : TaskPropertiesInherit< Policies..., PropEnd_t >::template Builder< Builder >( *this )
+            , prop(prop)
+        {}
+
         Builder( Builder const & b )
             : prop( b.prop )
             , TaskPropertiesInherit< Policies..., PropEnd_t >::template Builder< Builder >( *this )
         {}
 
-        
         template < typename T >
         void add( T const & obj )
         {
@@ -141,4 +152,106 @@ struct TaskProperties
     }
 };
 
+} // namespace redGrapes
+
+template <>
+struct fmt::formatter<
+    redGrapes::TaskPropertiesInherit< redGrapes::PropEnd_t >
+>
+{
+    constexpr auto parse( format_parse_context& ctx )
+    {
+        return ctx.begin();
+    }
+    
+    template < typename FormatContext >
+    auto format(
+        redGrapes::TaskPropertiesInherit< redGrapes::PropEnd_t > const & prop,
+        FormatContext & ctx
+    )
+    {
+        return ctx.out();
+    }
 };
+
+template <
+    typename T_Head
+>
+struct fmt::formatter<
+    redGrapes::TaskPropertiesInherit< T_Head, redGrapes::PropEnd_t >
+>
+{
+    constexpr auto parse( format_parse_context& ctx )
+    {
+        return ctx.begin();
+    }
+
+    template < typename FormatContext >
+    auto format(
+        redGrapes::TaskPropertiesInherit< T_Head, redGrapes::PropEnd_t > const & prop,
+        FormatContext & ctx
+    )
+    {
+        return fmt::format_to(
+                   ctx.out(),
+                   "{}",
+                   (T_Head const &) prop
+               );
+    }
+};
+
+template <
+    typename T_Head,
+    typename... T_Tail
+>
+struct fmt::formatter<
+    redGrapes::TaskPropertiesInherit< T_Head, T_Tail... >
+>
+{
+    constexpr auto parse( format_parse_context& ctx )
+    {
+        return ctx.begin();
+    }
+
+    template < typename FormatContext >
+    auto format(
+        redGrapes::TaskPropertiesInherit< T_Head, T_Tail... > const & prop,
+        FormatContext & ctx
+    )
+    {
+        return fmt::format_to(
+                   ctx.out(),
+                   "{}, {}",
+                   (T_Head const &) prop,
+                   (redGrapes::TaskPropertiesInherit< T_Tail... > const &) prop
+               );
+    }
+
+};
+
+template <
+    typename... Policies
+>
+struct fmt::formatter<
+    redGrapes::TaskProperties< Policies... >
+>
+{
+    constexpr auto parse( format_parse_context& ctx )
+    {
+        return ctx.begin();
+    }
+
+    template < typename FormatContext >
+    auto format(
+        redGrapes::TaskProperties< Policies... > const & prop,
+        FormatContext & ctx
+    )
+    {
+        return fmt::format_to(
+                   ctx.out(),
+                   "{{ {} }}",
+                   ( typename redGrapes::TaskPropertiesInherit< Policies..., redGrapes::PropEnd_t > const & ) prop
+               );
+    }
+};
+

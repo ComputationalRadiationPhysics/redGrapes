@@ -1,4 +1,4 @@
-/* Copyright 2019 Michael Sippel
+/* Copyright 2019-2020 Michael Sippel
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -8,205 +8,150 @@
 #pragma once
 
 #include <mutex>
-#include <condition_variable>
-#include <boost/graph/adjacency_list.hpp>
-#include <redGrapes/graph/recursive_graph.hpp>
+#include <cassert>
 #include <redGrapes/graph/precedence_graph.hpp>
-#include <redGrapes/graph/util.hpp>
-#include <redGrapes/task/task.hpp>
-
-#include <redGrapes/thread/thread_schedule.hpp>
-#include <redGrapes/thread/thread_dispatcher.hpp>
+#include <spdlog/spdlog.h>
 
 namespace redGrapes
 {
 
+/*!
+ * Manages a flat, non-recursive graph of events.
+ * An event is the abstraction of the programs execution state.
+ * During runtime, each thread encounters a sequence of events.
+ * The goal is to synchronize these events in the manner
+ * "Event A must occur before Event B".
+ *
+ * Multiple events need to be related, so that they
+ * form a partial order (i.e. an antisymmetric quasiorder).
+ * This order is an homomorphic image from the timeline of
+ * execution states.
+ *
+ *
+ * Each task is represented by at least two events:
+ * A Pre-Event and a Post-Event.
+   \verbatim
+                     +------+
+   >>> /  Pre- \ >>> | Task | >>> / Post- \ >>>
+       \ Event /     +------+     \ Event /
+
+   \endverbatim
+ *
+ * Data-dependencies between tasks are assured by
+ * edges from post-events to pre-events.
+ *
+ * Child-tasks are inserted, so that the child tasks post-event
+ * precedes the parent tasks post-event.
+ */
 template <
     typename TaskID,
-    typename TaskPtr,
-    typename EventGraph =
-        boost::adjacency_list<
-            boost::listS,
-            boost::listS,
-            boost::bidirectionalS
-        >
+    typename TaskPtr
 >
 class SchedulingGraph
 {
 public:
-    using EventID = typename boost::graph_traits< EventGraph >::vertex_descriptor;
+    using EventID = unsigned int;
 
+private:
     struct Event
     {
-    private:
-        std::mutex mutex;
-        std::condition_variable cv;
-        bool state;
+        /*! number of incoming edges
+         * state == 0: event is reached and can be removed
+         */
+        unsigned int state;
 
-    public:
-        bool ready;
-        TaskID task_id;
-        std::atomic_int n_waiting;
+        //! the set of subsequent events
+        std::vector< EventID > followers;
 
         Event()
-            : state( false )
-            , ready( false )
-            , n_waiting( 0 )
+            // every event needs at least one down() before it will be removed
+            : state( 1 )
         {}
 
-        auto lock()
-        {
-            return std::unique_lock< std::mutex >( mutex );
-        }
+        bool is_reached() { return state == 0; }
+        void up() { state += 1; }
+        void down() { state -= 1; }
+    };
 
-        void notify()
-        {
-            if( ready )
-            {
-                {
-                    auto l = lock();
-                    state = true;
-                }
-                cv.notify_all();
-            }
-        }
-
-        void wait()
-        {
-            auto l = lock();
-            ++ n_waiting;
-            cv.wait( l, [this]{ return state; } );
-            -- n_waiting;
-        }
+    struct TaskEvents
+    {
+        EventID pre_event;
+        EventID post_event;
     };
 
     std::mutex mutex;
-    EventGraph m_graph;
+    EventID event_id_counter;
     std::unordered_map< EventID, Event > events;
-    std::unordered_map< TaskID , EventID > before_events;
-    std::unordered_map< TaskID , EventID > after_events;
+    std::unordered_map< TaskID , TaskEvents > task_events;
 
-    bool empty()
+    /*!
+     * Create a new event (with no dependencies)
+     *
+     * Not thread safe!
+     */
+    EventID make_event()
     {
-        std::lock_guard< std::mutex > lock( mutex );
-        return boost::num_vertices( m_graph ) == 0;
-    }
+        EventID event_id = event_id_counter ++;
 
-    EventID add_post_dependency( TaskID task_id )
-    {
-        std::lock_guard< std::mutex > lock( mutex );
-        EventID id = make_event( task_id );
+        events.emplace(
+            std::piecewise_construct,
+            std::forward_as_tuple(event_id),
+            std::forward_as_tuple()
+        );
 
-        boost::add_edge( id, after_events[ task_id ], m_graph );
-
-        return id;
-    }
-
-    bool is_task_finished( TaskID task_id )
-    {
-        std::lock_guard< std::mutex > lock( mutex );
-        return after_events.count(task_id) == 0;
-    }
-
-    void add_task( TaskPtr task_ptr )
-    {
-        auto & task = task_ptr.get();
-
-        std::experimental::optional< TaskID > parent_id;
-        if( task.parent )
-            parent_id =  task.parent->locked_get().task_id;
-
-        std::unique_lock< std::mutex > lock( mutex );
-        EventID pre_event = make_event( task.task_id );
-        EventID post_event = make_event( task.task_id );
-        before_events[ task.task_id ] = pre_event;
-        after_events[ task.task_id ] = post_event;
-
-        task.hook_before([this, pre_event] { if( !finish_event( pre_event ) ) events[pre_event].wait(); });
-        task.hook_after([this, post_event]{ finish_event( post_event ); });
-
-        for(
-            auto it = boost::in_edges( task_ptr.vertex, task_ptr.graph->graph() );
-            it.first != it.second;
-            ++ it.first
-        )
-        {
-            auto & preceding_task = graph_get( boost::source( *(it.first), task_ptr.graph->graph() ), task_ptr.graph->graph() ).first;
-            if( after_events.count(preceding_task.task_id) )
-                boost::add_edge( after_events[ preceding_task.task_id ], pre_event, m_graph );
-        }
-
-        if( parent_id )
-        {
-            if( after_events.count( *parent_id ) )
-                boost::add_edge( post_event, after_events[ *parent_id ], m_graph );
-            else
-                throw std::runtime_error("parent post-event doesn't exist!");
-        }
-    }
-
-    auto update_vertex( TaskPtr const & task_ptr )
-    {
-        auto lock = task_ptr.graph->unique_lock();
-        auto vertices = task_ptr.graph->update_vertex( task_ptr.vertex );
-        auto task_id = task_ptr.get().task_id;
-
-        {
-            std::lock_guard< std::mutex > lock( mutex );
-            for( auto v : vertices )
-            {
-                auto other_task_id = graph_get(v, task_ptr.graph->graph()).first.task_id;
-                boost::remove_edge( after_events[task_id], before_events[other_task_id], m_graph );
-            }
-
-            for( auto v : vertices )
-            {
-                auto other_task_id = graph_get(v, task_ptr.graph->graph()).first.task_id;
-                notify_event( before_events[ other_task_id ] );
-            }
-        }
-
-        return vertices;
-    }
-
-    EventID make_event( TaskID task_id )
-    {
-        EventID event_id = boost::add_vertex( m_graph );
-        events.emplace( std::piecewise_construct, std::forward_as_tuple(event_id), std::forward_as_tuple() );
-        events[event_id].task_id = task_id;
         return event_id;
     }
 
-    void remove_event( EventID id )
+    /*!
+     * Event a precedes event b
+     *
+     * Not thread safe!
+     */
+    void add_edge( EventID a, EventID b )
     {
-        TaskID task_id = events[id].task_id;
-        boost::clear_vertex( id, m_graph );
-        boost::remove_vertex( id, m_graph );
-        events.erase( id );
+        assert( events.count( a ) );
+        assert( events.count( b ) );
 
-        if( before_events.count(task_id) && before_events[task_id] == id )
-            before_events.erase( task_id );
-        if( after_events.count(task_id) && after_events[task_id] == id )
-            after_events.erase( task_id );
+        spdlog::trace("sg: add edge event {} -> event {}", a, b);
+        
+        events[ a ].followers.push_back( b );
+        events[ b ].up();
     }
 
+    /*
+     * not thread safe
+     */
+    void remove_edge( EventID a, EventID b )
+    {
+        assert( events.count( a ) );
+        assert( events.count( b ) );
+
+        auto & fs = events[ a ].followers;
+        fs.erase(
+            std::find( std::begin(fs), std::end(fs), b )
+        );
+        events[ b ].down();
+    }
+
+    /*
+     * not thread safe!
+     */
     bool notify_event( EventID id )
     {
-        if( events[id].ready && boost::in_degree( id, m_graph ) == 0 )
+        spdlog::trace("notify event {}", id);
+        assert( events.count( id ) );
+
+        if( events[ id ].is_reached() )
         {
-            events[ id ].notify();
+            for( auto & follower : events[ id ].followers )
+            {
+                events[ follower ].down();
+                notify_event( follower );
+            }
 
-            // collect events to propagate to before to not invalidate the iterators in recursion
-            std::vector< EventID > out;
-            for( auto it = boost::out_edges( id, m_graph ); it.first != it.second; it.first++ )
-                out.push_back( boost::target( *it.first, m_graph ) );
-
-            while( events[id].n_waiting != 0 );
-            remove_event( id );
-
-            // propagate
-            for( EventID e : out )
-                notify_event( e );
+            spdlog::trace("sg: remove event {}", id);
+            
+            events.erase( id );
 
             return true;
         }
@@ -214,13 +159,266 @@ public:
             return false;
     }
 
-    bool finish_event( EventID id )
+    std::function< bool( TaskPtr, TaskPtr ) > task_dependency_type;
+
+public:
+    /*
+     * It can be configured, how task dependencies are represented in the scheduling graph
+     * using the dependency_event_type function. This is useful for representing asynchronous
+     * tasks whose dependencies are managed externally, e.g. asynchronous CUDA operations.
+     * In the case of CUDA, the pre-event of a task can be used to represent the submission
+     * of the asynchronous call.
+     *
+     * @param task_dependency_type function to determine whether to take the preceding tasks
+     *                             pre- or post-event as dependency. By returning true, an edge
+     *                             to the preceding tasks pre-event is added. By default, false
+     *                             is returned, meaning an edge to the post-event.
+     */
+    SchedulingGraph(
+        std::function< bool ( TaskPtr, TaskPtr ) >
+        task_dependency_type
+            = [] ( TaskPtr, TaskPtr )
+              {
+                  return false;
+              }
+    ) :
+        task_dependency_type( task_dependency_type ),
+        event_id_counter( 0 )
+    {}
+
+    //! are all events reached?
+    bool empty()
+    {
+        std::lock_guard< std::mutex > lock( mutex );
+        return events.size() == 0;
+    }
+
+    //! checks whether an event is reached
+    bool is_event_reached( EventID event_id )
+    {
+        std::lock_guard< std::mutex > lock( mutex );
+
+        if( events.count( event_id ) )
+            return events[ event_id ].is_reached();
+        else
+            return true;
+    }
+
+    //! create a new event without dependencies
+    EventID new_event()
+    {
+        std::lock_guard< std::mutex > lock( mutex );
+        return make_event( );
+    }
+
+    //! creates a new event which precedes the tasks post-event
+    EventID add_post_dependency( TaskID task_id )
+    {
+        std::lock_guard< std::mutex > lock( mutex );
+        assert( task_events.count( task_id ) );
+
+        EventID event_id = make_event();
+        add_edge( event_id, task_events[ task_id ].post_event );
+
+        return event_id;
+    }
+
+    //! remove the initial dependency on this event
+    bool reach_event( EventID event_id )
     {
         std::unique_lock< std::mutex > lock( mutex );
-        events[ id ].ready = true;
 
-        return notify_event( id );
+        spdlog::trace("reach event {}", event_id);
+
+        assert( events.count( event_id ) );
+        events[ event_id ].down();
+
+        return notify_event( event_id );
     }
+
+    //! checks whether the tasks pre-event is already reached
+    bool is_task_ready( TaskID task_id )
+    {
+        std::lock_guard< std::mutex > lock( mutex );
+
+        assert( task_events.count( task_id ) );
+
+        auto event_id = task_events[ task_id ].pre_event;
+        if( events.count( event_id ) )
+            return events[ event_id ].is_reached();
+        else
+            return true;
+    }
+
+    //! checks whether the tasks post-event is already reached
+    bool is_task_finished( TaskID task_id )
+    {
+        std::lock_guard< std::mutex > lock( mutex );
+
+        if( task_events.count( task_id ) )
+            if( events.count( task_events[ task_id ].post_event ) )
+                return events[ task_events[ task_id ].post_event ].is_reached();
+
+        return true;
+    }
+
+    //! notify the tasks pre-event
+    void task_start( TaskID task_id )
+    {
+        assert( is_task_ready( task_id ) );
+
+        spdlog::debug("sg: task start {}", task_id);
+
+        std::lock_guard< std::mutex > lock( mutex );
+        if( events.count( task_events[ task_id ].pre_event ) )
+            notify_event( task_events[ task_id ].pre_event );
+    }
+
+    //! notify the tasks post-event
+    void task_end( TaskID task_id )
+    {
+        std::lock_guard< std::mutex > lock( mutex );
+        spdlog::debug("sg: task end {}", task_id);
+
+        assert( task_events.count( task_id ) );
+
+        EventID event_id = task_events[ task_id ].post_event;
+        events[ event_id ].down();
+        notify_event( event_id );
+    }
+
+    //! pause the task until event_id is reached
+    void task_pause( TaskID task_id, EventID event_id )
+    {
+        std::lock_guard< std::mutex > lock( mutex );
+        task_events[ task_id ].pre_event = event_id;
+    }
+
+    void remove_task( TaskID task_id )
+    {
+        assert( is_task_finished( task_id ) );
+
+        std::lock_guard< std::mutex > lock( mutex );
+        spdlog::debug("sg: remove task {}", task_id);
+        task_events.erase( task_id );
+    }
+
+    /*!
+     * Insert a new task and add the same dependencies as in the precedence graph.
+     * Note that tasks must be added in order, since only preceding tasks are considered!
+     *
+     * The precedence graph containing the task is assumed to be locked.
+     */
+    void add_task( TaskPtr task_ptr )
+    {
+        auto & task = task_ptr.get();
+
+        std::experimental::optional< TaskID > parent_id;
+        if( task.parent )
+            parent_id = task.parent->locked_get().task_id;
+
+        // create new events for the task
+        std::unique_lock< std::mutex > lock( mutex );
+        task_events[ task.task_id ].pre_event = make_event();
+        task_events[ task.task_id ].post_event = make_event();
+
+        spdlog::trace("sg: add task {}: pre={}, post={}", task.task_id, task_events[task.task_id].pre_event, task_events[task.task_id].post_event);
+
+        // add dependencies to tasks which precede the new one
+        for(
+            auto it = boost::in_edges( task_ptr.vertex, task_ptr.graph->graph() );
+            it.first != it.second;
+            ++ it.first
+        )
+        {
+            TaskPtr preceding_task_ptr
+            {
+                task_ptr.graph,
+                boost::source( *(it.first), task_ptr.graph->graph() )
+            };
+
+            auto & preceding_task_id = preceding_task_ptr.get().task_id;
+            spdlog::trace("sg: preceding task {}", preceding_task_id);
+
+            if(
+                task_events.count( preceding_task_id ) &&
+                events.count( task_events[ preceding_task_id ].post_event ) &&
+                !events[ task_events[ preceding_task_id ].post_event ].is_reached()
+            )
+            {
+                spdlog::debug(
+                   "sg: task {} -> task {}: dependency type {}",
+                   preceding_task_id,
+                   task.task_id,
+                   task_dependency_type( preceding_task_ptr, task_ptr )
+                );
+
+                EventID preceding_event_id =
+                    task_dependency_type( preceding_task_ptr, task_ptr ) ?
+                        task_events[ preceding_task_id ].pre_event
+                    :
+                        task_events[ preceding_task_id ].post_event;
+                
+                if( events.count( preceding_event_id ) )
+                    add_edge(
+                        preceding_event_id,
+                        task_events[ task.task_id ].pre_event
+                    );
+            }
+        }
+
+        // add dependency to parent
+        if( parent_id )
+        {
+            assert( task_events.count( *parent_id ) );
+            assert( events.count( task_events[ *parent_id ].post_event ) );
+            add_edge(
+                task_events[ task.task_id ].post_event,
+                task_events[ *parent_id ].post_event
+            );
+        }
+        // else: task has no parent
+
+        events[ task_events[ task.task_id ].pre_event ].down();
+    }
+
+    /*! remove revoked dependencies (e.g. after access demotion)
+     *
+     * @param task_ptr the demoted task
+     * @param followers set of tasks following task_ptr
+     *                  whose dependency on it got removed
+     *
+     * The precedence graph containing task_ptr is assumed to be locked.
+     */
+    void update_task(
+        TaskPtr const & task_ptr,
+        std::vector< TaskPtr > const & followers
+    )
+    {
+        auto task_id = task_ptr.get().task_id;
+
+        {
+            std::lock_guard< std::mutex > lock( mutex );
+
+            for( auto other_task_ptr : followers )
+            {
+                auto other_task_id = other_task_ptr.get().task_id;
+
+                if( ! task_dependency_type( task_ptr, other_task_ptr ) )
+                {
+                    remove_edge(
+                        task_events[ task_id ].post_event,
+                        task_events[ other_task_id ].pre_event
+                    );
+
+                    notify_event( task_events[ other_task_id ].pre_event );                    
+                }
+                // else: the pre-event of task_ptr's task shouldn't exist at this point, so we do nothing
+            }
+        }
+    }
+
 }; // class SchedulingGraph
     
 } // namespace redGrapes
+

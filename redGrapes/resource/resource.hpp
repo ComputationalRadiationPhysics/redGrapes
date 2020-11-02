@@ -18,8 +18,10 @@
 #include <iostream>
 #include <functional>
 
-#include <redGrapes/thread/thread_local.hpp>
+#include <redGrapes/thread_local.hpp>
 #include <redGrapes/property/trait.hpp>
+
+#include <fmt/format.h>
 
 namespace redGrapes
 {
@@ -88,7 +90,7 @@ class ResourceAccess
         virtual bool is_serial( AccessBase const & r ) const = 0;
         virtual bool is_superset_of( AccessBase const & r ) const = 0;
         virtual AccessBase * clone( void ) const = 0;
-        virtual std::ostream& write(std::ostream&) = 0;
+        virtual std::string mode_format() const = 0;
 
         boost::typeindex::type_index access_type;
         ResourceBase resource;
@@ -133,6 +135,16 @@ class ResourceAccess
         return this->obj->resource.scope_level;
     }
 
+    unsigned int resource_id() const
+    {
+        return this->obj->resource.id;
+    }
+
+    std::string mode_format() const
+    {
+        return this->obj->mode_format();
+    }
+
     /**
      * Check if the associated resource is the same
      *
@@ -153,11 +165,6 @@ class ResourceAccess
         if ( this->obj->access_type == a.obj->access_type )
             return *(this->obj) == *(a.obj);
         return false;
-    }
-
-    friend std::ostream& operator<<(std::ostream& out, ResourceAccess const & acc)
-    {
-        return acc.obj->write(out);
     }
 }; // class ResourceAccess
 
@@ -215,7 +222,7 @@ struct DefaultAccessPolicy
  * @class Resource
  * @tparam AccessPolicy Defines the access-modes (e.g. read/write) that are possible
  *                      with this resource. Required to implement the concept @ref AccessPolicy
- *                      
+ *
  * Represents a concrete resource.
  * Copied objects represent the same resource.
  */
@@ -268,11 +275,9 @@ protected:
             return new Access( this->resource, this->policy );
         }
 
-        std::ostream& write(std::ostream& out)
+        std::string mode_format() const
         {
-            out << "Resource(" << this->resource.id << " [" << this->resource.scope_level << "])::";
-	    out << policy;
-            return out;
+            return fmt::format("{}", policy);
         }
 
         AccessPolicy policy;
@@ -323,3 +328,29 @@ struct SharedResourceObject : Resource< AccessPolicy >
 }; // struct SharedResourceObject
 
 } // namespace redGrapes
+
+template <>
+struct fmt::formatter<
+    redGrapes::ResourceAccess
+>
+{
+    constexpr auto parse( format_parse_context& ctx )
+    {
+        return ctx.begin();
+    }
+
+    template < typename FormatContext >
+    auto format(
+        redGrapes::ResourceAccess const & acc,
+        FormatContext & ctx
+    )
+    {
+        return fmt::format_to(
+                   ctx.out(),
+                   "{{ \"resourceID\" : {}, \"scopeLevel\" : {}, \"mode\" : {} }}",
+                   acc.resource_id(),
+                   acc.scope_level(),
+                   acc.mode_format());
+    }
+};
+

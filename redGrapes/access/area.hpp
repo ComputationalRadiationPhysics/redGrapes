@@ -13,7 +13,7 @@
 
 #include <limits>
 #include <array>
-#include <iostream>
+#include <fmt/format.h>
 
 namespace redGrapes
 {
@@ -57,13 +57,34 @@ struct AreaAccess : std::array<size_t, 2>
         return (*this)[0] == other[0] && (*this)[1] == other[1];
     }
 
-    friend std::ostream& operator<<(std::ostream& out, AreaAccess const& a)
-    {
-        out << "AreaAccess::[" << a[0] << ", " << a[1] << "]";
-	return out;
-    }
 }; // struct AreaAccess
+
+
 
 } // namespace access
 
 } // namespace redGrapes
+
+template <>
+struct fmt::formatter< redGrapes::access::AreaAccess >
+{
+    constexpr auto parse( format_parse_context& ctx )
+    {
+        return ctx.begin();
+    }
+
+    template < typename FormatContext >
+    auto format(
+        redGrapes::access::AreaAccess const & acc,
+        FormatContext & ctx
+    )
+    {
+        return format_to(
+                   ctx.out(),
+                   "{{ \"area\" : {{ \"begin\" : {}, \"end\" : {} }} }}",
+                   acc[0],
+                   acc[1]
+               );
+    }
+};
+

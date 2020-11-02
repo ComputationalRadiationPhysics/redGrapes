@@ -48,6 +48,7 @@ int main( int, char * [] )
         TaskProperties,
         redGrapes::ResourceEnqueuePolicy
     > mgr;
+    mgr.set_scheduler( redGrapes::scheduler::make_default_scheduler( mgr ) );
 
     using Buffer =
         std::array<

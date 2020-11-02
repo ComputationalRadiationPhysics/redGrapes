@@ -36,8 +36,8 @@ using DefaultGraph =
         T
     >;
 
-/**
- * Boost-Graph adaptor storing a tree of subgraphs
+/*!
+ * Boost-Graph adapter storing a tree of subgraphs
  * which refine a node.
  * Every vertex of a refinement has an edge to the
  * refinements root node.
@@ -64,7 +64,7 @@ public:
         return std::unique_lock<std::shared_mutex>( mutex );
     }
 
-    /// get graph object
+    //! get graph object
     Graph & graph(void)
     {
         return this->m_graph;

@@ -14,6 +14,8 @@
 #include <list>
 #include <redGrapes/resource/resource.hpp>
 
+#include <fmt/format.h>
+
 namespace redGrapes
 {
 
@@ -61,18 +63,40 @@ class ResourceUser
         return a.is_superset_of(b);
     }
 
-
     unsigned int scope_level;
     std::list<ResourceAccess> access_list;
-
-    friend std::ostream& operator<<(std::ostream& out, ResourceUser const& r)
-    {
-        out << "ResourceUser {" << std::endl;
-        for( auto & access : r.access_list )
-            out << access << "," << std::endl; 
-	out << "}";
-	return out;
-    }
 }; // class ResourceUser
 
 } // namespace redGrapes
+
+template <>
+struct fmt::formatter<
+    redGrapes::ResourceUser
+>
+{
+    constexpr auto parse( format_parse_context& ctx )
+    {
+        return ctx.begin();
+    }
+
+    template < typename FormatContext >
+    auto format(
+        redGrapes::ResourceUser const & r,
+        FormatContext & ctx
+    )
+    {
+        auto out = ctx.out();
+        out = fmt::format_to( out, "[" );
+
+        for( auto it = r.access_list.begin(); it != r.access_list.end(); )
+        {
+            out = fmt::format_to( out, "{}", *it );
+            if( ++it != r.access_list.end() )
+                out = fmt::format_to( out, "," );
+        }
+
+        out = fmt::format_to( out, "]" );
+        return out;
+    }
+};
+

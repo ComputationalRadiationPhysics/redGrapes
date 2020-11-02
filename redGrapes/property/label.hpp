@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include <fmt/format.h>
+
 namespace redGrapes
 {
 
@@ -42,7 +44,31 @@ struct LabelProperty
             Builder( PatchBuilder & ) {}
         };
     };
+
     void apply_patch( Patch const & ) {};
 };
 
 } // namespace redGrapes
+
+template <>
+struct fmt::formatter< redGrapes::LabelProperty >
+{
+    constexpr auto parse( format_parse_context& ctx )
+    {
+        return ctx.begin();
+    }
+
+    template < typename FormatContext >
+    auto format(
+        redGrapes::LabelProperty const & label_prop,
+        FormatContext & ctx
+    )
+    {
+        return format_to(
+                   ctx.out(),
+                   "\"label\" : \"{}\"",
+                   label_prop.label
+               );
+    }
+};
+

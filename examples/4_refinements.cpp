@@ -15,8 +15,8 @@
 #include <redGrapes/manager.hpp>
 
 using TaskProperties = redGrapes::TaskProperties<
-    redGrapes::ResourceProperty,
-    redGrapes::LabelProperty
+    redGrapes::LabelProperty,
+    redGrapes::ResourceProperty
 >;
 
 int main( int, char*[] )
@@ -24,35 +24,36 @@ int main( int, char*[] )
     redGrapes::Manager<
         TaskProperties,
         redGrapes::ResourceEnqueuePolicy
-    > mgr( 4 );
+    > mgr;
+    mgr.set_scheduler( redGrapes::scheduler::make_default_scheduler( mgr ) );
 
     mgr.emplace_task(
         [&mgr]
         {
-            std::cout << "f1 on thread " << redGrapes::thread::id << "..." << std::endl;
+            std::cout << "f1" << "..." << std::endl;
             
             int i = 0;
             for( auto t : mgr.backtrace() )
             {
-                std::cout << "f1 backtrace[" << i << "]: " << t.label << std::endl;
+                fmt::print("refinement 1 backtrace [{}]: {}\n", i, (TaskProperties const&)t);
                 i++;
             }
 
             mgr.emplace_task(
                 []{
-                    std::cout << "Refinement 1 on thread " << redGrapes::thread::id << std::endl;
+                    fmt::print("Refinement 1\n");
                     std::this_thread::sleep_for( std::chrono::seconds(1) );
                 });
 
             mgr.emplace_task(
                 [&mgr]{
-                    std::cout << "Refinement 2 on thread " << redGrapes::thread::id << std::endl;
+                    fmt::print("Refinement 2\n");
                     std::this_thread::sleep_for( std::chrono::seconds(1) );
 
                     int i = 0;
                     for( auto t : mgr.backtrace() )
                     {
-                        std::cout << "refinement 2 backtrace[" << i << "]: " << t.label << std::endl;
+                        fmt::print("refinement 2 backtrace [{}]: {}\n", i, (TaskProperties const&)t);
                         i++;
                     }
                 },

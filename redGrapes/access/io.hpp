@@ -13,7 +13,9 @@
 
 #include <boost/graph/adjacency_matrix.hpp>
 #include <redGrapes/access/dependency_manager.hpp>
-#include <iostream>
+
+#include <fmt/format.h>
+#include <fmt/color.h>
 
 namespace redGrapes
 {
@@ -60,20 +62,6 @@ struct IOAccess
         return m().is_superset(this->mode, a.mode);
     }
 
-    friend std::ostream& operator<<(std::ostream& out, IOAccess const& a)
-    {
-        out << "IOAccess::";
-	switch(a.mode)
-	{
-            case root: out << "Root"; break;
-            case read: out << "Read"; break;
-            case write: out << "Write"; break;
-            case aadd: out << "AtomicAdd"; break;
-            case amul: out << "AtomicMul"; break;
-	}
-	return out;
-    }
-
   private:
     using Graph = boost::adjacency_matrix<boost::undirectedS>;
     struct Initializer
@@ -105,3 +93,39 @@ struct IOAccess
 } // namespace access
 
 } // namespace redGrapes
+
+template <>
+struct fmt::formatter<
+    redGrapes::access::IOAccess
+>
+{
+    constexpr auto parse( format_parse_context& ctx )
+    {
+        return ctx.begin();
+    }
+
+    template < typename FormatContext >
+    auto format(
+        redGrapes::access::IOAccess const & acc,
+        FormatContext & ctx
+    )
+    {
+        std::string mode_str;
+
+        switch(acc.mode)
+	{
+        case redGrapes::access::IOAccess::root: mode_str = "root"; break;
+        case redGrapes::access::IOAccess::read: mode_str = "read"; break;
+        case redGrapes::access::IOAccess::write: mode_str = "write"; break;
+        case redGrapes::access::IOAccess::aadd: mode_str = "atomicAdd"; break;
+        case redGrapes::access::IOAccess::amul: mode_str = "atomicMul"; break;
+	}
+
+        return fmt::format_to(
+                   ctx.out(),
+                   "{{ \"IOAccess\" : \"{}\" }}",
+                   mode_str
+               );
+    }
+};
+

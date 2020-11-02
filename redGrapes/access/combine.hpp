@@ -15,11 +15,14 @@
 #include <utility>
 #include <iostream>
 
+#include <fmt/format.h>
+
 namespace redGrapes
 {
 namespace access
 {
 
+// TODO: better tag names
 struct And_t {};
 struct Or_t {};
 
@@ -39,6 +42,7 @@ struct ArrayAccess : std::array<Access, N>
     ArrayAccess(std::array<Access, N> const & a)
       : std::array<Access, N>(a) {}
 
+    //! both array accesses are only serial if all element pairs are serial
     static bool
     is_serial(
         ArrayAccess<Access, N, Or_t> const & a,
@@ -52,6 +56,7 @@ struct ArrayAccess : std::array<Access, N>
         return false;
     }
 
+    //! both array accesses are serial if at least one element pair is serial
     static bool
     is_serial(
         ArrayAccess<Access, N, And_t> const & a,
@@ -83,15 +88,6 @@ struct ArrayAccess : std::array<Access, N>
                 return false;
 
         return true;
-    }
-
-    friend std::ostream& operator<<(std::ostream& out, ArrayAccess<Access, N, Op> const& a)
-    {
-        out << "ArrayAccess::{" << std::endl;
-	for(std::size_t i = 0; i < N; ++i)
-	    out << a[i] << "," << std::endl;
-	out << "}";
-	return out;
     }
 }; // struct ArrayAccess
 
@@ -152,17 +148,125 @@ struct CombineAccess : std::pair<Acc1, Acc2>
              this->second == other.second
         );
     }
-
-    friend std::ostream& operator<<(std::ostream& out, CombineAccess<Acc1, Acc2, Op> const& a)
-    {
-        out << "CombineAccess::{" << std::endl;
-	out << a.first << ";" << std::endl;
-	out << a.second << ";" << std::endl;
-	out << "}";
-	return out;
-    }
 }; // struct CombineAccess
 
 } // namespace access
 
 } // namespace redGrapes
+
+
+template <
+    typename Access,
+    size_t N
+>
+struct fmt::formatter<
+    redGrapes::access::ArrayAccess< Access, N, redGrapes::access::And_t >
+>
+{
+    constexpr auto parse( format_parse_context& ctx )
+    {
+        return ctx.begin();
+    }
+
+    template < typename FormatContext >
+    auto format(
+        redGrapes::access::ArrayAccess< Access, N, redGrapes::access::And_t > const & acc,
+        FormatContext & ctx
+    )
+    {
+        auto out = ctx.out();
+        out = fmt::format_to( out, "{{ \"and\" : [" );
+
+        for( auto it = acc.begin(); it != acc.end(); )
+        {
+            out = fmt::format_to( out, "{}", *it );
+            if( ++it != acc.end() )
+                out = fmt::format_to( out, ", " );
+        }
+
+        out = fmt::format_to( out, "] }}" );
+        return out;
+    }
+};
+
+template <
+    typename Access,
+    size_t N
+>
+struct fmt::formatter<
+    redGrapes::access::ArrayAccess< Access, N, redGrapes::access::Or_t >
+>
+{
+    constexpr auto parse( format_parse_context& ctx )
+    {
+        return ctx.begin();
+    }
+
+    template < typename FormatContext >
+    auto format(
+        redGrapes::access::ArrayAccess< Access, N, redGrapes::access::Or_t > const & acc,
+        FormatContext & ctx
+    )
+    {
+        auto out = ctx.out();
+        out = fmt::format_to( out, "{{ \"or\" : [" );
+
+        for( auto it = acc.begin(); it != acc.end(); )
+        {
+            out = fmt::format_to( out, "{}", *it );
+            if( ++it != acc.end() )
+                out = fmt::format_to( out, ", " );
+        }
+
+        out = fmt::format_to( out, "] }}" );
+        return out;
+    }
+};
+
+template <
+    typename Acc1,
+    typename Acc2
+>
+struct fmt::formatter<
+    redGrapes::access::CombineAccess< Acc1, Acc2, redGrapes::access::And_t >
+>
+{
+    constexpr auto parse( format_parse_context& ctx )
+    {
+        return ctx.begin();
+    }
+
+    template < typename FormatContext >
+    auto format(
+        redGrapes::access::CombineAccess< Acc1, Acc2, redGrapes::access::And_t > const & acc,
+        FormatContext & ctx
+    )
+    {
+        return fmt::format_to( ctx.out(), "{{ \"and\" : [ {}, {} ] }}", acc.first, acc.second );
+    }
+};
+
+template <
+    typename Acc1,
+    typename Acc2
+>
+struct fmt::formatter<
+    redGrapes::access::CombineAccess< Acc1, Acc2, redGrapes::access::Or_t >
+>
+{
+    constexpr auto parse( format_parse_context& ctx )
+    {
+        return ctx.begin();
+    }
+
+    template < typename FormatContext >
+    auto format(
+        redGrapes::access::CombineAccess< Acc1, Acc2, redGrapes::access::Or_t > const & acc,
+        FormatContext & ctx
+    )
+    {
+        return fmt::format_to( ctx.out(), "{{ \"or\" : [ {}, {} ] }}", acc.first, acc.second );
+    }
+};
+
+
