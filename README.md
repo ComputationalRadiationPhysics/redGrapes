@@ -49,34 +49,31 @@ See [examples](examples) for examples covering more features.
 
 ```cpp
 #include <cassert>
+#include <iostream>
 #include <redGrapes/manager.hpp>
 #include <redGrapes/resource/ioresource.hpp>
-#include <redGrapes/property/resource.hpp>
-#include <redGrapes/property/label.hpp>
 
 namespace rg = redGrapes;
 
-using TaskProperties =
-    rg::TaskProperties<
-        rg::ResourceProperty,
-        rg::LabelProperty
-    >;
-
 int main()
 {
-    rg::Manager< TaskProperties, rg::ResourceEnqueuePolicy > mgr;
-
+    rg::Manager<> mgr;
     rg::IOResource< int > a;
-	
+
     mgr.emplace_task(
-        []( auto a ){ *a = 123; },
-        TaskProperties::Builder().label("Task 1"),
+        [] ( auto a ) { *a = 123; },
         a.write()
     );
 
+    /* the following tasks may run in parallel,
+	 * but will only start once the first is done.
+	 */
     mgr.emplace_task(
-        []( auto a ){ assert( *a == 123 ); },
-        TaskProperties::Builder().label("Task 2"),
+        [] ( auto a ) { assert( *a == 123 ); },
+        a.read()
+    );
+    mgr.emplace_task(
+        [] ( auto a ) { std::cout << a << std::endl; },
         a.read()
     );
 
