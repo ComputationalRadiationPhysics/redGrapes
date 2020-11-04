@@ -59,12 +59,6 @@ struct fmt::formatter< SchedulerTags >
     }
 };
 
-using TaskProperties =
-    rg::TaskProperties<
-        rg::ResourceProperty,
-        rg::scheduler::SchedulingTagProperties< SchedulerTags >
-    >;
-
 int main()
 {
     /*
@@ -75,9 +69,9 @@ int main()
     MPI_Init( nullptr, nullptr );
     
     rg::Manager<
-        TaskProperties,
-        rg::ResourceEnqueuePolicy
+        rg::scheduler::SchedulingTagProperties< SchedulerTags >
     > mgr;
+    using TaskProperties = decltype(mgr)::TaskProps;
 
     spdlog::set_level(spdlog::level::debug);
 

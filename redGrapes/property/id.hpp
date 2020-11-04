@@ -28,16 +28,26 @@ private:
     }
 
 public:
-    unsigned int const task_id;
+    unsigned int task_id;
 
-    IDProperty()
-        : task_id( id_counter().fetch_add( 1, std::memory_order_relaxed ) )
-    {}
+    IDProperty() {}
+    IDProperty( IDProperty && other ) : task_id( other.task_id ) {}
+    IDProperty( IDProperty const & other ) : task_id( other.task_id ) {}
 
     template < typename PropertiesBuilder >
     struct Builder
     {
-        Builder( PropertiesBuilder & b ) {}
+        PropertiesBuilder & b;
+
+        Builder( PropertiesBuilder & b )
+            : b(b)
+        {
+        }
+
+        void init_id()
+        {
+            b.prop.task_id = id_counter().fetch_add( 1, std::memory_order_seq_cst );
+        }
     };
 
     struct Patch

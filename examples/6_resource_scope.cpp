@@ -10,19 +10,11 @@
 #include <redGrapes/property/inherit.hpp>
 #include <redGrapes/manager.hpp>
 
-using Properties = redGrapes::TaskProperties<
-    redGrapes::ResourceProperty
->;
-
 int main()
 {
-    redGrapes::Manager<
-        Properties,
-        redGrapes::ResourceEnqueuePolicy
-    > mgr;
-    mgr.set_scheduler( redGrapes::scheduler::make_default_scheduler( mgr ) );
+    redGrapes::Manager<> mgr;
 
-    redGrapes::IOResource<int> a; // scope-level=0
+    redGrapes::IOResource< int > a; // scope-level=0
 
     mgr.emplace_task(
         [&mgr]( auto a )

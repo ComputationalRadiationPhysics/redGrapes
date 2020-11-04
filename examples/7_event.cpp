@@ -14,12 +14,10 @@
 #include <redGrapes/property/resource.hpp>
 #include <redGrapes/resource/ioresource.hpp>
 
-using TaskProperties = redGrapes::TaskProperties< redGrapes::ResourceProperty >;
-
 int main()
 {
-    redGrapes::Manager< TaskProperties, redGrapes::ResourceEnqueuePolicy > mgr;
-    mgr.set_scheduler( redGrapes::scheduler::make_default_scheduler( mgr ) );
+    redGrapes::Manager<> mgr;
+    using TaskProperties = decltype( mgr )::TaskProps;
 
     redGrapes::Resource< redGrapes::access::IOAccess > r1;
 

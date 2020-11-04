@@ -14,18 +14,10 @@
 #include <redGrapes/property/inherit.hpp>
 #include <redGrapes/manager.hpp>
 
-using TaskProperties = redGrapes::TaskProperties<
-    redGrapes::LabelProperty,
-    redGrapes::ResourceProperty
->;
-
 int main( int, char*[] )
 {
-    redGrapes::Manager<
-        TaskProperties,
-        redGrapes::ResourceEnqueuePolicy
-    > mgr;
-    mgr.set_scheduler( redGrapes::scheduler::make_default_scheduler( mgr ) );
+    redGrapes::Manager< redGrapes::LabelProperty > mgr;
+    using TaskProperties = decltype( mgr )::TaskProps;
 
     mgr.emplace_task(
         [&mgr]

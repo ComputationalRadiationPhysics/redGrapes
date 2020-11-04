@@ -53,38 +53,68 @@ struct AllParallel
 };
 
 /*!
- * Base class
+ * Base class to manage a graph
  */
 template <
     typename T,
-    template <class> typename Graph = DefaultGraph
+    template < class > typename Graph = DefaultGraph
 >
-class PrecedenceGraph : public RecursiveGraph<T, Graph>
+class PrecedenceGraph : public RecursiveGraph< T, Graph >
 {
-    public:
-        using typename RecursiveGraph<T, Graph>::VertexID;
+public:
+    using typename RecursiveGraph< T, Graph >::VertexID;
 
-        /*! remove edges which don't satisfy the precedence policy
-         */
-        auto remove_out_edges(VertexID vertex, std::function<bool(T const&)> const & pred)
+    virtual ~PrecedenceGraph() {}
+
+    /*! add a new vertex
+     *
+     * @return
+     */
+    virtual VertexID push( T a ) = 0;
+
+    /*! Update all outgoing edges of a vertex
+     *
+     * @return std::vector of all following vertices whose edge has been removed
+     */
+    virtual std::vector< VertexID > update_vertex( VertexID v ) = 0;
+
+    /*! remove vertex
+     */
+    virtual void finish( VertexID v ) = 0;
+
+    //! create child graph of same type
+    virtual PrecedenceGraph * default_child(
+        std::weak_ptr< RecursiveGraph< T, Graph > > parent_graph,
+        VertexID parent_vertex
+    ) = 0;
+
+protected:
+    //! remove edges from vertex to its followers, where pred does not satisfy the follower
+    auto remove_out_edges(
+        VertexID vertex,
+        std::function< bool (T const&) > const & pred
+    )
+    {
+        std::vector<VertexID> vertices;
+
+        for(
+            auto it = boost::out_edges( vertex, this->graph() );
+            it.first != it.second;
+            ++it.first
+        )
         {
-            std::vector<VertexID> vertices;
-
-            for(auto it = boost::out_edges(vertex, this->graph()); it.first != it.second; ++it.first)
-            {
-                auto other_vertex = boost::target(*(it.first), this->graph());
-                auto & other = graph_get(other_vertex, this->graph());
-                if( pred( other.first ) )
-                    vertices.push_back( other_vertex );
-            }
-
-            for( auto other_vertex : vertices )
-                boost::remove_edge(vertex, other_vertex, this->graph());
-
-            return vertices;
+            auto other_vertex = boost::target( *(it.first), this->graph() );
+            auto & other = graph_get( other_vertex, this->graph() );
+            if( pred( other.first ) )
+                vertices.push_back( other_vertex );
         }
-}; // class PrecedenceGraph
 
+        for( auto other_vertex : vertices )
+            boost::remove_edge( vertex, other_vertex, this->graph() );
+
+        return vertices;
+    }
+}; // class PrecedenceGraph
 
 /*! Specialized precedence-graph that is constructed from a queue and an EnqueuePolicy.
  *
@@ -96,31 +126,42 @@ class PrecedenceGraph : public RecursiveGraph<T, Graph>
 template<
     typename T,
     typename EnqueuePolicy,
-    template <class> typename Graph = DefaultGraph
+    template < class > typename Graph = DefaultGraph
 >
 class QueuedPrecedenceGraph
-    : public PrecedenceGraph<T, Graph>
+    : public PrecedenceGraph< T, Graph >
 {
     public:
-        using VertexID = typename PrecedenceGraph<T, Graph>::VertexID;
+        using VertexID = typename PrecedenceGraph< T, Graph >::VertexID;
 
         QueuedPrecedenceGraph()
         {}
 
-        QueuedPrecedenceGraph( std::weak_ptr<RecursiveGraph<T, Graph>> parent_graph, VertexID parent_vertex )
+        QueuedPrecedenceGraph(
+            std::weak_ptr< RecursiveGraph< T, Graph > > parent_graph,
+            VertexID parent_vertex
+        )
         {
             this->parent_graph = parent_graph;
             this->parent_vertex = parent_vertex;
         }
 
+        PrecedenceGraph< T, Graph > * default_child(
+            std::weak_ptr< RecursiveGraph< T, Graph > > parent_graph,
+            VertexID parent_vertex
+        )
+        {
+            return new QueuedPrecedenceGraph( parent_graph, parent_vertex );
+        }
+    
         /*! Add vertex to the graph according to the EnqueuePolicy
          */
-        auto push(T a)
+        VertexID push( T a )
         {
             if( auto graph = this->parent_graph.lock() )
             {
                 auto parent_lock = graph->shared_lock();
-                EnqueuePolicy::assert_superset( graph_get(this->parent_vertex, graph->graph()).first, a );
+                EnqueuePolicy::assert_superset( graph_get( this->parent_vertex, graph->graph() ).first, a );
             }
 
             VertexID v = boost::add_vertex( std::make_pair(a, std::shared_ptr<RecursiveGraph<T,Graph>>(nullptr)), this->graph() );
@@ -148,7 +189,7 @@ class QueuedPrecedenceGraph
             std::unordered_map<VertexID, boost::default_color_type> vertex2color;
             auto colormap = boost::make_assoc_property_map(vertex2color);
 
-            for(auto b : this->queue)
+            for( auto b : this->queue )
             {
                 T const & prop = graph_get(b, this->graph()).first;
                 if( EnqueuePolicy::is_serial(prop, a) && indirect_dependencies.count(b) == 0 )
@@ -164,22 +205,23 @@ class QueuedPrecedenceGraph
         }
 
         /*! Update all outgoing edges of a vertex
+         * @return std::vector of all following vertices whose edge has been removed
          */
-        auto update_vertex(VertexID a)
+        std::vector< VertexID > update_vertex( VertexID a )
         {
             return this->remove_out_edges(a, [this,a](T const & b){ return !EnqueuePolicy::is_serial(graph_get(a, this->graph()).first, b); } );
 	}
 
         /*! Remove vertex from graph including all its edges
          */
-        void finish(VertexID vertex)
+        void finish( VertexID vertex )
         {
             boost::clear_vertex( vertex, this->graph() );
             boost::remove_vertex( vertex, this->graph() );
 
-            auto it = std::find(this->queue.begin(), this->queue.end(), vertex);
-            if (it != this->queue.end())
-                this->queue.erase(it);
+            auto it = std::find( this->queue.begin(), this->queue.end(), vertex );
+            if ( it != this->queue.end() )
+                this->queue.erase( it );
             else
             {
                 spdlog::error("QueuedPrecedenceGraph: removed vertex {} which is not in queue", vertex);
@@ -188,7 +230,7 @@ class QueuedPrecedenceGraph
         }
 
 private:
-    std::list<VertexID> queue;
+    std::list< VertexID > queue;
 }; // class QueuedPrecedenceGraph
 
 } // namespace redGrapes

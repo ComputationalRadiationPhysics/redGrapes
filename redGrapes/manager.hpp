@@ -23,74 +23,50 @@
 #include <redGrapes/property/inherit.hpp>
 #include <redGrapes/property/trait.hpp>
 
+#include <redGrapes/property/id.hpp>
+#include <redGrapes/property/resource.hpp>
+
 #include <redGrapes/scheduler/default_scheduler.hpp>
 
 #include <spdlog/spdlog.h>
 
 #include <sstream>
 
+
 namespace redGrapes
 {
 
-template <typename T>
-struct DefaultEnqueuePolicy
-{
-    static bool is_serial(T const & a, T const & b) { return true; }
-    static void assert_superset(T const & super, T const & sub) {}
-};
-
+// TODO: find better name, like "root task", "TaskSpace" .. ?
 template <
-    typename TT_TaskProperties = TaskProperties<>,
-    typename EnqueuePolicy = DefaultEnqueuePolicy< TT_TaskProperties >
+    typename... TaskPropertyPolicies
 >
 class Manager
 {
 public:
-    // TODO: move ID into a TaskProperty - policy
-    using TaskID = unsigned int;
-    static TaskID gen_task_id()
-    {
-        static TaskID id = 0;
-        static std::mutex m;
-
-        std::unique_lock<std::mutex> l(m);
-        TaskID i = ++id;
-        return i;
-    }
-
     struct TaskPtr;
     struct WeakTaskPtr;
+    using TaskID = unsigned int;
 
-    using T_TaskProperties = TT_TaskProperties;
-    struct TaskProperties : T_TaskProperties
-    {
-        TaskID task_id;
-        std::experimental::optional< WeakTaskPtr > parent;
+    using TaskProps = TaskProperties< IDProperty, ResourceProperty, TaskPropertyPolicies...  >;
 
-        TaskProperties( T_TaskProperties const & p )
-            : T_TaskProperties( p )
-            , task_id(gen_task_id())
-        {}
-    };
-    
-    struct Task : TaskProperties
+    struct Task : TaskProps
     {
         std::shared_ptr< TaskImplBase > impl;
-
+        std::experimental::optional< WeakTaskPtr > parent;
+        
         template < typename F >
-        Task( F && f, T_TaskProperties prop )
-            : TaskProperties(prop)
+        Task( F && f, TaskProps prop )
+            : TaskProps(prop)
             , impl( new FunctorTask< F >( std::move( f ) ) )
         {}
     };
 
-    // TODO: make EnqueuePolicy a dynamic interface
-    using PrecedenceGraph = QueuedPrecedenceGraph< Task, EnqueuePolicy >;
+    using PGraph = PrecedenceGraph< Task >;
 
     struct WeakTaskPtr
     {
-        std::weak_ptr< PrecedenceGraph > graph;
-        typename PrecedenceGraph::VertexID vertex;
+        std::weak_ptr< PGraph > graph;
+        typename PGraph::VertexID vertex;
 
         WeakTaskPtr( TaskPtr const & other )
             : graph( other.graph )
@@ -112,8 +88,8 @@ public:
 
     struct TaskPtr
     {
-        std::shared_ptr< PrecedenceGraph > graph;
-        typename PrecedenceGraph::VertexID vertex;
+        std::shared_ptr< PGraph > graph;
+        typename PGraph::VertexID vertex;
 
         Task & get() const
         {
@@ -126,6 +102,7 @@ public:
             return graph_get(vertex, graph->graph()).first;
         }
 
+        // TODO: move to PrecedenceGraph
         std::vector< TaskPtr > get_predecessors() const
         {
             std::vector< TaskPtr > predecessors;
@@ -181,7 +158,7 @@ public:
 public:
     std::shared_ptr< SchedulingGraph< TaskID, TaskPtr > > scheduling_graph;
 private:
-    std::shared_ptr< PrecedenceGraph > main_graph;
+    std::shared_ptr< PGraph > main_graph;
     std::shared_ptr< scheduler::IScheduler< TaskID, TaskPtr > > scheduler;
 
     template < typename... Args >
@@ -189,7 +166,7 @@ private:
 
     struct PropBuildHelper
     {
-        typename T_TaskProperties::Builder & builder;
+        typename TaskProps::Builder & builder;
 
         template < typename T >
         inline int build( T const & x )
@@ -202,15 +179,20 @@ private:
 public:
     using EventID = typename SchedulingGraph< TaskID, TaskPtr >::EventID;
 
-    Manager( )
-        : main_graph( std::make_shared< PrecedenceGraph >() )
+    Manager(
+        std::shared_ptr< PGraph > main_graph
+            = std::make_shared< QueuedPrecedenceGraph< Task, ResourceEnqueuePolicy > >()
+    )
+        : main_graph( main_graph )
         , scheduling_graph(
               std::make_shared< SchedulingGraph< TaskID, TaskPtr > >(
                   [this] ( TaskPtr a, TaskPtr b )
                   {
                       return this->scheduler->task_dependency_type( a, b );
                   }))
-    {}
+    {
+        set_scheduler( scheduler::make_default_scheduler( *this ) );
+    }
 
     ~Manager( )
     {
@@ -260,7 +242,7 @@ public:
         Args&&... args
     )
     {
-        typename TaskProperties::Builder builder;
+        typename TaskProps::Builder builder;
         return emplace_task( f, builder, std::forward<Args>(args)... );
     }
 
@@ -285,7 +267,7 @@ public:
     >
     auto emplace_task(
         Callable && f,
-        typename T_TaskProperties::Builder builder,
+        typename TaskProps::Builder builder,
         Args&&... args
     )
     {
@@ -299,6 +281,8 @@ public:
 
         EventID result_event = scheduling_graph->new_event();
 
+        builder.init_id();
+
         Task task(
             std::bind(
                 [this, result_event]( auto && delayed ) mutable
@@ -311,7 +295,7 @@ public:
             builder
         );
 
-        spdlog::debug( "emplace_task {}\n", (TT_TaskProperties const&)task );
+        spdlog::debug( "emplace_task {}\n", (TaskProps const&)task );
 
         this->push_task( std::move( task ) );
 
@@ -446,7 +430,7 @@ public:
     }
 
     //! get the subgraph which contains all children of the currently running task
-    std::shared_ptr< PrecedenceGraph >
+    std::shared_ptr< PGraph >
     get_current_graph( void )
     {
         if( auto task_ptr = current_task() )
@@ -458,21 +442,23 @@ public:
 
             if( !g )
             {
-                auto new_graph = std::make_shared< PrecedenceGraph >( parent_graph, task_ptr->vertex );
+                auto new_graph = std::shared_ptr< PGraph >( parent_graph->default_child( parent_graph, task_ptr->vertex ) );
                 parent_graph->add_subgraph( task_ptr->vertex, new_graph );
                 return new_graph;
             }
             else
-                return std::dynamic_pointer_cast< PrecedenceGraph >( g );
+                return std::dynamic_pointer_cast< PGraph >( g );
         }
         else
+        {
             /* the current thread is not executing a task,
                so we use the root-graph as default */
             return this->main_graph;
+        }
     }
 
     //! apply a patch to the properties of the currently running task
-    void update_properties( typename TaskProperties::Patch const & patch )
+    void update_properties( typename TaskProps::Patch const & patch )
     {
         if( auto task_ptr = current_task() )
         {
@@ -516,10 +502,10 @@ public:
     }
 
     //! get backtrace from currently running task
-    std::vector< TaskProperties >
+    std::vector< TaskProps >
     backtrace()
     {
-        std::vector< TaskProperties > bt;
+        std::vector< TaskProps > bt;
 
         std::optional< WeakTaskPtr > task_ptr;
 
@@ -528,7 +514,7 @@ public:
 
         while( task_ptr )
         {
-            TaskProperties task = task_ptr->locked_get();
+            Task & task = task_ptr->locked_get();
             bt.push_back( task );
 
             if( task.parent )

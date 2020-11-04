@@ -9,22 +9,17 @@
 #include <thread>
 #include <chrono>
 
-#include <redGrapes/resource/ioresource.hpp>
 #include <redGrapes/manager.hpp>
-
-using Properties = redGrapes::TaskProperties<
-    redGrapes::ResourceProperty
->;
+#include <redGrapes/resource/ioresource.hpp>
 
 int main(void)
 {
-    redGrapes::Manager<
-        Properties,
-        redGrapes::ResourceEnqueuePolicy
-    > mgr;
-    mgr.set_scheduler( redGrapes::scheduler::make_default_scheduler( mgr ) );
+    spdlog::set_level( spdlog::level::debug );
 
-    redGrapes::IOResource<int> a, b;
+    redGrapes::Manager<> mgr;
+    using TaskProperties = decltype( mgr )::TaskProps;
+
+    redGrapes::IOResource< int > a, b;
 
     for(int i = 0; i < 1; ++i)
     {

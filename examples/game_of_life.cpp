@@ -20,10 +20,6 @@
 #include <redGrapes/property/inherit.hpp>
 #include <redGrapes/manager.hpp>
 
-using TaskProperties = redGrapes::TaskProperties<
-    redGrapes::ResourceProperty
->;
-
 struct Vec2 { int x, y; };
 enum Cell { DEAD, ALIVE };
 static constexpr Vec2 size { 32, 32 };
@@ -44,11 +40,7 @@ Cell next_state( Cell const neighbours [][size.x+2] )
 
 int main( int, char * [] )
 {
-    redGrapes::Manager<
-        TaskProperties,
-        redGrapes::ResourceEnqueuePolicy
-    > mgr;
-    mgr.set_scheduler( redGrapes::scheduler::make_default_scheduler( mgr ) );
+    redGrapes::Manager<> mgr;
 
     using Buffer =
         std::array<

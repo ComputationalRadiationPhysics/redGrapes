@@ -8,6 +8,8 @@
 #include <iostream>
 
 #include <redGrapes/manager.hpp>
+#include <redGrapes/property/id.hpp>
+#include <redGrapes/property/resource.hpp>
 
 static auto & mgr()
 {
@@ -27,10 +29,9 @@ auto square (int x)
 
 int main()
 {
-    auto scheduler = redGrapes::scheduler::make_default_scheduler( mgr(),  2 /* number of threads */ );
-    mgr().set_scheduler( scheduler );
+    spdlog::set_level(spdlog::level::debug);
 
-    std::cout << "square(2) = " << square(2).get() << std::endl;
+    fmt::print( "square(2) = {}\n", square(2).get() );
 
     return 0;
 }

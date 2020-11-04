@@ -12,19 +12,12 @@
 #include <redGrapes/manager.hpp>
 #include <redGrapes/scheduler/default_scheduler.hpp>
 
-using Properties = redGrapes::TaskProperties<
-    redGrapes::ResourceProperty
->;
-
 int main( int, char*[] )
 {
-    redGrapes::Manager<
-        Properties,
-        redGrapes::ResourceEnqueuePolicy
-    > mgr;
-    mgr.set_scheduler( redGrapes::scheduler::make_default_scheduler( mgr ) );
+    redGrapes::Manager<> mgr;
+    using Properties = decltype( mgr )::TaskProps;
 
-    redGrapes::IOResource<int> a;
+    redGrapes::IOResource< int > a;
 
     mgr.emplace_task(
         [&mgr]( auto a )
