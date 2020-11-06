@@ -9,4 +9,4 @@ find_package(spdlog REQUIRED)
 
 set(redGrapes_INCLUDE_DIRS "${CMAKE_CURRENT_LIST_DIR}")
 set(redGrapes_INCLUDE_DIRS ${redGrapes_INCLUDE_DIRS} "${CMAKE_CURRENT_LIST_DIR}/share/thirdParty/akrzemi/optional/include")
-set(redGrapes_LIBRARIES ${Boost_LIBRARIES})
+set(redGrapes_LIBRARIES ${Boost_LIBRARIES} fmt::fmt spdlog::spdlog)
