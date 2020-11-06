@@ -20,6 +20,7 @@ RedGrapes is a C++14 framework for declaratively creating and scheduling task-gr
         :caption: USAGE
         :maxdepth: 2
 
+        cheatsheet        
         tutorial/index
 	best_practices
 	debugging
