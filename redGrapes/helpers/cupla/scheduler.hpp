@@ -17,6 +17,7 @@
 #include <redGrapes/helpers/cupla/event_pool.hpp>
 
 #include <spdlog/spdlog.h>
+#include <fmt/format.h>
 
 namespace redGrapes
 {
@@ -96,7 +97,7 @@ struct CuplaStream
         cuplaEvent_t cupla_event = EventPool::get().alloc();
         cuplaEventRecord( cupla_event, cupla_stream );
 
-        spdlog::debug( "CuplaStream {}: recorded event {}", cupla_stream, cupla_event );
+        spdlog::debug( "CuplaStream {}: recorded event {}", cupla_stream );
         events.push( std::make_pair( cupla_event, task_ptr ) );
 
         return cupla_event;
@@ -129,14 +130,6 @@ struct CuplaTaskProperties
     };
 
     void apply_patch( Patch const & ) {};
-
-    friend std::ostream & operator<< ( std::ostream & out, CuplaTaskProperties const & prop )
-    {
-        if( prop.cupla_event )
-            out << "CuplaEvent = " << *prop.cupla_event;
-
-        return out;
-    }
 };
 
 template <
@@ -304,5 +297,27 @@ auto make_cupla_scheduler(
 } // namespace helpers
 
 } // namespace redGrapes
+
+
+template <>
+struct fmt::formatter< redGrapes::helpers::cupla::CuplaTaskProperties >
+{
+    constexpr auto parse( format_parse_context& ctx )
+    {
+        return ctx.begin();
+    }
+
+    template < typename FormatContext >
+    auto format(
+        redGrapes::helpers::cupla::CuplaTaskProperties const & prop,
+        FormatContext & ctx
+    )
+    {
+        if( auto e = prop.cupla_event )
+            return fmt::format_to( ctx.out(), "\"cupla_event\" : {}", *e );
+        else
+            return fmt::format_to( ctx.out(), "\"cupla_event\" : null");
+    }
+};
 
 
