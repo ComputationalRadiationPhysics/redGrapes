@@ -484,6 +484,19 @@ public:
             throw std::runtime_error("update_properties: currently no task running");
     }
 
+    /*! wait until all tasks finished
+     * can only be called outside of a task
+     */
+    void wait_for_all()
+    {
+        spdlog::trace("wait for all tasks...");
+        if( ! current_task() )
+            while( ! scheduling_graph->empty() )
+                thread::idle();
+        else
+            throw std::runtime_error("called wait_for_all() inside a task!");
+    }
+
     //! pause the currently running task at least until event_id is reached
     void yield( EventID event_id )
     {
