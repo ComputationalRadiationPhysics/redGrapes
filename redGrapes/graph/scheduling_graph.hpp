@@ -267,7 +267,7 @@ public:
     {
         assert( is_task_ready( task_id ) );
 
-        spdlog::debug("sg: task start {}", task_id);
+        spdlog::trace("sg: task start {}", task_id);
 
         std::lock_guard< std::mutex > lock( mutex );
         if( events.count( task_events[ task_id ].pre_event ) )
@@ -278,7 +278,7 @@ public:
     void task_end( TaskID task_id )
     {
         std::lock_guard< std::mutex > lock( mutex );
-        spdlog::debug("sg: task end {}", task_id);
+        spdlog::trace("sg: task end {}", task_id);
 
         assert( task_events.count( task_id ) );
 
@@ -299,7 +299,7 @@ public:
         assert( is_task_finished( task_id ) );
 
         std::lock_guard< std::mutex > lock( mutex );
-        spdlog::debug("sg: remove task {}", task_id);
+        spdlog::trace("sg: remove task {}", task_id);
         task_events.erase( task_id );
     }
 
@@ -346,7 +346,7 @@ public:
                 !events[ task_events[ preceding_task_id ].post_event ].is_reached()
             )
             {
-                spdlog::debug(
+                spdlog::trace(
                    "sg: task {} -> task {}: dependency type {}",
                    preceding_task_id,
                    task.task_id,

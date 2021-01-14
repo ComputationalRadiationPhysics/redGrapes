@@ -361,7 +361,7 @@ public:
     void activate_followers( TaskPtr task_ptr )
     {
         auto graph_lock = task_ptr.graph->shared_lock();
-        spdlog::debug( "activate followers of task {}", task_ptr.get().task_id );
+        spdlog::trace( "activate followers of task {}", task_ptr.get().task_id );
 
         for(
             auto edge_it = boost::out_edges( task_ptr.vertex, task_ptr.graph->graph() );
@@ -387,7 +387,7 @@ public:
     void remove_task( TaskPtr task_ptr )
     {
         auto graph_lock = task_ptr.graph->unique_lock();
-        spdlog::debug("mgr: remove task {}", task_ptr.get().task_id);
+        spdlog::trace("mgr: remove task {}", task_ptr.get().task_id);
         auto task_id = task_ptr.get().task_id;
         task_ptr.graph->finish( task_ptr.vertex );
         graph_lock.unlock();

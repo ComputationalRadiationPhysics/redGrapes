@@ -68,7 +68,7 @@ struct CuplaStream
 
             if( cuplaEventQuery( cupla_event ) == cuplaSuccess )
             {
-                spdlog::debug("cupla event {} ready", cupla_event);
+                spdlog::trace("cupla event {} ready", cupla_event);
                 EventPool::get().free( cupla_event );
                 events.pop();
 
@@ -97,7 +97,7 @@ struct CuplaStream
         cuplaEvent_t cupla_event = EventPool::get().alloc();
         cuplaEventRecord( cupla_event, cupla_stream );
 
-        spdlog::debug( "CuplaStream {}: recorded event {}", cupla_stream );
+        spdlog::trace( "CuplaStream {}: recorded event {}", cupla_stream, cupla_event );
         events.push( std::make_pair( cupla_event, task_ptr ) );
 
         return cupla_event;
@@ -159,14 +159,14 @@ public:
         current_stream( 0 ),
         cupla_graph_enabled( cupla_graph_enabled )
     {
-        spdlog::debug( "CuplaScheduler: use {} streams", streams.size() );
+        spdlog::info( "CuplaScheduler: use {} streams", streams.size() );
     }
 
     void activate_task( TaskPtr task_ptr )
     {
         auto task_id = task_ptr.get().task_id;
 
-        spdlog::debug("CuplaScheduler: activate task {} \"{}\"", task_id, task_ptr.get().label);
+        spdlog::trace("CuplaScheduler: activate task {} \"{}\"", task_id, task_ptr.get().label);
 
         std::unique_lock< std::mutex > lock( mutex );
         
@@ -198,18 +198,18 @@ public:
         unsigned int stream_id  = current_stream;
         current_stream = ( current_stream + 1 ) % streams.size();
 
-        spdlog::info( "Dispatch Cupla task {} \"{}\" on stream {}", task_id, task_ptr.get().label, stream_id );
+        spdlog::trace( "Dispatch Cupla task {} \"{}\" on stream {}", task_id, task_ptr.get().label, stream_id );
 
         for( auto predecessor_ptr : task_ptr.get_predecessors() )
         {
-            spdlog::debug(
+            spdlog::trace(
                 "cupla scheduler: consider predecessor \"{}\"",
                 predecessor_ptr.get().label
             );
 
             if( auto cupla_event = predecessor_ptr.get().cupla_event )
             {
-                spdlog::debug(
+                spdlog::trace(
                     "cupla task {} \"{}\" wait for {}",
                     task_id,
                     task_ptr.get().label,
@@ -220,7 +220,7 @@ public:
             }
         }
 
-        spdlog::debug(
+        spdlog::trace(
             "CuplaScheduler: start {}",
             task_id
         );
@@ -230,7 +230,7 @@ public:
         this->scheduling_graph->task_start( task_id );
         lock.unlock();
 
-        spdlog::debug(
+        spdlog::trace(
             "CuplaScheduler: task {} \"{}\"::event = {}",
             task_id,
             task_ptr.get().label,
@@ -248,7 +248,7 @@ public:
             if( auto task_ptr = streams[ stream_id ].poll() )
             {
                 auto task_id = task_ptr->locked_get().task_id;
-                spdlog::info( "cupla task {} done", task_id );
+                spdlog::trace( "cupla task {} done", task_id );
 
                 this->scheduling_graph->task_end( task_id );
                 this->activate_followers( *task_ptr );
