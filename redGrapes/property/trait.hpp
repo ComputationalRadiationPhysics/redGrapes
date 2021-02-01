@@ -17,7 +17,7 @@ struct BuildProperties
     template <typename Builder>
     static void build(Builder & builder, T const & t)
     {
-        std::cout << "Warning: property builder not implemented for " << typeid(T).name() << std::endl;
+        spdlog::warn("trait `redGrapes::BuildProperties` is not implemented for {}", typeid(T).name());
     }
 };
 
