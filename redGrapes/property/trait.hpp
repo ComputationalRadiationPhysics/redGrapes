@@ -3,6 +3,7 @@
 #pragma once
 
 #include <typeinfo>
+#include <boost/core/demangle.hpp>
 
 namespace redGrapes
 {
@@ -18,7 +19,7 @@ struct BuildProperties
     template <typename Builder>
     static void build(Builder & builder, T const & t)
     {
-        spdlog::warn("trait `redGrapes::BuildProperties` is not implemented for {}", typeid(T).name());
+        spdlog::warn("trait `redGrapes::BuildProperties` is not implemented for {}", boost::core::demangle(typeid(T).name()));
     }
 };
 
@@ -32,6 +33,48 @@ struct BuildProperties< std::reference_wrapper< T > >
     {
         builder.add( t.get() );
     }
+};
+
+template <
+    typename T
+>
+struct BuildProperties< T & >
+{
+    template <typename Builder>
+    static void build(Builder & builder, T const & t)
+    {
+        builder.add( t );
+    }
+};
+
+template <
+    typename T
+>
+struct BuildProperties< T const & >
+{
+    template <typename Builder>
+    static void build(Builder & builder, T const & t)
+    {
+        builder.add( t );
+    }
+};
+
+
+// to avoid warnings
+template <>
+struct BuildProperties< int >
+{
+    template <typename Builder>
+    static void build(Builder & builder, int const & t)
+    {}
+};
+
+template <>
+struct BuildProperties< unsigned int >
+{
+    template <typename Builder>
+    static void build(Builder & builder, unsigned int const & t)
+    {}
 };
 
 } // namespace trait
