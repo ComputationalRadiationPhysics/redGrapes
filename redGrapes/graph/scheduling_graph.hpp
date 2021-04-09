@@ -69,6 +69,7 @@ private:
         {}
 
         bool is_reached() { return state == 0; }
+        bool is_ready() { return state <= 1; }
         void up() { state += 1; }
         void down() { state -= 1; }
     };
@@ -99,6 +100,8 @@ private:
             std::forward_as_tuple()
         );
 
+        spdlog::trace("make event {}", event_id);
+
         return event_id;
     }
 
@@ -113,7 +116,7 @@ private:
         assert( events.count( b ) );
 
         spdlog::trace("sg: add edge event {} -> event {}", a, b);
-        
+
         events[ a ].followers.push_back( b );
         events[ b ].up();
     }
@@ -144,16 +147,28 @@ private:
         if( events[ id ].is_reached() )
         {
             for( auto & follower : events[ id ].followers )
-            {
-                events[ follower ].down();
-                notify_event( follower );
-            }
+                unsafe_reach_event( follower );
 
             spdlog::trace("sg: remove event {}", id);
-            
             events.erase( id );
 
             return true;
+        }
+        else
+            return false;
+    }
+
+    /*
+     * not thread safe!
+     */
+    bool unsafe_reach_event( EventID event_id )
+    {
+        spdlog::trace("reach event {}", event_id);
+
+        if( events.count( event_id ) )
+        {
+            events[ event_id ].down();
+            return notify_event( event_id );
         }
         else
             return false;
@@ -227,16 +242,10 @@ public:
     bool reach_event( EventID event_id )
     {
         std::unique_lock< std::mutex > lock( mutex );
-
-        spdlog::trace("reach event {}", event_id);
-
-        assert( events.count( event_id ) );
-        events[ event_id ].down();
-
-        return notify_event( event_id );
+        return unsafe_reach_event( event_id );
     }
 
-    //! checks whether the tasks pre-event is already reached
+    //! checks whether the tasks pre-event is already ready
     bool is_task_ready( TaskID task_id )
     {
         std::lock_guard< std::mutex > lock( mutex );
@@ -245,9 +254,9 @@ public:
 
         auto event_id = task_events[ task_id ].pre_event;
         if( events.count( event_id ) )
-            return events[ event_id ].is_reached();
+            return events[ event_id ].is_ready();
         else
-            return true;
+            return false;
     }
 
     //! checks whether the tasks post-event is already reached
@@ -265,33 +274,38 @@ public:
     //! notify the tasks pre-event
     void task_start( TaskID task_id )
     {
-        assert( is_task_ready( task_id ) );
-
-        spdlog::trace("sg: task start {}", task_id);
-
         std::lock_guard< std::mutex > lock( mutex );
-        if( events.count( task_events[ task_id ].pre_event ) )
-            notify_event( task_events[ task_id ].pre_event );
+        spdlog::trace("sg: start task {}", task_id);
+
+        assert( events[ task_events[ task_id ].pre_event ].is_ready() );
+        bool r = unsafe_reach_event( task_events[ task_id ].pre_event );
+        assert( r );
     }
 
     //! notify the tasks post-event
     void task_end( TaskID task_id )
     {
         std::lock_guard< std::mutex > lock( mutex );
-        spdlog::trace("sg: task end {}", task_id);
+        spdlog::trace("sg: end task {}", task_id);
 
         assert( task_events.count( task_id ) );
-
-        EventID event_id = task_events[ task_id ].post_event;
-        events[ event_id ].down();
-        notify_event( event_id );
+        unsafe_reach_event( task_events[ task_id ].post_event );
     }
 
     //! pause the task until event_id is reached
     void task_pause( TaskID task_id, EventID event_id )
     {
         std::lock_guard< std::mutex > lock( mutex );
-        task_events[ task_id ].pre_event = event_id;
+        spdlog::trace("sg: pause task {}", task_id);
+
+        task_events[ task_id ].pre_event = make_event();
+
+        if(
+           events.count( event_id ) &&
+           !events[ event_id ].is_reached()
+        )
+            add_edge( event_id, task_events[ task_id ].pre_event );
+        // else: event_id was reached in between
     }
 
     void remove_task( TaskID task_id )
@@ -322,7 +336,12 @@ public:
         task_events[ task.task_id ].pre_event = make_event();
         task_events[ task.task_id ].post_event = make_event();
 
-        spdlog::trace("sg: add task {}: pre={}, post={}", task.task_id, task_events[task.task_id].pre_event, task_events[task.task_id].post_event);
+        spdlog::trace(
+            "sg: add task {}: pre={}, post={}",
+            task.task_id,
+            task_events[task.task_id].pre_event,
+            task_events[task.task_id].post_event
+        );
 
         // add dependencies to tasks which precede the new one
         for(
@@ -358,7 +377,7 @@ public:
                         task_events[ preceding_task_id ].pre_event
                     :
                         task_events[ preceding_task_id ].post_event;
-                
+
                 if( events.count( preceding_event_id ) )
                     add_edge(
                         preceding_event_id,
@@ -378,8 +397,6 @@ public:
             );
         }
         // else: task has no parent
-
-        events[ task_events[ task.task_id ].pre_event ].down();
     }
 
     /*! remove revoked dependencies (e.g. after access demotion)
@@ -411,7 +428,7 @@ public:
                         task_events[ other_task_id ].pre_event
                     );
 
-                    notify_event( task_events[ other_task_id ].pre_event );                    
+                    notify_event( task_events[ other_task_id ].pre_event );
                 }
                 // else: the pre-event of task_ptr's task shouldn't exist at this point, so we do nothing
             }
