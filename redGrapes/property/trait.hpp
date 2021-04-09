@@ -5,6 +5,8 @@
 #include <typeinfo>
 #include <boost/core/demangle.hpp>
 
+#include <spdlog/spdlog.h>
+
 namespace redGrapes
 {
 namespace trait
