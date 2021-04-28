@@ -52,6 +52,11 @@ struct CuplaStream
         cuplaStreamCreate( &cupla_stream );
     }
 
+    CuplaStream( CuplaStream const & other )
+    {
+        spdlog::warn("CuplaStream copy constructor called!");
+    }
+
     ~CuplaStream()
     {
         cuplaStreamDestroy( cupla_stream );
@@ -155,10 +160,15 @@ public:
         bool cupla_graph_enabled = false
     ) :
         is_cupla_task( is_cupla_task ),
-        streams( stream_count ),
         current_stream( 0 ),
         cupla_graph_enabled( cupla_graph_enabled )
     {
+        // reserve to avoid copy constructor of CuplaStream
+        streams.reserve( stream_count );
+
+        for( int i = 0; i < stream_count; ++i )
+            streams.emplace_back();
+
         spdlog::info( "CuplaScheduler: use {} streams", streams.size() );
     }
 
