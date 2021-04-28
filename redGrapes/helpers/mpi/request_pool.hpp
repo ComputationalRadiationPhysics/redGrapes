@@ -46,10 +46,6 @@ struct RequestPool
 
         if( ! requests.empty() )
         {
-            int index;
-            int flag;
-            MPI_Status status;
-
             int outcount;
             std::vector< int > indices( requests.size() );
             std::vector< MPI_Status > out_statuses( requests.size() );

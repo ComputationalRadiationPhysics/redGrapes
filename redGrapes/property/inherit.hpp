@@ -81,10 +81,6 @@ struct TaskPropertiesInherit< PropEnd_t >
     };
 
     void apply_patch( Patch const & ) {}
-
-    friend std::ostream & operator<< ( std::ostream & out, TaskPropertiesInherit const & p )
-    {
-    }
 };
 
 template < typename... Policies >
