@@ -174,6 +174,9 @@ private:
             trait::BuildProperties< T >::build(builder, x);
             return 0;
         }
+
+	void foo() {
+	}
     };
 
 public:
@@ -273,6 +276,8 @@ public:
     {
         PropBuildHelper build_helper{ builder };
         pass( build_helper.template build<Args>(args)... );
+
+	build_helper.foo();
 
         auto impl = std::bind( f, std::forward<Args>(args)... );
 
