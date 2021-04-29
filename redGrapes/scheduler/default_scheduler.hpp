@@ -37,7 +37,7 @@ struct DefaultScheduler : public IScheduler< TaskID, TaskPtr >
         main_thread_worker( [this]{ return false; } ),
         fifo( std::make_shared< redGrapes::scheduler::FIFO< TaskID, TaskPtr > >() )
     {
-        for( int i = 0; i < n_threads; ++i )
+        for( size_t i = 0; i < n_threads; ++i )
             threads.emplace_back(
                  std::make_shared< redGrapes::scheduler::WorkerThread<> >(
                      [this] { return this->fifo->consume(); }

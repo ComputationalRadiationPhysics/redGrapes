@@ -204,7 +204,7 @@ struct fmt::formatter<
         out = fmt::format_to( out, "\"schedulingTags\" : [" );
 
         bool first = true;
-        for( int i = 0; i < T_tag_count; ++i )
+        for( size_t i = 0; i < T_tag_count; ++i )
         {
             if( prop.required_scheduler_tags.test(i) )
             {

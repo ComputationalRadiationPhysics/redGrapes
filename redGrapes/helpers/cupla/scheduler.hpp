@@ -166,7 +166,7 @@ public:
         // reserve to avoid copy constructor of CuplaStream
         streams.reserve( stream_count );
 
-        for( int i = 0; i < stream_count; ++i )
+        for( size_t i = 0; i < stream_count; ++i )
             streams.emplace_back();
 
         spdlog::info( "CuplaScheduler: use {} streams", streams.size() );
@@ -253,7 +253,7 @@ public:
     //! checks if some cupla calls finished and notify the redGrapes manager
     void poll()
     {
-        for( int stream_id = 0; stream_id < streams.size(); ++stream_id )
+        for( size_t stream_id = 0; stream_id < streams.size(); ++stream_id )
         {
             if( auto task_ptr = streams[ stream_id ].poll() )
             {

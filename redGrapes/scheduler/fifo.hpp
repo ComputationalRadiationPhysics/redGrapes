@@ -101,6 +101,8 @@ public:
                     states[ task_id ] = ready;
                     task_queue.push( task_ptr );
                 }
+
+            default: break;
             }
         }
     }
@@ -127,7 +129,7 @@ private:
     //! update all active tasks
     void update( std::unique_lock< std::mutex > & l )
     {
-        for( int i = 0; i < active_tasks.size(); ++i )
+        for( size_t i = 0; i < active_tasks.size(); ++i )
         {
             auto task_id = active_tasks[ i ].first;
             auto task_ptr = active_tasks[ i ].second;
@@ -159,6 +161,8 @@ private:
                     task_queue.push( task_ptr );
                 }
                 break;
+
+            default: break;
             }
         }
     }
