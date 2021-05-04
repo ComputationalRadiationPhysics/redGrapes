@@ -21,7 +21,12 @@ namespace cupla
 struct EventPool
 {
 public:
-    static auto & get()
+    EventPool(EventPool const &) = delete;
+    void operator=(EventPool const &) = delete;
+
+    EventPool() {}
+
+    static EventPool & get()
     {
         static EventPool singleton;
         return singleton;
