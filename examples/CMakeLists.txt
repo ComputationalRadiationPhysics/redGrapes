@@ -3,15 +3,12 @@ cmake_minimum_required(VERSION 3.10.0)
 
 project(redGrapesExamples LANGUAGES CXX)
 
-find_package(redGrapes REQUIRED CONFIG PATHS "${CMAKE_CURRENT_LIST_DIR}/..")
+find_package(redGrapes REQUIRED CONFIG PATHS "${CMAKE_CURRENT_LIST_DIR}/../")
 include_directories(SYSTEM ${redGrapes_INCLUDE_DIRS})
 
 find_package(Threads REQUIRED)
 find_package(MPI)
 find_package(PNGwriter)
-
-include(CheckLanguage)
-check_language(CUDA)
 
 set(EXAMPLE_NAMES
     1_resources
@@ -33,6 +30,9 @@ endforeach()
 
 target_link_libraries(mpi PRIVATE MPI::MPI_CXX)
 
+include(CheckLanguage)
+check_language(CUDA)
+
 if(CMAKE_CUDA_COMPILER)
     enable_language(CUDA)
     set(CMAKE_CUDA_STANDARD 14)
@@ -45,3 +45,4 @@ if(CMAKE_CUDA_COMPILER)
     target_link_libraries(cuda_mandelbrot PRIVATE Threads::Threads)
     target_link_libraries(cuda_mandelbrot PRIVATE PNGwriter::PNGwriter)
 endif()
+  
