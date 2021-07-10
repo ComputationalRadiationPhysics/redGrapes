@@ -1,4 +1,4 @@
-/* Copyright 2019-2020 Michael Sippel
+/* Copyright 2019-2021 Michael Sippel
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -6,7 +6,7 @@
  */
 
 /*!
- * @file redGrapes/working_future.hpp
+ * @file redGrapes/task_result.hpp
  */
 #pragma once
 
@@ -23,9 +23,9 @@ template <
     typename T,
     typename Manager
 >
-struct WorkingFuture : std::future<T>
+struct TaskResult : std::future<T>
 {
-    WorkingFuture( std::future<T> && future, Manager & mgr, typename Manager::EventID result_event )
+    TaskResult( std::future<T> && future, Manager & mgr, typename Manager::EventID result_event )
         : std::future<T>(std::move(future)), mgr(mgr), result_event( result_event )
     {}
 
@@ -51,15 +51,15 @@ struct WorkingFuture : std::future<T>
   private:
     Manager & mgr;
     typename Manager::EventID result_event;
-}; // struct WorkingFuture
+}; // struct TaskResult
 
 template <
     typename T,
     typename Manager
 >
-WorkingFuture<T, Manager> make_working_future(std::future<T>&& future, Manager & mgr, typename Manager::EventID event )
+TaskResult<T, Manager> make_task_result(std::future<T>&& future, Manager & mgr, typename Manager::EventID event )
 {
-    return WorkingFuture< T, Manager >( std::move(future), mgr, event );
+    return TaskResult< T, Manager >( std::move(future), mgr, event );
 }
 
 } // namespace redGrapes

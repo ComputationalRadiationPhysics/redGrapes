@@ -17,7 +17,7 @@
 #include <redGrapes/graph/precedence_graph.hpp>
 #include <redGrapes/graph/util.hpp>
 #include <redGrapes/task/delayed_functor.hpp>
-#include <redGrapes/task/working_future.hpp>
+#include <redGrapes/task/task_result.hpp>
 #include <redGrapes/task/task.hpp>
 
 #include <redGrapes/property/inherit.hpp>
@@ -304,7 +304,7 @@ public:
 
         this->push_task( std::move( task ) );
 
-        return make_working_future( std::move(future), *this, result_event );
+        return make_task_result( std::move(future), *this, result_event );
     }
 
     /*! Enqueue a task object into the precedence graph of
