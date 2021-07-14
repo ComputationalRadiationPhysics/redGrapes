@@ -28,7 +28,7 @@ elseif(redGrapes_USE_INTERNAL_CATCH)
             execute_process(COMMAND mkdir -p "${Catch2_DIR}/include/catch")
             execute_process(
               WORKING_DIRECTORY "${Catch2_DIR}/include/catch"
-              COMMAND curl -O "https://raw.githubusercontent.com/catchorg/Catch2/master/single_include/catch2/catch.hpp")
+              COMMAND curl -LO "https://github.com/catchorg/Catch2/releases/download/v2.13.6/catch.hpp")
         else()
             message(WARNING "Catch2: not found and download is disabled")
         endif()
@@ -106,8 +106,7 @@ set(TEST_SOURCES
     dependency_manager.cpp
     access.cpp
     resource.cpp
-    resource_user.cpp
-    thread_dispatcher.cpp)
+    resource_user.cpp)
 
 set(TEST_TARGET redGrapes_test)
 

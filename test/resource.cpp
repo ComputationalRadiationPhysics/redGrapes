@@ -14,9 +14,21 @@ struct Access
 
     bool operator==(Access const & other) const
     { return false; }
+};
 
-    friend std::ostream& operator<< (std::ostream & out, Access const &)
-    { return out; }
+template<>
+struct fmt::formatter<Access>
+{
+    constexpr auto parse(format_parse_context& ctx)
+    {
+        return ctx.begin();
+    }
+
+    template<typename FormatContext>
+    auto format(Access const& acc, FormatContext& ctx)
+    {
+        return fmt::format_to(ctx.out(), "Access");
+    }
 };
 
 TEST_CASE("Resource ID")
