@@ -154,6 +154,7 @@ RedGrapes further depends on the following libraries:
 
 * [Boost Graph](https://www.boost.org/doc/libs/1_71_0/libs/graph/doc/)
 * [optional for C++14](https://github.com/akrzemi1/Optional) by [Andrzej Krzemienski](https://github.com/akrzemi1)
+* [ConcurrentQueue](https://github.com/cameron314/concurrentqueue) by [Cameron Desrochers](https://moodycamel.com/)
 * [spdlog](https://github.com/gabime/spdlog)
 * [{fmt}](https://fmt.dev)
 * (Optionally for testing) [Catch2](https://github.com/catchorg/Catch2)
