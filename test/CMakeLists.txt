@@ -106,7 +106,8 @@ set(TEST_SOURCES
     dependency_manager.cpp
     access.cpp
     resource.cpp
-    resource_user.cpp)
+    resource_user.cpp
+    task_space.cpp)
 
 set(TEST_TARGET redGrapes_test)
 
