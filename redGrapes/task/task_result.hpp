@@ -25,7 +25,7 @@ template <
 >
 struct TaskResult : std::future<T>
 {
-    TaskResult( std::future<T> && future, Manager & mgr, typename Manager::EventID result_event )
+    TaskResult( std::future<T> && future, Manager & mgr, EventID result_event )
         : std::future<T>(std::move(future)), mgr(mgr), result_event( result_event )
     {}
 
@@ -50,14 +50,14 @@ struct TaskResult : std::future<T>
 
   private:
     Manager & mgr;
-    typename Manager::EventID result_event;
+    EventID result_event;
 }; // struct TaskResult
 
 template <
     typename T,
     typename Manager
 >
-TaskResult<T, Manager> make_task_result(std::future<T>&& future, Manager & mgr, typename Manager::EventID event )
+TaskResult<T, Manager> make_task_result(std::future<T>&& future, Manager & mgr, EventID event )
 {
     return TaskResult< T, Manager >( std::move(future), mgr, event );
 }

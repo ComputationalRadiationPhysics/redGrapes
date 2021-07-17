@@ -9,11 +9,14 @@
 
 #include <mutex>
 #include <cassert>
-#include <redGrapes/graph/precedence_graph.hpp>
+#include <redGrapes/task/task_space.hpp>
+#include <redGrapes/property/id.hpp>
 #include <spdlog/spdlog.h>
 
 namespace redGrapes
 {
+
+using EventID = unsigned int;
 
 /*!
  * Manages a flat, non-recursive graph of events.
@@ -44,14 +47,10 @@ namespace redGrapes
  * precedes the parent tasks post-event.
  */
 template <
-    typename TaskID,
-    typename TaskPtr
+    typename Task
 >
 class SchedulingGraph
 {
-public:
-    using EventID = unsigned int;
-
 private:
     struct Event
     {
@@ -100,7 +99,7 @@ private:
             std::forward_as_tuple()
         );
 
-        spdlog::trace("make event {}", event_id);
+        spdlog::trace("SchedulingGraph::make_event() = {}", event_id);
 
         return event_id;
     }
@@ -115,7 +114,7 @@ private:
         assert( events.count( a ) );
         assert( events.count( b ) );
 
-        spdlog::trace("sg: add edge event {} -> event {}", a, b);
+        spdlog::trace("SchedulingGraph::add_edge(event {} -> event {})", a, b);
 
         events[ a ].followers.push_back( b );
         events[ b ].up();
@@ -141,7 +140,7 @@ private:
      */
     bool notify_event( EventID id )
     {
-        spdlog::trace("notify event {}", id);
+        spdlog::trace("SchedulingGraph::notify_event({})", id);
         assert( events.count( id ) );
 
         if( events[ id ].is_reached() )
@@ -149,7 +148,7 @@ private:
             for( auto & follower : events[ id ].followers )
                 unsafe_reach_event( follower );
 
-            spdlog::trace("sg: remove event {}", id);
+            spdlog::trace("SchedulingGraph: remove event {}", id);
             events.erase( id );
 
             return true;
@@ -163,7 +162,7 @@ private:
      */
     bool unsafe_reach_event( EventID event_id )
     {
-        spdlog::trace("reach event {}", event_id);
+        spdlog::trace("SchedulingGraph::unsafe_reach_event({})", event_id);
 
         if( events.count( event_id ) )
         {
@@ -174,7 +173,9 @@ private:
             return false;
     }
 
-    std::function< bool( TaskPtr, TaskPtr ) > task_dependency_type;
+    using TaskPtr = std::shared_ptr<PrecedenceGraphVertex<Task>>;
+
+    std::function<bool(TaskPtr, TaskPtr)> task_dependency_type;
 
 public:
     /*
@@ -275,7 +276,7 @@ public:
     void task_start( TaskID task_id )
     {
         std::lock_guard< std::mutex > lock( mutex );
-        spdlog::trace("sg: start task {}", task_id);
+        spdlog::trace("SchedulingGraph::task_start({})", task_id);
 
         assert( events[ task_events[ task_id ].pre_event ].is_ready() );
         bool r = unsafe_reach_event( task_events[ task_id ].pre_event );
@@ -286,7 +287,7 @@ public:
     void task_end( TaskID task_id )
     {
         std::lock_guard< std::mutex > lock( mutex );
-        spdlog::trace("sg: end task {}", task_id);
+        spdlog::trace("SchedulingGraph::task_end({})", task_id);
 
         assert( task_events.count( task_id ) );
         unsafe_reach_event( task_events[ task_id ].post_event );
@@ -296,7 +297,7 @@ public:
     void task_pause( TaskID task_id, EventID event_id )
     {
         std::lock_guard< std::mutex > lock( mutex );
-        spdlog::trace("sg: pause task {}", task_id);
+        spdlog::trace("SchedulingGraph::task_pause({})", task_id);
 
         task_events[ task_id ].pre_event = make_event();
 
@@ -313,10 +314,16 @@ public:
         assert( is_task_finished( task_id ) );
 
         std::lock_guard< std::mutex > lock( mutex );
-        spdlog::trace("sg: remove task {}", task_id);
+        spdlog::trace("SchedulingGraph::remove_task({})", task_id);
         task_events.erase( task_id );
     }
 
+    bool exists_task( TaskID task_id )
+    {
+        std::lock_guard< std::mutex > lock( mutex );
+        return task_events.count( task_id );
+    }
+    
     /*!
      * Insert a new task and add the same dependencies as in the precedence graph.
      * Note that tasks must be added in order, since only preceding tasks are considered!
@@ -325,11 +332,11 @@ public:
      */
     void add_task( TaskPtr task_ptr )
     {
-        auto & task = task_ptr.get();
+        auto & task = *task_ptr->task;
 
         std::experimental::optional< TaskID > parent_id;
-        if( task.parent )
-            parent_id = task.parent->locked_get().task_id;
+        if( auto parent = task_ptr->space.lock()->parent )
+            parent_id = parent->lock()->task->task_id;
 
         // create new events for the task
         std::unique_lock< std::mutex > lock( mutex );
@@ -337,27 +344,19 @@ public:
         task_events[ task.task_id ].post_event = make_event();
 
         spdlog::trace(
-            "sg: add task {}: pre={}, post={}",
+            "SchedulingGraph::add_task({}) -> pre={}, post={}",
             task.task_id,
             task_events[task.task_id].pre_event,
             task_events[task.task_id].post_event
         );
 
         // add dependencies to tasks which precede the new one
-        for(
-            auto it = boost::in_edges( task_ptr.vertex, task_ptr.graph->graph() );
-            it.first != it.second;
-            ++ it.first
-        )
+        for(auto weak_in_vertex_ptr : task_ptr->in_edges)
         {
-            TaskPtr preceding_task_ptr
-            {
-                task_ptr.graph,
-                boost::source( *(it.first), task_ptr.graph->graph() )
-            };
+            TaskPtr preceding_task_ptr = weak_in_vertex_ptr.lock();
 
-            auto & preceding_task_id = preceding_task_ptr.get().task_id;
-            spdlog::trace("sg: preceding task {}", preceding_task_id);
+            auto preceding_task_id = preceding_task_ptr->task->task_id;
+            spdlog::trace("SchedulingGraph: preceding task {}", preceding_task_id);
 
             if(
                 task_events.count( preceding_task_id ) &&
@@ -366,7 +365,7 @@ public:
             )
             {
                 spdlog::trace(
-                   "sg: task {} -> task {}: dependency type {}",
+                   "SchedulingGraph: task {} -> task {}: dependency type {}",
                    preceding_task_id,
                    task.task_id,
                    task_dependency_type( preceding_task_ptr, task_ptr )

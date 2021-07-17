@@ -34,7 +34,8 @@ namespace redGrapes
         virtual ~ITaskSpace() = 0;
 
         virtual std::optional<TaskVertexPtr> next() = 0;
-        virtual void push_task(std::unique_ptr<Task>&& task);
+        virtual void push(std::unique_ptr<Task>&& task) = 0;
+        virtual void remove(TaskVertexPtr v) = 0;
     };
 
     template<typename Task>
@@ -128,8 +129,9 @@ namespace redGrapes
         void init_dependencies(typename std::list<TaskVertexPtr>::iterator it)
         {
             std::shared_lock<std::shared_mutex> rdlock(this->mutex);
-
-            TaskVertexPtr task_vertex = *it;
+            
+            TaskVertexPtr task_vertex = *it++;
+            spdlog::trace("PrecedenceGraph::init_dependencies({})", task_vertex->task->task_id);
             for(; it != std::end(this->tasks); ++it)
                 if(EnqueuePolicy::is_serial(*(*it)->task, *task_vertex->task))
                     this->add_edge(*it, task_vertex);

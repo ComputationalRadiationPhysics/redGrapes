@@ -11,67 +11,47 @@
 #include <queue>
 #include <optional>
 
+#include <moodycamel/concurrentqueue.h>
+
 #include <redGrapes/scheduler/scheduler.hpp>
 #include <redGrapes/thread_local.hpp>
+#include <redGrapes/imanager.hpp>
 
 namespace redGrapes
 {
 namespace scheduler
 {
 
-template <
-    typename TaskID,
-    typename TaskPtr
->
-struct FIFO : public SchedulerBase< TaskID, TaskPtr >
+template < typename Task >
+struct FIFO : public IScheduler< Task >
 {
-    enum TaskState
+    using TaskVertexPtr = std::shared_ptr<PrecedenceGraphVertex<Task>>;
+
+    IManager<Task>& mgr;
+
+    moodycamel::ConcurrentQueue< TaskVertexPtr > ready;
+    moodycamel::ConcurrentQueue< TaskVertexPtr > running;
+
+    FIFO(IManager<Task>& mgr) : mgr(mgr)
     {
-        uninitialized = 0,
-        pending,
-        ready,
-        running,
-        paused,
-        done
-    };
+    }
 
-private:
-    std::mutex mutex;
-    std::unordered_map< TaskID, TaskState > states;
-
-    //! contains activated, not yet removed tasks (ready, paused, running)
-    std::vector< std::pair< TaskID, TaskPtr > > active_tasks;
-
-    //! contains ready tasks that are queued for execution
-    std::queue< TaskPtr > task_queue;
-
-public:
     //! returns true if a job was consumed, false if queue is empty
     bool consume()
     {
-        if( auto task_ptr = get_job() )
+        if( auto task_vertex = get_job() )
         {
-            auto task_id = task_ptr->locked_get().task_id;
-            this->scheduling_graph->task_start( task_id );
+            auto task_id = (*task_vertex)->task->task_id;
 
-            {
-                std::unique_lock< std::mutex > l( mutex );
-                states[ task_id ] = running;
-            }
+            mgr.get_scheduling_graph()->task_start( task_id );
 
-            bool finished = this->run_task( *task_ptr );
+            running.enqueue( *task_vertex );
+
+            bool finished = this->mgr.run_task( *task_vertex );
 
             if( finished )
-            {
-                this->scheduling_graph->task_end( task_id );
-                //this->activate_followers( *task_ptr );
-            }
-
-            {
-                std::unique_lock< std::mutex > l( mutex );
-                states[ task_id ] = finished ? done : paused;
-            }
-
+                mgr.get_scheduling_graph()->task_end( task_id );
+            
             return true;
         }
         else
@@ -79,110 +59,92 @@ public:
     }
 
     // precedence graph must be locked
-    void activate_task( TaskPtr task_ptr )
+    void activate_task( TaskVertexPtr task_vertex )
     {
-        std::unique_lock< std::mutex > l( mutex );
-        auto task_id = task_ptr.get().task_id;
+        auto task_id = task_vertex->task->task_id;
 
-        if( ! this->scheduling_graph->is_task_finished( task_id ) )
-        {
-            if( ! states.count( task_id ) ) // || states[ task_id ] = uninitialized
-            {
-                states[ task_id ] = pending;
-                active_tasks.push_back( std::make_pair( task_id, task_ptr ) );
-            }
+        if( ! mgr.get_scheduling_graph()->exists_task( task_id ) )
+            mgr.get_scheduling_graph()->add_task( task_vertex );
 
-            switch( states[ task_id ] )
-            {
-            case TaskState::paused:
-            case TaskState::pending:
-                if( this->scheduling_graph->is_task_ready( task_id ) )
-                {
-                    states[ task_id ] = ready;
-                    task_queue.push( task_ptr );
-                }
-
-            default: break;
-            }
-        }
+        if( ! mgr.get_scheduling_graph()->is_task_finished( task_id ) )
+            if( mgr.get_scheduling_graph()->is_task_ready( task_id ) )
+                ready.enqueue( task_vertex );
     }
 
 private:
-    std::optional< TaskPtr > get_job()
+    std::optional<TaskVertexPtr> get_job()
     {
-        std::unique_lock< std::mutex > l( mutex );
+        TaskVertexPtr task_vertex;
+        spdlog::trace("FIFO::get_job()");
 
-        if( task_queue.empty() )
-            update( l );
+        if(ready.try_dequeue(task_vertex))
+            return task_vertex;
 
-        if( ! task_queue.empty() )
-        {
-            auto task_ptr = task_queue.front();
-            task_queue.pop();
+        update_running_spaces();
 
-            return task_ptr;
-        }
-        else
-            return std::nullopt;
+        if(ready.try_dequeue(task_vertex))
+            return task_vertex;
+
+        update_main_space();
+
+        if(ready.try_dequeue(task_vertex))
+            return task_vertex;
+
+        spdlog::trace("FIFO::get_job(): no job available");
+        
+        return std::nullopt;
     }
 
-    //! update all active tasks
-    void update( std::unique_lock< std::mutex > & l )
+    void update_running_spaces()
     {
-        for( size_t i = 0; i < active_tasks.size(); ++i )
+        spdlog::trace("FIFO::update_running_spaces()");
+        size_t len = running.size_approx();
+        for(size_t i = 0; i < len; ++i)
         {
-            auto task_id = active_tasks[ i ].first;
-            auto task_ptr = active_tasks[ i ].second;
-
-            switch( states[ task_id ] )
+            TaskVertexPtr task_vertex;
+            if(running.try_dequeue(task_vertex))
             {
-            case TaskState::done:
-                /* if there are there events which must precede the tasks post-event
-                 * we can not remove the task yet.
-                 */
-                if( this->scheduling_graph->is_task_finished( task_id ) )
+                TaskID task_id = task_vertex->task->task_id;
+
+                if(auto children = task_vertex->children)
+                    if(auto new_task = (*children)->next())
+                        mgr.activate_task(*new_task);
+
+                if(!mgr.get_scheduling_graph()->is_task_finished(task_id))
+                    running.enqueue(task_vertex);
+                else
                 {
-                    spdlog::trace("fifo::update(): task {} finished", task_id);
-                    active_tasks.erase( active_tasks.begin() + i );
-                    -- i;
+                    // activate followers
+                    std::shared_lock<std::shared_mutex> rdlock(task_vertex->out_edges_mutex);
+                    for(auto following_task : task_vertex->out_edges)
+                        mgr.activate_task(following_task.lock());
 
-                    l.unlock();
-                    this->activate_followers( task_ptr );
-                    this->remove_task( task_ptr );
-                    l.lock();
+                    mgr.notify();
                 }
-                break;
-
-            case TaskState::paused:
-            case TaskState::pending:
-                if( this->scheduling_graph->is_task_ready( task_id ) )
-                {
-                    states[ task_id ] = ready;
-                    task_queue.push( task_ptr );
-                }
-                break;
-
-            default: break;
             }
         }
+    }
+
+    void update_main_space()
+    {
+        spdlog::trace("FIFO::update_main_space()");
+        if(auto task_vertex = mgr.current_task_space()->next())
+            mgr.activate_task(*task_vertex);
     }
 };
 
 /*! Factory function to easily create a fifo-scheduler object
  */
 template <
-    typename Manager
+    typename Task
 >
 auto make_fifo_scheduler(
-    Manager & m
+    IManager< Task > & m
 )
 {
     return std::make_shared<
-               FIFO<
-                   typename Manager::TaskID,
-                   typename Manager::TaskPtr
-               >
-           >();
+               FIFO< Task >
+           >(m);
 }
 
 } // namespace scheduler

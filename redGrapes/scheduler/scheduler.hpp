@@ -9,6 +9,7 @@
 
 #include <functional>
 #include <memory>
+#include <redGrapes/task/task_space.hpp>
 #include <redGrapes/graph/scheduling_graph.hpp>
 
 namespace redGrapes
@@ -18,24 +19,12 @@ namespace scheduler
 
 /*! Scheduler Interface
  */
-template <
-    typename TaskID,
-    typename TaskPtr
->
+template < typename Task >
 struct IScheduler
 {
     virtual ~IScheduler() {}
 
-    /*! called by Manager on initialization.
-     * The Scheduler cannot hold a reference to the Manager since the type is not known,
-     * so all needed functions are passed as function objects
-     */
-    virtual void init_mgr_callbacks(
-        std::shared_ptr< redGrapes::SchedulingGraph< TaskID, TaskPtr > > scheduling_graph,
-        std::function< bool ( TaskPtr ) > run_task,
-        std::function< void ( TaskPtr ) > activate_followers,
-        std::function< void ( TaskPtr ) > remove_task
-    ) = 0;
+    using TaskPtr = std::shared_ptr<PrecedenceGraphVertex<Task>>;
 
     /*! whats the task dependency type for the edge a -> b (task a precedes task b)
      * @return true if task b depends on the pre event of task a, false if task b depends on the post event of task b.
@@ -53,32 +42,6 @@ struct IScheduler
      * The scheduler should now reconsider activated tasks which were not ready before
      */
     virtual void notify() {}
-};
-
-template <
-    typename TaskID,
-    typename TaskPtr
->
-struct SchedulerBase : IScheduler< TaskID, TaskPtr >
-{
-    void init_mgr_callbacks(
-        std::shared_ptr< redGrapes::SchedulingGraph< TaskID, TaskPtr > > scheduling_graph,
-        std::function< bool ( TaskPtr ) > run_task,
-        std::function< void ( TaskPtr ) > activate_followers,
-        std::function< void ( TaskPtr ) > remove_task
-    )
-    {
-        this->scheduling_graph = scheduling_graph;
-        this->run_task = run_task;
-        this->activate_followers = activate_followers;
-        this->remove_task = remove_task;
-    }
-
-protected:
-    std::shared_ptr< redGrapes::SchedulingGraph< TaskID, TaskPtr > > scheduling_graph;
-    std::function< bool ( TaskPtr ) > run_task;
-    std::function< void ( TaskPtr ) > activate_followers;
-    std::function< void ( TaskPtr ) > remove_task;
 };
 
 } // namespace scheduler

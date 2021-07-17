@@ -17,6 +17,8 @@
 namespace redGrapes
 {
 
+using TaskID = unsigned int;
+
 struct IDProperty
 {
 
@@ -28,7 +30,7 @@ private:
     }
 
 public:
-    unsigned int task_id;
+    TaskID task_id;
 
     IDProperty()
         : task_id( id_counter().fetch_add( 1, std::memory_order_seq_cst ) )

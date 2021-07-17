@@ -86,8 +86,9 @@ public:
 
     void stop()
     {
+        spdlog::trace("Worker::stop()");
         m_stop = true;
-        notify();        
+        notify();
     }
 };
 
@@ -107,8 +108,9 @@ struct WorkerThread
             [this]
             {
                 /* since we are in a worker, there should always
-                 * be a task running and therefore a yield() should
-                 * always do a context-switch instead of idling
+                 * be a task running (we always have a parent task
+                 * and therefore yield() guarantees to do
+                 * a context-switch instead of idling
                  */
                 redGrapes::thread::idle =
                     [this]

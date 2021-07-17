@@ -48,23 +48,24 @@ struct SchedulingTagProperties
 };
 
 template <
-    typename TaskID,
-    typename TaskPtr,
+    typename Task,
     std::size_t T_tag_count = 64
 >
-struct TagMatch : IScheduler< TaskID, TaskPtr >
+struct TagMatch : IScheduler< Task >
 {
+    using TaskPtr = std::shared_ptr<PrecedenceGraphVertex<Task>>;
+
     struct SubScheduler
     {
         std::bitset< T_tag_count > supported_tags;
-        std::shared_ptr< IScheduler< TaskID, TaskPtr > > s;
+        std::shared_ptr< IScheduler< Task > > s;
     };
 
     std::vector< SubScheduler > sub_schedulers;
 
     void add_scheduler(
         std::bitset< T_tag_count > supported_tags,
-        std::shared_ptr< IScheduler< TaskID, TaskPtr > > s
+        std::shared_ptr< IScheduler< Task > > s
     )
     {
         sub_schedulers.push_back(
@@ -77,7 +78,7 @@ struct TagMatch : IScheduler< TaskID, TaskPtr >
 
     void add_scheduler(
         std::initializer_list< unsigned > tag_list,
-        std::shared_ptr< IScheduler< TaskID, TaskPtr > > s                       
+        std::shared_ptr< IScheduler< Task > > s
     )
     {
         std::bitset< T_tag_count > supported_tags;
@@ -87,14 +88,12 @@ struct TagMatch : IScheduler< TaskID, TaskPtr >
     }
 
     void init_mgr_callbacks(
-        std::shared_ptr< redGrapes::SchedulingGraph< TaskID, TaskPtr > > scheduling_graph,
-        std::function< bool ( TaskPtr ) > run_task,
-        std::function< void ( TaskPtr ) > activate_followers,
-        std::function< void ( TaskPtr ) > remove_task
+        std::shared_ptr< redGrapes::SchedulingGraph< Task > > scheduling_graph,
+        std::shared_ptr< redGrapes::IManager< Task > > mgr
     )
     {
         for( auto & s : sub_schedulers )
-            s.s->init_mgr_callbacks( scheduling_graph, run_task, activate_followers, remove_task );
+            s.s->init_mgr_callbacks( scheduling_graph, mgr );
     }
 
     void notify()
@@ -104,7 +103,7 @@ struct TagMatch : IScheduler< TaskID, TaskPtr >
     }
 
     std::optional<
-        std::shared_ptr< IScheduler< TaskID, TaskPtr > >
+        std::shared_ptr< IScheduler< Task > >
     >
     get_matching_scheduler(
         std::bitset< T_tag_count > const & required_tags
