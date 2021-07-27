@@ -8,215 +8,172 @@
 #pragma once
 
 #include <bitset>
-#include <optional>
 #include <memory>
+#include <optional>
+
 #include <redGrapes/scheduler/scheduler.hpp>
 
 namespace redGrapes
 {
-namespace scheduler
-{
-
-template < typename Tag, std::size_t T_tag_count = 64 >
-struct SchedulingTagProperties
-{
-    std::bitset< T_tag_count > required_scheduler_tags;
-
-    template < typename PropertiesBuilder >
-    struct Builder
+    namespace scheduler
     {
-        PropertiesBuilder & builder;
-
-        Builder( PropertiesBuilder & b )
-            : builder(b)
-        {}
-
-        PropertiesBuilder scheduling_tags( std::initializer_list< unsigned > tags )
+        template<typename Tag, std::size_t T_tag_count = 64>
+        struct SchedulingTagProperties
         {
-            std::bitset< T_tag_count > tags_bitset;
-            for( auto tag : tags )
-                tags_bitset.set( tag );
-            return scheduling_tags( tags_bitset );
-        }
+            std::bitset<T_tag_count> required_scheduler_tags;
 
-        PropertiesBuilder scheduling_tags( std::bitset< T_tag_count > tags )
-        {
-            builder.prop.required_scheduler_tags |= tags;
-            return builder;
-        }
-    };
-};
-
-template <
-    typename Task,
-    std::size_t T_tag_count = 64
->
-struct TagMatch : IScheduler< Task >
-{
-    using TaskPtr = std::shared_ptr<PrecedenceGraphVertex<Task>>;
-
-    struct SubScheduler
-    {
-        std::bitset< T_tag_count > supported_tags;
-        std::shared_ptr< IScheduler< Task > > s;
-    };
-
-    std::vector< SubScheduler > sub_schedulers;
-
-    void add_scheduler(
-        std::bitset< T_tag_count > supported_tags,
-        std::shared_ptr< IScheduler< Task > > s
-    )
-    {
-        sub_schedulers.push_back(
-            SubScheduler
+            template<typename PropertiesBuilder>
+            struct Builder
             {
-                supported_tags,
-                s
-            });
-    }
+                PropertiesBuilder& builder;
 
-    void add_scheduler(
-        std::initializer_list< unsigned > tag_list,
-        std::shared_ptr< IScheduler< Task > > s
-    )
-    {
-        std::bitset< T_tag_count > supported_tags;
-        for( auto tag : tag_list )
-            supported_tags.set( tag );
-        this->add_scheduler( supported_tags, s );
-    }
+                Builder(PropertiesBuilder& b) : builder(b)
+                {
+                }
 
-    void init_mgr_callbacks(
-        std::shared_ptr< redGrapes::SchedulingGraph< Task > > scheduling_graph,
-        std::shared_ptr< redGrapes::IManager< Task > > mgr
-    )
-    {
-        for( auto & s : sub_schedulers )
-            s.s->init_mgr_callbacks( scheduling_graph, mgr );
-    }
+                PropertiesBuilder scheduling_tags(std::initializer_list<unsigned> tags)
+                {
+                    std::bitset<T_tag_count> tags_bitset;
+                    for(auto tag : tags)
+                        tags_bitset.set(tag);
+                    return scheduling_tags(tags_bitset);
+                }
 
-    void notify()
-    {
-        for( auto & s : sub_schedulers )
-            s.s->notify();
-    }
+                PropertiesBuilder scheduling_tags(std::bitset<T_tag_count> tags)
+                {
+                    builder.prop.required_scheduler_tags |= tags;
+                    return builder;
+                }
+            };
+        };
 
-    std::optional<
-        std::shared_ptr< IScheduler< Task > >
-    >
-    get_matching_scheduler(
-        std::bitset< T_tag_count > const & required_tags
-    )
-    {
-        for( auto const & s : sub_schedulers )
-            if( ( s.supported_tags & required_tags ) == required_tags )
-                return s.s;
+        template<typename Task, std::size_t T_tag_count = 64>
+        struct TagMatch : IScheduler<Task>
+        {
+            using TaskPtr = std::shared_ptr<PrecedenceGraphVertex<Task>>;
 
-        return std::nullopt;
-    }
+            struct SubScheduler
+            {
+                std::bitset<T_tag_count> supported_tags;
+                std::shared_ptr<IScheduler<Task>> s;
+            };
 
-    bool
-    task_dependency_type(
-        TaskPtr a,
-        TaskPtr b
-    )
-    {
-        /// fixme: b or a ?
-        if( auto sub_scheduler = get_matching_scheduler( b.get().required_scheduler_tags ) )
-            return (*sub_scheduler)->task_dependency_type( a, b );
-        else
-            throw std::runtime_error("no scheduler found for task");
-    }
+            std::vector<SubScheduler> sub_schedulers;
 
-    void
-    activate_task( TaskPtr task_ptr )
-    {
-        if( auto sub_scheduler = get_matching_scheduler( task_ptr.get().required_scheduler_tags ) )
-            return (*sub_scheduler)->activate_task( task_ptr );
-        else
-            throw std::runtime_error("no scheduler found for task");
-    }
-};
+            void add_scheduler(std::bitset<T_tag_count> supported_tags, std::shared_ptr<IScheduler<Task>> s)
+            {
+                sub_schedulers.push_back(SubScheduler{supported_tags, s});
+            }
 
-/*! Factory function to easily create a tag-match-scheduler object
- */
-template < typename Manager >
-struct TagMatchBuilder
-{
-    std::shared_ptr< TagMatch< typename Manager::TaskID, typename Manager::TaskPtr > > tag_match;
+            void add_scheduler(std::initializer_list<unsigned> tag_list, std::shared_ptr<IScheduler<Task>> s)
+            {
+                std::bitset<T_tag_count> supported_tags;
+                for(auto tag : tag_list)
+                    supported_tags.set(tag);
+                this->add_scheduler(supported_tags, s);
+            }
 
-    operator std::shared_ptr< IScheduler< typename Manager::TaskID, typename Manager::TaskPtr > > () const
-    {
-        return tag_match;
-    }
+            void init_mgr_callbacks(
+                std::shared_ptr<redGrapes::SchedulingGraph<Task>> scheduling_graph,
+                std::shared_ptr<redGrapes::IManager<Task>> mgr)
+            {
+                for(auto& s : sub_schedulers)
+                    s.s->init_mgr_callbacks(scheduling_graph, mgr);
+            }
 
-    TagMatchBuilder add( std::initializer_list<unsigned> tags, std::shared_ptr< IScheduler< typename Manager::TaskID, typename Manager::TaskPtr > > s )
-    {
-        tag_match->add_scheduler( tags, s );
-        return *this;
-    }
-};
+            void notify()
+            {
+                for(auto& s : sub_schedulers)
+                    s.s->notify();
+            }
 
-template <
-    typename Manager,
-    size_t T_tag_count = 64
->
-auto make_tag_match_scheduler(
-    Manager & m
-)
-{
-    return TagMatchBuilder< Manager > {
-        std::make_shared<
-               TagMatch<
-                   typename Manager::TaskID,
-                   typename Manager::TaskPtr,
-                   T_tag_count
-               >
-        >()
-    };
-}
+            std::optional<std::shared_ptr<IScheduler<Task>>> get_matching_scheduler(
+                std::bitset<T_tag_count> const& required_tags)
+            {
+                for(auto const& s : sub_schedulers)
+                    if((s.supported_tags & required_tags) == required_tags)
+                        return s.s;
+
+                return std::nullopt;
+            }
+
+            bool task_dependency_type(typename Task::VertexPtr a, typename Task::VertexPtr b)
+            {
+                /// fixme: b or a ?
+                if(auto sub_scheduler = get_matching_scheduler(b->task->required_scheduler_tags))
+                    return (*sub_scheduler)->task_dependency_type(a, b);
+                else
+                    throw std::runtime_error("no scheduler found for task");
+            }
+
+            bool activate_task(typename Task::VertexPtr task_ptr)
+            {
+                if(auto sub_scheduler = get_matching_scheduler(task_ptr->task->required_scheduler_tags))
+                    return (*sub_scheduler)->activate_task(task_ptr);
+                else
+                    throw std::runtime_error("no scheduler found for task");
+            }
+        };
+
+        /*! Factory function to easily create a tag-match-scheduler object
+         */
+        template<typename Task>
+        struct TagMatchBuilder
+        {
+            std::shared_ptr<TagMatch<Task>> tag_match;
+
+            operator std::shared_ptr<IScheduler<Task>>() const
+            {
+                return tag_match;
+            }
+
+            TagMatchBuilder add(std::initializer_list<unsigned> tags, std::shared_ptr<IScheduler<Task>> s)
+            {
+                tag_match->add_scheduler(tags, s);
+                return *this;
+            }
+        };
+
+        template<typename Task, size_t T_tag_count = 64>
+        auto make_tag_match_scheduler(IManager<Task>& m)
+        {
+            return TagMatchBuilder<Task>{std::make_shared<TagMatch<Task, T_tag_count>>()};
+        }
 
 
-} // namespace scheduler
+    } // namespace scheduler
 
 } // namespace redGrapes
 
-template < typename Tag, std::size_t T_tag_count >
-struct fmt::formatter<
-    redGrapes::scheduler::SchedulingTagProperties< Tag, T_tag_count >
->
+template<typename Tag, std::size_t T_tag_count>
+struct fmt::formatter<redGrapes::scheduler::SchedulingTagProperties<Tag, T_tag_count>>
 {
-    constexpr auto parse( format_parse_context& ctx )
+    constexpr auto parse(format_parse_context& ctx)
     {
         return ctx.begin();
     }
 
-    template < typename FormatContext >
-    auto format(
-        redGrapes::scheduler::SchedulingTagProperties< Tag, T_tag_count > const & prop,
-        FormatContext & ctx
-    )
+    template<typename FormatContext>
+    auto format(redGrapes::scheduler::SchedulingTagProperties<Tag, T_tag_count> const& prop, FormatContext& ctx)
     {
         auto out = ctx.out();
 
-        out = fmt::format_to( out, "\"schedulingTags\" : [" );
+        out = fmt::format_to(out, "\"schedulingTags\" : [");
 
         bool first = true;
-        for( size_t i = 0; i < T_tag_count; ++i )
+        for(size_t i = 0; i < T_tag_count; ++i)
         {
-            if( prop.required_scheduler_tags.test(i) )
+            if(prop.required_scheduler_tags.test(i))
             {
-                if( ! first )
-                    out = format_to( out, ", " );
+                if(!first)
+                    out = format_to(out, ", ");
 
                 first = false;
-                out = format_to( out, "{}", (Tag) i );
+                out = format_to(out, "{}", (Tag) i);
             }
         }
 
-        out = fmt::format_to( out, "]" );
+        out = fmt::format_to(out, "]");
         return out;
     }
 };
-

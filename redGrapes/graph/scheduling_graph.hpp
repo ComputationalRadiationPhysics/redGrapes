@@ -9,14 +9,21 @@
 
 #include <mutex>
 #include <cassert>
-#include <redGrapes/task/task_space.hpp>
 #include <redGrapes/property/id.hpp>
 #include <spdlog/spdlog.h>
 
 namespace redGrapes
 {
+    using EventID = unsigned int;
 
-using EventID = unsigned int;
+    template<typename Task>
+    struct SchedulingGraph;
+} // namespace redGrapes
+
+#include <redGrapes/imanager.hpp>
+
+namespace redGrapes
+{
 
 /*!
  * Manages a flat, non-recursive graph of events.
@@ -62,13 +69,21 @@ private:
         //! the set of subsequent events
         std::vector< EventID > followers;
 
+        //! task which will be activated when event is reached
+        std::optional< typename Task::VertexPtr > task_ptr;
+        
         Event()
+            : state(1)
+        {}
+
+        Event( std::optional< typename Task::VertexPtr > && task_ptr )
             // every event needs at least one down() before it will be removed
             : state( 1 )
+            , task_ptr( task_ptr )
         {}
 
         bool is_reached() { return state == 0; }
-        bool is_ready() { return state <= 1; }
+        bool is_ready() { return state == 1; }
         void up() { state += 1; }
         void down() { state -= 1; }
     };
@@ -77,26 +92,29 @@ private:
     {
         EventID pre_event;
         EventID post_event;
+        typename Task::VertexPtr task_ptr;
     };
 
-    std::mutex mutex;
+    std::recursive_mutex mutex;
     EventID event_id_counter;
     std::unordered_map< EventID, Event > events;
     std::unordered_map< TaskID , TaskEvents > task_events;
+
+    IManager< Task >& mgr;
 
     /*!
      * Create a new event (with no dependencies)
      *
      * Not thread safe!
      */
-    EventID make_event()
+    EventID make_event( std::optional< typename Task::VertexPtr > task_ptr = std::nullopt )
     {
         EventID event_id = event_id_counter ++;
 
         events.emplace(
             std::piecewise_construct,
             std::forward_as_tuple(event_id),
-            std::forward_as_tuple()
+            std::forward_as_tuple(std::move(task_ptr))
         );
 
         spdlog::trace("SchedulingGraph::make_event() = {}", event_id);
@@ -143,8 +161,14 @@ private:
         spdlog::trace("SchedulingGraph::notify_event({})", id);
         assert( events.count( id ) );
 
+        if( events[ id ].is_ready() )
+            // activate associated task
+            if( auto task = events[ id ].task_ptr )
+                mgr.activate_task( *task );
+
         if( events[ id ].is_reached() )
         {
+            // notify followers
             for( auto & follower : events[ id ].followers )
                 unsafe_reach_event( follower );
 
@@ -173,9 +197,7 @@ private:
             return false;
     }
 
-    using TaskPtr = std::shared_ptr<PrecedenceGraphVertex<Task>>;
-
-    std::function<bool(TaskPtr, TaskPtr)> task_dependency_type;
+    using TaskPtr = typename Task::VertexPtr;
 
 public:
     /*
@@ -190,47 +212,44 @@ public:
      *                             to the preceding tasks pre-event is added. By default, false
      *                             is returned, meaning an edge to the post-event.
      */
-    SchedulingGraph(
-        std::function< bool ( TaskPtr, TaskPtr ) >
-        task_dependency_type
-            = [] ( TaskPtr, TaskPtr )
-              {
-                  return false;
-              }
-    ) :
-        task_dependency_type( task_dependency_type ),
-        event_id_counter( 0 )
+    SchedulingGraph( IManager< Task > & mgr )
+        : mgr( mgr )
+        , event_id_counter( 0 )
     {}
 
     //! are all events reached?
     bool empty()
     {
-        std::lock_guard< std::mutex > lock( mutex );
+        std::lock_guard< std::recursive_mutex > lock( mutex );        
         return events.size() == 0;
     }
 
-    //! checks whether an event is reached
-    bool is_event_reached( EventID event_id )
+    bool unsafe_is_event_reached( EventID event_id )
     {
-        std::lock_guard< std::mutex > lock( mutex );
-
         if( events.count( event_id ) )
             return events[ event_id ].is_reached();
         else
-            return true;
+            return true;        
+    }
+    
+    //! checks whether an event is reached
+    bool is_event_reached( EventID event_id )
+    {
+        std::lock_guard< std::recursive_mutex > lock( mutex );
+        return unsafe_is_event_reached( event_id );
     }
 
     //! create a new event without dependencies
     EventID new_event()
     {
-        std::lock_guard< std::mutex > lock( mutex );
+        std::lock_guard< std::recursive_mutex > lock( mutex );
         return make_event( );
     }
 
     //! creates a new event which precedes the tasks post-event
     EventID add_post_dependency( TaskID task_id )
     {
-        std::lock_guard< std::mutex > lock( mutex );
+        std::lock_guard< std::recursive_mutex > lock( mutex );
         assert( task_events.count( task_id ) );
 
         EventID event_id = make_event();
@@ -242,20 +261,31 @@ public:
     //! remove the initial dependency on this event
     bool reach_event( EventID event_id )
     {
-        std::unique_lock< std::mutex > lock( mutex );
+        std::unique_lock< std::recursive_mutex > lock( mutex );
         return unsafe_reach_event( event_id );
     }
 
     //! checks whether the tasks pre-event is already ready
     bool is_task_ready( TaskID task_id )
     {
-        std::lock_guard< std::mutex > lock( mutex );
+        std::lock_guard< std::recursive_mutex > lock( mutex );
 
-        assert( task_events.count( task_id ) );
+        if( task_events.count( task_id ) )
+        {
+            auto event_id = task_events[ task_id ].pre_event;
+            if( events.count( event_id ) )
+                return events[ event_id ].is_ready();
+        }
 
-        auto event_id = task_events[ task_id ].pre_event;
-        if( events.count( event_id ) )
-            return events[ event_id ].is_ready();
+        return false;
+    }
+
+    //! checks whether the tasks pre-event exists
+    bool is_task_running( TaskID task_id )
+    {
+        std::lock_guard< std::recursive_mutex > lock( mutex );
+        if( task_events.count( task_id ) )
+            return is_event_reached( task_events[ task_id ].pre_event );
         else
             return false;
     }
@@ -263,7 +293,7 @@ public:
     //! checks whether the tasks post-event is already reached
     bool is_task_finished( TaskID task_id )
     {
-        std::lock_guard< std::mutex > lock( mutex );
+        std::lock_guard< std::recursive_mutex > lock( mutex );
 
         if( task_events.count( task_id ) )
             if( events.count( task_events[ task_id ].post_event ) )
@@ -271,13 +301,15 @@ public:
 
         return true;
     }
-
+ 
     //! notify the tasks pre-event
     void task_start( TaskID task_id )
     {
-        std::lock_guard< std::mutex > lock( mutex );
+        std::lock_guard< std::recursive_mutex > lock( mutex );
         spdlog::trace("SchedulingGraph::task_start({})", task_id);
 
+        assert( task_events.count(task_id) );
+        assert( events.count( task_events[ task_id ].pre_event ) );
         assert( events[ task_events[ task_id ].pre_event ].is_ready() );
         bool r = unsafe_reach_event( task_events[ task_id ].pre_event );
         assert( r );
@@ -286,41 +318,50 @@ public:
     //! notify the tasks post-event
     void task_end( TaskID task_id )
     {
-        std::lock_guard< std::mutex > lock( mutex );
+        std::lock_guard< std::recursive_mutex > lock( mutex );
         spdlog::trace("SchedulingGraph::task_end({})", task_id);
 
         assert( task_events.count( task_id ) );
-        unsafe_reach_event( task_events[ task_id ].post_event );
+        auto r = unsafe_reach_event( task_events[ task_id ].post_event );
+        spdlog::trace("SchedulingGraph: unsafe_reach_event() = {}", r);
     }
 
     //! pause the task until event_id is reached
     void task_pause( TaskID task_id, EventID event_id )
     {
-        std::lock_guard< std::mutex > lock( mutex );
+        std::lock_guard< std::recursive_mutex > lock( mutex );
         spdlog::trace("SchedulingGraph::task_pause({})", task_id);
 
-        task_events[ task_id ].pre_event = make_event();
+        task_events[ task_id ].pre_event = make_event( task_events[task_id].task_ptr );
+
+        spdlog::trace("SchedulingGraph::task_pause set pre_event={}", task_events[ task_id ].pre_event);
 
         if(
-           events.count( event_id ) &&
-           !events[ event_id ].is_reached()
+           events.count(event_id) &&
+           !events[event_id].is_reached()
         )
-            add_edge( event_id, task_events[ task_id ].pre_event );
-        // else: event_id was reached in between
+            add_edge(event_id, task_events[task_id].pre_event);
+        else
+            // event was reached before task_pause()
+            notify_event(task_events[task_id].pre_event);
+
     }
 
     void remove_task( TaskID task_id )
     {
         assert( is_task_finished( task_id ) );
 
-        std::lock_guard< std::mutex > lock( mutex );
+        std::lock_guard< std::recursive_mutex > lock( mutex );
         spdlog::trace("SchedulingGraph::remove_task({})", task_id);
+
+        assert( !events.count( task_events[task_id].pre_event ) );
+        assert( !events.count( task_events[task_id].post_event ) );
         task_events.erase( task_id );
     }
 
     bool exists_task( TaskID task_id )
     {
-        std::lock_guard< std::mutex > lock( mutex );
+        std::lock_guard< std::recursive_mutex > lock( mutex );
         return task_events.count( task_id );
     }
     
@@ -339,9 +380,14 @@ public:
             parent_id = parent->lock()->task->task_id;
 
         // create new events for the task
-        std::unique_lock< std::mutex > lock( mutex );
-        task_events[ task.task_id ].pre_event = make_event();
-        task_events[ task.task_id ].post_event = make_event();
+        std::unique_lock< std::recursive_mutex > lock( mutex );
+
+        if( exists_task( task.task_id ) )
+             return;
+
+        task_events[ task.task_id ].task_ptr = task_ptr;
+        task_events[ task.task_id ].pre_event = make_event( task_ptr );
+        task_events[ task.task_id ].post_event = make_event( std::nullopt );
 
         spdlog::trace(
             "SchedulingGraph::add_task({}) -> pre={}, post={}",
@@ -353,35 +399,27 @@ public:
         // add dependencies to tasks which precede the new one
         for(auto weak_in_vertex_ptr : task_ptr->in_edges)
         {
-            TaskPtr preceding_task_ptr = weak_in_vertex_ptr.lock();
-
-            auto preceding_task_id = preceding_task_ptr->task->task_id;
-            spdlog::trace("SchedulingGraph: preceding task {}", preceding_task_id);
-
-            if(
-                task_events.count( preceding_task_id ) &&
-                events.count( task_events[ preceding_task_id ].post_event ) &&
-                !events[ task_events[ preceding_task_id ].post_event ].is_reached()
-            )
+            if( TaskPtr preceding_task_ptr = weak_in_vertex_ptr.lock() )
             {
-                spdlog::trace(
-                   "SchedulingGraph: task {} -> task {}: dependency type {}",
-                   preceding_task_id,
-                   task.task_id,
-                   task_dependency_type( preceding_task_ptr, task_ptr )
-                );
+                auto preceding_task_id = preceding_task_ptr->task->task_id;
+                spdlog::trace("SchedulingGraph: preceding task {}", preceding_task_id);
 
-                EventID preceding_event_id =
-                    task_dependency_type( preceding_task_ptr, task_ptr ) ?
-                        task_events[ preceding_task_id ].pre_event
-                    :
-                        task_events[ preceding_task_id ].post_event;
+                if(task_events.count(preceding_task_id))
+                {
+                    spdlog::trace(
+                        "SchedulingGraph: task {} -> task {}: dependency type {}",
+                        preceding_task_id,
+                        task.task_id,
+                        mgr.get_scheduler()->task_dependency_type(preceding_task_ptr, task_ptr));
 
-                if( events.count( preceding_event_id ) )
-                    add_edge(
-                        preceding_event_id,
-                        task_events[ task.task_id ].pre_event
-                    );
+                    EventID preceding_event_id
+                        = mgr.get_scheduler()->task_dependency_type(preceding_task_ptr, task_ptr)
+                        ? task_events[preceding_task_id].pre_event
+                        : task_events[preceding_task_id].post_event;
+
+                    if(! unsafe_is_event_reached(preceding_event_id))
+                        add_edge(preceding_event_id, task_events[task.task_id].pre_event);
+                }
             }
         }
 
@@ -414,13 +452,13 @@ public:
         auto task_id = task_ptr.get().task_id;
 
         {
-            std::lock_guard< std::mutex > lock( mutex );
+            std::lock_guard< std::recursive_mutex > lock( mutex );
 
             for( auto other_task_ptr : followers )
             {
                 auto other_task_id = other_task_ptr.get().task_id;
 
-                if( ! task_dependency_type( task_ptr, other_task_ptr ) )
+                if( ! mgr.get_scheduler()->task_dependency_type( task_ptr, other_task_ptr ) )
                 {
                     remove_edge(
                         task_events[ task_id ].post_event,

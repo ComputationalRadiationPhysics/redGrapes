@@ -46,6 +46,7 @@ struct DefaultScheduler : public IScheduler<Task>
         thread::idle =
             [this]
             {
+                spdlog::trace("DefaultScheduler::idle()");
                 std::unique_lock< std::mutex > l( m );
                 cv.wait( l, [this]{ return !wait.test_and_set(); } );
             };
@@ -59,23 +60,23 @@ struct DefaultScheduler : public IScheduler<Task>
             std::unique_lock< std::mutex > l( m );
             wait.clear();
         }
-        cv.notify_all();
+        cv.notify_one();
 
         for( auto & thread : threads )
             thread->worker.notify();
     }
 
-    void
+    bool
     activate_task( std::shared_ptr<PrecedenceGraphVertex<Task>> task_vertex_ptr )
     {
-        fifo->activate_task( task_vertex_ptr );
+        return fifo->activate_task( task_vertex_ptr );
     }
 };
 
 /*! Factory function to easily create a default-scheduler object
  */
 template<typename Task>
-auto make_default_scheduler(IManager<Task>& mgr, size_t n_threads = 1)//std::thread::hardware_concurrency())
+auto make_default_scheduler(IManager<Task>& mgr, size_t n_threads = std::thread::hardware_concurrency())
 {
     return std::make_shared<DefaultScheduler<Task>>(mgr, n_threads);
 }

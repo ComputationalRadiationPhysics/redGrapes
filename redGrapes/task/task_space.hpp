@@ -16,6 +16,8 @@
 #include <moodycamel/concurrentqueue.h>
 #include <spdlog/spdlog.h>
 
+#include <redGrapes/graph/scheduling_graph.hpp>
+
 namespace std
 {
     using shared_mutex = shared_timed_mutex;
@@ -61,6 +63,7 @@ namespace redGrapes
         PrecedenceGraphVertex(std::unique_ptr<Task>&& task, std::weak_ptr<TaskSpace<Task>> space)
             : task(std::move(task))
             , space(space)
+            , children(std::nullopt)
         {
         }
     };
@@ -76,7 +79,10 @@ namespace redGrapes
 
         virtual ~IPrecedenceGraph()
         {
+            //std::shared_lock<std::shared_mutex> rdlock(this->mutex);
+            //assert(tasks.empty());
         }
+
         virtual void init_dependencies(typename std::list<TaskVertexPtr>::iterator it)
         {
         }
@@ -92,6 +98,7 @@ namespace redGrapes
 
         void add_edge(TaskVertexPtr u, TaskVertexPtr v)
         {
+            spdlog::trace("TaskSpace: add edge task {} -> task {}", u->task->task_id, v->task->task_id);
             v->in_edges.push_back(u);
 
             std::unique_lock<std::shared_mutex> wrlock(u->out_edges_mutex);
@@ -125,11 +132,11 @@ namespace redGrapes
     struct PrecedenceGraph : IPrecedenceGraph<Task>
     {
         using TaskVertexPtr = std::shared_ptr<PrecedenceGraphVertex<Task>>;
-
+        
         void init_dependencies(typename std::list<TaskVertexPtr>::iterator it)
         {
-            std::shared_lock<std::shared_mutex> rdlock(this->mutex);
-            
+            //std::shared_lock<std::shared_mutex> rdlock(this->mutex);
+
             TaskVertexPtr task_vertex = *it++;
             spdlog::trace("PrecedenceGraph::init_dependencies({})", task_vertex->task->task_id);
             for(; it != std::end(this->tasks); ++it)
@@ -158,12 +165,19 @@ namespace redGrapes
     {
         moodycamel::ConcurrentQueue<std::unique_ptr<Task>> queue;
         std::shared_ptr<IPrecedenceGraph<Task>> precedence_graph;
+        std::shared_ptr<SchedulingGraph<Task>> scheduling_graph;
 
         std::optional<std::weak_ptr<PrecedenceGraphVertex<Task>>> parent;
 
         using TaskVertexPtr = std::shared_ptr<PrecedenceGraphVertex<Task>>;
 
-        TaskSpace(std::shared_ptr<IPrecedenceGraph<Task>> precedence_graph) : precedence_graph(precedence_graph)
+        TaskSpace(
+            std::shared_ptr<IPrecedenceGraph<Task>> precedence_graph,
+            std::shared_ptr<SchedulingGraph<Task>> scheduling_graph,
+            std::optional<std::weak_ptr<PrecedenceGraphVertex<Task>>> parent = std::nullopt)
+            : precedence_graph(precedence_graph)
+            , scheduling_graph(scheduling_graph)
+            , parent(parent)
         {
         }
 
@@ -190,11 +204,14 @@ namespace redGrapes
                 auto it = precedence_graph->tasks.insert(
                     std::begin(precedence_graph->tasks),
                     std::make_shared<PrecedenceGraphVertex<Task>>(std::move(task), this->shared_from_this()));
-                wrlock.unlock();
+                //wrlock.unlock();
 
                 // from now on, the precedence graph can be shared-locked,
                 // since out_edges has its separate mutex
                 precedence_graph->init_dependencies(it);
+
+                scheduling_graph->add_task(*it);
+
                 return *it;
             }
             else

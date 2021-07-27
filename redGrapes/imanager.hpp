@@ -8,8 +8,18 @@
 #pragma once
 
 #include <memory>
+#include <optional>
+
 #include <redGrapes/task/task_space.hpp>
+
+namespace redGrapes
+{
+    template<typename Task>
+    struct IManager;
+}
+
 #include <redGrapes/graph/scheduling_graph.hpp>
+#include <redGrapes/scheduler/scheduler.hpp>
 
 namespace redGrapes
 {
@@ -20,16 +30,20 @@ namespace redGrapes
         
         virtual ~IManager() {}
         
-        virtual std::shared_ptr< SchedulingGraph<Task> > get_scheduling_graph()
-        {
-            return 0;
-        }
-
+        virtual std::shared_ptr<SchedulingGraph<Task>> get_scheduling_graph() {}
+        virtual std::shared_ptr<scheduler::IScheduler<Task>> get_scheduler() {}
+        virtual std::shared_ptr<TaskSpace<Task>> get_main_space() {}
         virtual std::shared_ptr<TaskSpace<Task>> current_task_space() {}
+        virtual std::optional<TaskVertexPtr>& current_task() {}
+
         virtual void activate_task(TaskVertexPtr) {}
-        virtual bool run_task(TaskVertexPtr) {}
+        virtual bool activate_next() {}
+
+        virtual void yield(EventID event_id) {}
         virtual void remove_task(TaskVertexPtr) {}
 
-        virtual void notify() {}
+        virtual std::optional<EventID> create_event() {}
+        virtual void reach_event(EventID event_id) {}
     };
 }
+

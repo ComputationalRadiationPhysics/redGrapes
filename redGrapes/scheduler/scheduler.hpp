@@ -35,8 +35,9 @@ struct IScheduler
     }
 
     /*! Tell the scheduler to consider dispatching a task.
+     * @return if task is ready
      */
-    virtual void activate_task( TaskPtr task_ptr ) = 0;
+    virtual bool activate_task( TaskPtr task_ptr ) = 0;
 
     /*! Notify the scheduler that the scheduling graph has changed.
      * The scheduler should now reconsider activated tasks which were not ready before

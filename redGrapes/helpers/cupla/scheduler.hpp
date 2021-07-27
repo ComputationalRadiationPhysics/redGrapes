@@ -34,16 +34,16 @@ namespace cupla
 
 // this class is not thread safe
 template <
-    typename TaskPtr
+    typename Task
 >
 struct CuplaStream
 {
     cuplaStream_t cupla_stream;
-    std::mutex mutex;
+    std::recursive_mutex mutex;
     std::queue<
         std::pair<
             cuplaEvent_t,
-            TaskPtr
+            typename Task::VertexPtr
         >
     > events;
 
@@ -63,9 +63,9 @@ struct CuplaStream
     }
 
     // returns the finished task
-    std::optional< TaskPtr > poll()
+    std::optional< typename Task::VertexPtr > poll()
     {
-        std::lock_guard< std::mutex > lock( mutex );
+        std::lock_guard< std::recursive_mutex > lock( mutex );
         if( ! events.empty() )
         {
             auto cupla_event = events.front().first;
@@ -86,21 +86,24 @@ struct CuplaStream
 
     void wait_event( cuplaEvent_t e )
     {
-        std::lock_guard< std::mutex > lock( mutex );
+        std::lock_guard< std::recursive_mutex > lock( mutex );
         cuplaStreamWaitEvent( cupla_stream, e, 0 );
     }
 
-    cuplaEvent_t push( TaskPtr & task_ptr )
+    cuplaEvent_t push( typename Task::VertexPtr task_ptr, SchedulingGraph<Task> & sg )
     {
-        std::lock_guard< std::mutex > lock( mutex );
+        std::lock_guard< std::recursive_mutex > lock( mutex );
 
         // TODO: is there a better way than setting a global variable?
         thread::current_cupla_stream = cupla_stream;
 
-        task_ptr.get().impl->run();
+        task_ptr->task->impl->run();
 
         cuplaEvent_t cupla_event = EventPool::get().alloc();
         cuplaEventRecord( cupla_event, cupla_stream );
+
+        task_ptr->task->cupla_event = cupla_event;
+        sg.task_start( task_ptr->task->task_id );
 
         spdlog::trace( "CuplaStream {}: recorded event {}", cupla_stream, cupla_event );
         events.push( std::make_pair( cupla_event, task_ptr ) );
@@ -138,27 +141,30 @@ struct CuplaTaskProperties
 };
 
 template <
-    typename TaskID,
-    typename TaskPtr
+    typename Task
 >
-struct CuplaScheduler : redGrapes::scheduler::SchedulerBase< TaskID, TaskPtr >
+struct CuplaScheduler : redGrapes::scheduler::IScheduler< Task >
 {
 private:
     bool recording;
     bool cupla_graph_enabled;
 
-    std::mutex mutex;
+    std::recursive_mutex mutex;
     unsigned int current_stream;
-    std::vector< CuplaStream< TaskPtr > > streams;
+    std::vector< CuplaStream< Task > > streams;
 
-    std::function< bool(TaskPtr) > is_cupla_task;
+    std::function< bool(typename Task::VertexPtr) > is_cupla_task;
+
+    IManager< Task > & mgr;
 
 public:
     CuplaScheduler(
-        std::function< bool(TaskPtr) > is_cupla_task,
+                   IManager<Task> & mgr,
+        std::function< bool(typename Task::VertexPtr) > is_cupla_task,
         size_t stream_count = 1,
         bool cupla_graph_enabled = false
     ) :
+        mgr(mgr),
         is_cupla_task( is_cupla_task ),
         current_stream( 0 ),
         cupla_graph_enabled( cupla_graph_enabled )
@@ -169,20 +175,19 @@ public:
         for( size_t i = 0; i < stream_count; ++i )
             streams.emplace_back();
 
-        spdlog::info( "CuplaScheduler: use {} streams", streams.size() );
+        spdlog::trace( "CuplaScheduler: use {} streams", streams.size() );
     }
 
-    void activate_task( TaskPtr task_ptr )
+    bool activate_task( typename Task::VertexPtr task_ptr )
     {
-        auto task_id = task_ptr.get().task_id;
+        auto task_id = task_ptr->task->task_id;
+        spdlog::trace("CuplaScheduler: activate task {} \"{}\"", task_id, task_ptr->task->label);
 
-        spdlog::trace("CuplaScheduler: activate task {} \"{}\"", task_id, task_ptr.get().label);
+        std::unique_lock< std::recursive_mutex > lock( mutex );
 
-        std::unique_lock< std::mutex > lock( mutex );
-        
         if(
-            this->scheduling_graph->is_task_ready( task_id ) &&
-            ! task_ptr.get().cupla_event
+            mgr.get_scheduling_graph()->is_task_ready( task_id ) &&
+            ! task_ptr->task->cupla_event
         )
         {
             if( cupla_graph_enabled && ! recording )
@@ -199,34 +204,36 @@ public:
             }
             else
                 dispatch_task( lock, task_ptr, task_id );
+
+            lock.unlock();
+            mgr.get_scheduler()->notify();//todo:neccessary?
+
+            return true;
         }
+
+        return false;
     }
 
     //! submits the call to the cupla runtime
-    void dispatch_task( std::unique_lock< std::mutex > & lock, TaskPtr task_ptr, TaskID task_id )
+    void dispatch_task( std::unique_lock< std::recursive_mutex > & lock, typename Task::VertexPtr task_ptr, TaskID task_id )
     {
         unsigned int stream_id  = current_stream;
         current_stream = ( current_stream + 1 ) % streams.size();
 
-        spdlog::trace( "Dispatch Cupla task {} \"{}\" on stream {}", task_id, task_ptr.get().label, stream_id );
+        spdlog::trace( "Dispatch Cupla task {} \"{}\" on stream {}", task_id, task_ptr->task->label, stream_id );
 
-        for( auto predecessor_ptr : task_ptr.get_predecessors() )
+        for(auto weak_predecessor_ptr : task_ptr->in_edges)
         {
-            spdlog::trace(
-                "cupla scheduler: consider predecessor \"{}\"",
-                predecessor_ptr.get().label
-            );
-
-            if( auto cupla_event = predecessor_ptr.get().cupla_event )
+            if(auto predecessor_ptr = weak_predecessor_ptr.lock())
             {
-                spdlog::trace(
-                    "cupla task {} \"{}\" wait for {}",
-                    task_id,
-                    task_ptr.get().label,
-                    *cupla_event
-                );
+                spdlog::trace("cupla scheduler: consider predecessor \"{}\"", predecessor_ptr->task->label);
 
-                streams[ stream_id ].wait_event( *cupla_event );
+                if(auto cupla_event = predecessor_ptr->task->cupla_event)
+                {
+                    spdlog::trace("cupla task {} \"{}\" wait for {}", task_id, task_ptr->task->label, *cupla_event);
+
+                    streams[stream_id].wait_event(*cupla_event);
+                }
             }
         }
 
@@ -235,19 +242,14 @@ public:
             task_id
         );
 
-        task_ptr.get().cupla_event = streams[ stream_id ].push( task_ptr );
-
-        this->scheduling_graph->task_start( task_id );
-        lock.unlock();
+        streams[ stream_id ].push( task_ptr, *mgr.get_scheduling_graph() );
 
         spdlog::trace(
             "CuplaScheduler: task {} \"{}\"::event = {}",
             task_id,
-            task_ptr.get().label,
-            *task_ptr.get().cupla_event
+            task_ptr->task->label,
+            *task_ptr->task->cupla_event
         );
-
-        this->activate_followers( task_ptr );
     }
 
     //! checks if some cupla calls finished and notify the redGrapes manager
@@ -257,12 +259,11 @@ public:
         {
             if( auto task_ptr = streams[ stream_id ].poll() )
             {
-                auto task_id = task_ptr->locked_get().task_id;
+                auto task_id = (*task_ptr)->task->task_id;
                 spdlog::trace( "cupla task {} done", task_id );
 
-                this->scheduling_graph->task_end( task_id );
-                this->activate_followers( *task_ptr );
-                this->remove_task( *task_ptr );
+                mgr.get_scheduling_graph()->task_end( task_id );
+                mgr.remove_task( *task_ptr );
             }
         }
     }
@@ -270,7 +271,7 @@ public:
     /*! whats the task dependency type for the edge a -> b (task a precedes task b)
      * @return true if task b depends on the pre event of task a, false if task b depends on the post event of task b.
      */
-    bool task_dependency_type( TaskPtr a, TaskPtr b )
+    bool task_dependency_type( typename Task::VertexPtr a, typename Task::VertexPtr b )
     {
         assert( is_cupla_task( b ) );
         return is_cupla_task( a );
@@ -284,18 +285,16 @@ template <
     typename Manager
 >
 auto make_cupla_scheduler(
-    Manager & m,
-    std::function< bool(typename Manager::TaskPtr) > is_cupla_task,
+    Manager & mgr,
+    std::function< bool(typename Manager::Task::VertexPtr) > is_cupla_task,
     size_t n_streams = 8,
     bool graph_enabled = false
 )
 {
     return std::make_shared<
-               CuplaScheduler<
-                   typename Manager::TaskID,
-                   typename Manager::TaskPtr
-               >
+        CuplaScheduler< typename Manager::Task >
            >(
+               mgr,
                is_cupla_task,
                n_streams,
                graph_enabled

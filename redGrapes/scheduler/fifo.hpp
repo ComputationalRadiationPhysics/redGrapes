@@ -1,4 +1,4 @@
-/* Copyright 2019-2020 Michael Sippel
+/* Copyright 2019-2021 Michael Sippel
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -8,8 +8,9 @@
 #pragma once
 
 #include <mutex>
-#include <queue>
+#include <unordered_set>
 #include <optional>
+#include <atomic>
 
 #include <moodycamel/concurrentqueue.h>
 
@@ -21,6 +22,35 @@ namespace redGrapes
 {
 namespace scheduler
 {
+
+struct FIFOSchedulerProp
+{
+    std::atomic_flag active = ATOMIC_FLAG_INIT;
+
+    FIFOSchedulerProp()
+    {
+    }
+    FIFOSchedulerProp(FIFOSchedulerProp&& other)
+    {
+    }
+    FIFOSchedulerProp(FIFOSchedulerProp const& other)
+    {
+    }
+    FIFOSchedulerProp& operator=(FIFOSchedulerProp const& other)
+    {
+        return *this;
+    }
+
+    template<typename PropertiesBuilder>
+    struct Builder
+    {
+        PropertiesBuilder& builder;
+
+        Builder(PropertiesBuilder& b) : builder(b)
+        {
+        }
+    };
+};
 
 template < typename Task >
 struct FIFO : public IScheduler< Task >
@@ -42,16 +72,24 @@ struct FIFO : public IScheduler< Task >
         if( auto task_vertex = get_job() )
         {
             auto task_id = (*task_vertex)->task->task_id;
+            //spdlog::trace("FIFO: run task {}", task_id);
 
             mgr.get_scheduling_graph()->task_start( task_id );
 
             running.enqueue( *task_vertex );
 
-            bool finished = this->mgr.run_task( *task_vertex );
+            mgr.current_task() = task_vertex;
+            bool finished = (*(*task_vertex)->task->impl)();
+            mgr.current_task() = std::nullopt;
+
+            if(auto children = (*task_vertex)->children)
+                while(auto new_task = (*children)->next())
+                    mgr.activate_task(*new_task);
+            while( mgr.activate_next() );
 
             if( finished )
                 mgr.get_scheduling_graph()->task_end( task_id );
-            
+
             return true;
         }
         else
@@ -59,77 +97,101 @@ struct FIFO : public IScheduler< Task >
     }
 
     // precedence graph must be locked
-    void activate_task( TaskVertexPtr task_vertex )
+    bool activate_task( TaskVertexPtr task_vertex )
     {
         auto task_id = task_vertex->task->task_id;
+        if(mgr.get_scheduling_graph()->is_task_ready(task_id))
+        {
+            if(!task_vertex->task->active.test_and_set())
+            {
+                spdlog::trace("FIFO: task {} is ready", task_id);
+                ready.enqueue(task_vertex);
+                mgr.get_scheduler()->notify();
 
-        if( ! mgr.get_scheduling_graph()->exists_task( task_id ) )
-            mgr.get_scheduling_graph()->add_task( task_vertex );
+                return true;
+            }
+        }
 
-        if( ! mgr.get_scheduling_graph()->is_task_finished( task_id ) )
-            if( mgr.get_scheduling_graph()->is_task_ready( task_id ) )
-                ready.enqueue( task_vertex );
+        return false;
     }
 
 private:
     std::optional<TaskVertexPtr> get_job()
     {
+        //spdlog::trace("FIFO::get_job()");
+        
         TaskVertexPtr task_vertex;
-        spdlog::trace("FIFO::get_job()");
 
+        while( mgr.activate_next() );
         if(ready.try_dequeue(task_vertex))
             return task_vertex;
 
         update_running_spaces();
 
+        while( mgr.activate_next() );
         if(ready.try_dequeue(task_vertex))
             return task_vertex;
 
         update_main_space();
 
+        while( mgr.activate_next() );
         if(ready.try_dequeue(task_vertex))
             return task_vertex;
 
-        spdlog::trace("FIFO::get_job(): no job available");
-        
+        //spdlog::trace("FIFO::get_job(): no job available");
         return std::nullopt;
     }
 
     void update_running_spaces()
     {
-        spdlog::trace("FIFO::update_running_spaces()");
-        size_t len = running.size_approx();
-        for(size_t i = 0; i < len; ++i)
+        //spdlog::trace("FIFO::update_running_spaces()");
+
+        std::vector< TaskVertexPtr > buf;
+
+        TaskVertexPtr task_vertex;
+        while(running.try_dequeue(task_vertex))
         {
-            TaskVertexPtr task_vertex;
-            if(running.try_dequeue(task_vertex))
+            TaskID task_id = task_vertex->task->task_id;
+
+            if(auto children = task_vertex->children)
             {
-                TaskID task_id = task_vertex->task->task_id;
-
-                if(auto children = task_vertex->children)
-                    if(auto new_task = (*children)->next())
-                        mgr.activate_task(*new_task);
-
-                if(!mgr.get_scheduling_graph()->is_task_finished(task_id))
-                    running.enqueue(task_vertex);
-                else
+                while(auto new_task = (*children)->next())
                 {
-                    // activate followers
-                    std::shared_lock<std::shared_mutex> rdlock(task_vertex->out_edges_mutex);
-                    for(auto following_task : task_vertex->out_edges)
-                        mgr.activate_task(following_task.lock());
-
-                    mgr.notify();
+                    mgr.activate_task(*new_task);
+                    /* this optimization needs to be implemented differently
+                    if( ready.size_approx() > 0 )
+                        break;
+                    */
                 }
+
+                while( mgr.activate_next() );
             }
+
+            if(mgr.get_scheduling_graph()->is_task_finished(task_id))
+                mgr.remove_task(task_vertex);
+            else
+                if(mgr.get_scheduling_graph()->is_task_running(task_id))
+                    buf.push_back(task_vertex);
+            //  else the task is paused
+            // and will be enqueued again through activate_task()
+            // from scheduling graph when the event is reached
         }
+
+        for( auto task_vertex : buf )
+            running.enqueue(task_vertex);
     }
 
     void update_main_space()
     {
-        spdlog::trace("FIFO::update_main_space()");
-        if(auto task_vertex = mgr.current_task_space()->next())
+        //spdlog::trace("FIFO::update_main_space()");
+        while(auto task_vertex = mgr.get_main_space()->next())
+        {
             mgr.activate_task(*task_vertex);
+            /* same here
+            if(ready.size_approx() > 0)
+                break;
+            */
+        }
     }
 };
 
@@ -150,4 +212,23 @@ auto make_fifo_scheduler(
 } // namespace scheduler
 
 } // namespace redGrapes
+
+
+template<>
+struct fmt::formatter<redGrapes::scheduler::FIFOSchedulerProp>
+{
+    constexpr auto parse(format_parse_context& ctx)
+    {
+        return ctx.begin();
+    }
+
+    template<typename FormatContext>
+    auto format(redGrapes::scheduler::FIFOSchedulerProp const& prop, FormatContext& ctx)
+    {
+        auto out = ctx.out();
+        format_to(out, "\"active\": 0");
+        return out;
+    }
+};
+
 
