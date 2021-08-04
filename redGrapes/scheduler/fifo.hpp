@@ -116,40 +116,46 @@ struct FIFO : public IScheduler< Task >
     }
 
 private:
+
     std::optional<TaskVertexPtr> get_job()
     {
         //spdlog::trace("FIFO::get_job()");
-        
-        TaskVertexPtr task_vertex;
-
-        while( mgr.activate_next() );
-        if(ready.try_dequeue(task_vertex))
+        if( auto task_vertex = try_next_task() )
             return task_vertex;
 
-        update_running_spaces();
-
-        while( mgr.activate_next() );
-        if(ready.try_dequeue(task_vertex))
+        if( auto task_vertex = update_running_spaces() )
             return task_vertex;
 
-        update_main_space();
-
-        while( mgr.activate_next() );
-        if(ready.try_dequeue(task_vertex))
+        if( auto task_vertex = update_main_space() )
             return task_vertex;
 
         //spdlog::trace("FIFO::get_job(): no job available");
         return std::nullopt;
     }
 
-    void update_running_spaces()
+    std::optional<TaskVertexPtr> try_next_task()
+    {
+        do
+        {
+            TaskVertexPtr task_vertex;
+            if(ready.try_dequeue(task_vertex))
+                return task_vertex;
+        }
+        while( mgr.activate_next() );
+
+        return std::nullopt;
+    }
+
+    std::optional<TaskVertexPtr> update_running_spaces()
     {
         //spdlog::trace("FIFO::update_running_spaces()");
 
         std::vector< TaskVertexPtr > buf;
 
+        std::optional<TaskVertexPtr> ready_task;
+
         TaskVertexPtr task_vertex;
-        while(running.try_dequeue(task_vertex))
+        while(!ready_task && running.try_dequeue(task_vertex))
         {
             TaskID task_id = task_vertex->task->task_id;
 
@@ -158,13 +164,13 @@ private:
                 while(auto new_task = (*children)->next())
                 {
                     mgr.activate_task(*new_task);
-                    /* this optimization needs to be implemented differently
-                    if( ready.size_approx() > 0 )
-                        break;
-                    */
-                }
 
-                while( mgr.activate_next() );
+                    if( auto ready_task_vertex = try_next_task() )
+                    {
+                        ready_task = *ready_task_vertex;
+                        break;
+                    }
+                }
             }
 
             if(mgr.get_scheduling_graph()->is_task_finished(task_id))
@@ -179,19 +185,22 @@ private:
 
         for( auto task_vertex : buf )
             running.enqueue(task_vertex);
+
+        return ready_task;
     }
 
-    void update_main_space()
+    std::optional<TaskVertexPtr> update_main_space()
     {
         //spdlog::trace("FIFO::update_main_space()");
         while(auto task_vertex = mgr.get_main_space()->next())
         {
             mgr.activate_task(*task_vertex);
-            /* same here
-            if(ready.size_approx() > 0)
-                break;
-            */
+
+            if( auto next_task_vertex = try_next_task() )
+                return *next_task_vertex;
         }
+
+        return std::nullopt;
     }
 };
 
