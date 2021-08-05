@@ -239,7 +239,7 @@ namespace redGrapes
         {
             return main_space;
         }
-        
+
         std::shared_ptr< scheduler::IScheduler<Task> > get_scheduler()
         {
             return scheduler;
@@ -308,7 +308,7 @@ namespace redGrapes
             else
                 throw std::runtime_error("update_properties: currently no task running");
         }
-        
+
         /*! wait until all tasks finished
          * can only be called outside of a task
          */
@@ -332,6 +332,7 @@ namespace redGrapes
                 {
                     auto& task = *(*cur_vertex)->task;
                     spdlog::trace("pause task {}", task.task_id);
+
                     task.active.clear(); // fixme: this depends on the FIFOProperty
                     scheduling_graph->task_pause(task.task_id, event_id);
                     task.impl->yield();

@@ -183,32 +183,31 @@ public:
         auto task_id = task_ptr->task->task_id;
         spdlog::trace("CuplaScheduler: activate task {} \"{}\"", task_id, task_ptr->task->label);
 
-        std::unique_lock< std::recursive_mutex > lock( mutex );
-
-        if(
-            mgr.get_scheduling_graph()->is_task_ready( task_id ) &&
-            ! task_ptr->task->cupla_event
-        )
+        if(mgr.get_scheduling_graph()->is_task_ready( task_id ) )
         {
-            if( cupla_graph_enabled && ! recording )
+            if(!task_ptr->task->active.test_and_set())
             {
-                recording = true;
-                //TODO: cuplaBeginGraphRecord();
+                std::unique_lock< std::recursive_mutex > lock( mutex );
 
-                dispatch_task( lock, task_ptr, task_id );
+                if( cupla_graph_enabled && ! recording )
+                {
+                    recording = true;
+                    //TODO: cuplaBeginGraphRecord();
 
-                //TODO: cuplaEndGraphRecord();
-                recording = false;
+                    dispatch_task( lock, task_ptr, task_id );
 
-                //TODO: submitGraph();
+                    //TODO: cuplaEndGraphRecord();
+                    recording = false;
+
+                    //TODO: submitGraph();
+                }
+                else
+                    dispatch_task( lock, task_ptr, task_id );
+
+                mgr.get_scheduler()->notify();//todo:neccessary?
+
+                return true;
             }
-            else
-                dispatch_task( lock, task_ptr, task_id );
-
-            lock.unlock();
-            mgr.get_scheduler()->notify();//todo:neccessary?
-
-            return true;
         }
 
         return false;
@@ -217,9 +216,11 @@ public:
     //! submits the call to the cupla runtime
     void dispatch_task( std::unique_lock< std::recursive_mutex > & lock, typename Task::VertexPtr task_ptr, TaskID task_id )
     {
-        unsigned int stream_id  = current_stream;
+        unsigned int stream_id = current_stream;
         current_stream = ( current_stream + 1 ) % streams.size();
 
+        lock.unlock();
+        
         spdlog::trace( "Dispatch Cupla task {} \"{}\" on stream {}", task_id, task_ptr->task->label, stream_id );
 
         for(auto weak_predecessor_ptr : task_ptr->in_edges)

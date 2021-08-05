@@ -26,6 +26,7 @@ namespace scheduler
 struct FIFOSchedulerProp
 {
     std::atomic_flag active = ATOMIC_FLAG_INIT;
+    std::atomic_flag in_running_list = ATOMIC_FLAG_INIT;
 
     FIFOSchedulerProp()
     {
@@ -76,7 +77,8 @@ struct FIFO : public IScheduler< Task >
 
             mgr.get_scheduling_graph()->task_start( task_id );
 
-            running.enqueue( *task_vertex );
+            if( ! (*task_vertex)->task->in_running_list.test_and_set() )
+                running.enqueue( *task_vertex );
 
             mgr.current_task() = task_vertex;
             bool finished = (*(*task_vertex)->task->impl)();
@@ -85,10 +87,9 @@ struct FIFO : public IScheduler< Task >
             if(auto children = (*task_vertex)->children)
                 while(auto new_task = (*children)->next())
                     mgr.activate_task(*new_task);
-            while( mgr.activate_next() );
 
-            if( finished )
-                mgr.get_scheduling_graph()->task_end( task_id );
+            if(finished)
+                mgr.get_scheduling_graph()->task_end(task_id);
 
             return true;
         }
@@ -104,7 +105,7 @@ struct FIFO : public IScheduler< Task >
         {
             if(!task_vertex->task->active.test_and_set())
             {
-                spdlog::trace("FIFO: task {} is ready", task_id);
+                //spdlog::trace("FIFO: task {} is ready", task_id);
                 ready.enqueue(task_vertex);
                 mgr.get_scheduler()->notify();
 
@@ -176,15 +177,22 @@ private:
             if(mgr.get_scheduling_graph()->is_task_finished(task_id))
                 mgr.remove_task(task_vertex);
             else
+            {
+                task_vertex->task->in_running_list.clear();
+
                 if(mgr.get_scheduling_graph()->is_task_running(task_id))
                     buf.push_back(task_vertex);
+            }
             //  else the task is paused
             // and will be enqueued again through activate_task()
             // from scheduling graph when the event is reached
         }
 
         for( auto task_vertex : buf )
-            running.enqueue(task_vertex);
+        {
+            if( ! task_vertex->task->in_running_list.test_and_set() )
+                running.enqueue(task_vertex);
+        }
 
         return ready_task;
     }

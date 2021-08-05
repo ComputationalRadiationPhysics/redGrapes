@@ -93,7 +93,16 @@ namespace redGrapes
         void remove(TaskVertexPtr v)
         {
             std::unique_lock<std::shared_mutex> wrlock(mutex);
-            tasks.remove(v);
+
+            auto it = std::find( std::begin(tasks), std::end(tasks), v );
+            if( it != std::end(tasks) )
+            {
+                tasks.erase(it);
+            }
+            else
+            {
+                spdlog::error("try to remove task which is not in list");
+            }
         }
 
         void add_edge(TaskVertexPtr u, TaskVertexPtr v)

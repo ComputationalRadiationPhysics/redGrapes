@@ -342,9 +342,11 @@ public:
         )
             add_edge(event_id, task_events[task_id].pre_event);
         else
+        {
             // event was reached before task_pause()
+            spdlog::info("task_pause: event {} already reached", event_id);
             notify_event(task_events[task_id].pre_event);
-
+        }
     }
 
     void remove_task( TaskID task_id )
@@ -364,7 +366,7 @@ public:
         std::lock_guard< std::recursive_mutex > lock( mutex );
         return task_events.count( task_id );
     }
-    
+
     /*!
      * Insert a new task and add the same dependencies as in the precedence graph.
      * Note that tasks must be added in order, since only preceding tasks are considered!
