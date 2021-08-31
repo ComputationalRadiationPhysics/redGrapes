@@ -73,18 +73,15 @@ struct FIFO : public IScheduler< Task >
         if( auto task_vertex = get_job() )
         {
             auto task_id = (*task_vertex)->task->task_id;
-            //spdlog::info("FIFO: run task {}", task_id);
 
             mgr.get_scheduling_graph()->task_start( task_id );
 
             mgr.current_task() = task_vertex;
-            //spdlog::info("call task impl");
             bool finished = (*(*task_vertex)->task->impl)();
             mgr.current_task() = std::nullopt;
 
             if(finished)
             {
-                //spdlog::info("FIFO: finished task {}", task_id);
                 if(auto children = (*task_vertex)->children)
                     while(auto new_task = (*children)->next())
                         mgr.activate_task(*new_task);
@@ -94,10 +91,6 @@ struct FIFO : public IScheduler< Task >
                 if(! (*task_vertex)->children)
                     mgr.remove_task(*task_vertex);
             }
-            /*
-            else
-                spdlog::info("FIFO: paused task {}", task_id);
-            */
 
             return true;
         }
@@ -113,7 +106,6 @@ struct FIFO : public IScheduler< Task >
         {
             if(!task_vertex->task->in_ready_list.test_and_set())
             {
-                //spdlog::info("FIFO: task {} is ready", task_id);
                 ready.enqueue(task_vertex);
                 mgr.get_scheduler()->notify();
 

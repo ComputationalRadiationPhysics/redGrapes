@@ -63,16 +63,15 @@ public:
     {
         while( ! m_stop )
         {
+            {
+                std::unique_lock< std::mutex > l( m );
+                cv.wait( l, [this]{ return !wait.test_and_set(); } );
+            }
+
             while( consume() );
-
-            std::unique_lock< std::mutex > l( m );
-            spdlog::trace("Worker waiting..");
-            cv.wait( l, [this]{ return !wait.test_and_set(); } );
-
-            spdlog::trace("Worker continued.");
         }
 
-        spdlog::trace("Worker Finished!");
+        SPDLOG_TRACE("Worker Finished!");
     }
 
     void notify()
@@ -86,7 +85,7 @@ public:
 
     void stop()
     {
-        spdlog::trace("Worker::stop()");
+        SPDLOG_TRACE("Worker::stop()");
         m_stop = true;
         notify();
     }

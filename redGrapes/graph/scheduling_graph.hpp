@@ -117,7 +117,7 @@ private:
             std::forward_as_tuple(std::move(task_ptr))
         );
 
-        spdlog::trace("SchedulingGraph::make_event() = {}", event_id);
+        SPDLOG_TRACE("SchedulingGraph::make_event() = {}", event_id);
 
         return event_id;
     }
@@ -132,7 +132,7 @@ private:
         assert( events.count( a ) );
         assert( events.count( b ) );
 
-        spdlog::trace("SchedulingGraph::add_edge(event {} -> event {})", a, b);
+        SPDLOG_TRACE("SchedulingGraph::add_edge(event {} -> event {})", a, b);
 
         events[ a ].followers.push_back( b );
         events[ b ].up();
@@ -158,7 +158,7 @@ private:
      */
     bool notify_event( EventID id )
     {
-        spdlog::trace("SchedulingGraph::notify_event({})", id);
+        SPDLOG_TRACE("SchedulingGraph::notify_event({})", id);
         assert( events.count( id ) );
 
         if( events[ id ].is_ready() )
@@ -172,7 +172,7 @@ private:
             for( auto & follower : events[ id ].followers )
                 unsafe_reach_event( follower );
 
-            spdlog::trace("SchedulingGraph: remove event {}", id);
+            SPDLOG_TRACE("SchedulingGraph: remove event {}", id);
             events.erase( id );
 
             return true;
@@ -186,7 +186,7 @@ private:
      */
     bool unsafe_reach_event( EventID event_id )
     {
-        spdlog::trace("SchedulingGraph::unsafe_reach_event({})", event_id);
+        SPDLOG_TRACE("SchedulingGraph::unsafe_reach_event({})", event_id);
 
         if( events.count( event_id ) )
         {
@@ -231,7 +231,7 @@ public:
         else
             return true;        
     }
-    
+
     //! checks whether an event is reached
     bool is_event_reached( EventID event_id )
     {
@@ -306,7 +306,7 @@ public:
     void task_start( TaskID task_id )
     {
         std::lock_guard< std::recursive_mutex > lock( mutex );
-        spdlog::trace("SchedulingGraph::task_start({})", task_id);
+        SPDLOG_TRACE("SchedulingGraph::task_start({})", task_id);
 
         assert( task_events.count(task_id) );
         assert( events.count( task_events[ task_id ].pre_event ) );
@@ -319,22 +319,22 @@ public:
     void task_end( TaskID task_id )
     {
         std::lock_guard< std::recursive_mutex > lock( mutex );
-        spdlog::trace("SchedulingGraph::task_end({})", task_id);
+        SPDLOG_TRACE("SchedulingGraph::task_end({})", task_id);
 
         assert( task_events.count( task_id ) );
         auto r = unsafe_reach_event( task_events[ task_id ].post_event );
-        spdlog::trace("SchedulingGraph: unsafe_reach_event() = {}", r);
+        SPDLOG_TRACE("SchedulingGraph: unsafe_reach_event() = {}", r);
     }
 
     //! pause the task until event_id is reached
     void task_pause( TaskID task_id, EventID event_id )
     {
         std::lock_guard< std::recursive_mutex > lock( mutex );
-        spdlog::trace("SchedulingGraph::task_pause({})", task_id);
+        SPDLOG_TRACE("SchedulingGraph::task_pause({})", task_id);
 
         task_events[ task_id ].pre_event = make_event( task_events[task_id].task_ptr );
 
-        spdlog::trace("SchedulingGraph::task_pause set pre_event={}", task_events[ task_id ].pre_event);
+        SPDLOG_TRACE("SchedulingGraph::task_pause set pre_event={}", task_events[ task_id ].pre_event);
 
         if(
            events.count(event_id) &&
@@ -344,20 +344,16 @@ public:
         else
         {
             // event was reached before task_pause()
-            spdlog::info("task_pause: event {} already reached", event_id);
+            //spdlog::info("task_pause: event {} already reached", event_id);
             notify_event(task_events[task_id].pre_event);
         }
     }
 
     void remove_task( TaskID task_id )
     {
-        assert( is_task_finished( task_id ) );
-
         std::lock_guard< std::recursive_mutex > lock( mutex );
-        spdlog::trace("SchedulingGraph::remove_task({})", task_id);
+        SPDLOG_TRACE("SchedulingGraph::remove_task({})", task_id);
 
-        assert( !events.count( task_events[task_id].pre_event ) );
-        assert( !events.count( task_events[task_id].post_event ) );
         task_events.erase( task_id );
     }
 
@@ -391,7 +387,7 @@ public:
         task_events[ task.task_id ].pre_event = make_event( task_ptr );
         task_events[ task.task_id ].post_event = make_event( std::nullopt );
 
-        spdlog::trace(
+        SPDLOG_TRACE(
             "SchedulingGraph::add_task({}) -> pre={}, post={}",
             task.task_id,
             task_events[task.task_id].pre_event,
@@ -404,11 +400,11 @@ public:
             if( TaskPtr preceding_task_ptr = weak_in_vertex_ptr.lock() )
             {
                 auto preceding_task_id = preceding_task_ptr->task->task_id;
-                spdlog::trace("SchedulingGraph: preceding task {}", preceding_task_id);
+                SPDLOG_TRACE("SchedulingGraph: preceding task {}", preceding_task_id);
 
                 if(task_events.count(preceding_task_id))
                 {
-                    spdlog::trace(
+                    SPDLOG_TRACE(
                         "SchedulingGraph: task {} -> task {}: dependency type {}",
                         preceding_task_id,
                         task.task_id,

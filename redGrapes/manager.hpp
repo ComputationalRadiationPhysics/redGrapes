@@ -95,11 +95,11 @@ namespace redGrapes
         {
             while( ! scheduling_graph->empty() )
             {
-                spdlog::trace("Manager: idle");
+                SPDLOG_TRACE("Manager: idle");
                 redGrapes::thread::idle();
             }
 
-            spdlog::trace("Manager: scheduling graph empty!");
+            SPDLOG_TRACE("Manager: scheduling graph empty!");
 
             scheduler->notify();
         }
@@ -110,6 +110,7 @@ namespace redGrapes
         void set_scheduler(std::shared_ptr<scheduler::IScheduler<Task>> scheduler)
         {
             this->scheduler = scheduler;
+            //this->scheduler->start();
         }
 
         std::shared_ptr< SchedulingGraph<Task> > get_scheduling_graph()
@@ -182,7 +183,7 @@ namespace redGrapes
                 task->impl->scope_level = 1;
 
             //spdlog::info("Manager::emplace_task {}\n", (TaskProps const&) *task);
-            spdlog::trace("Manager: result_event = {}", result_event);
+            SPDLOG_TRACE("Manager: result_event = {}", result_event);
 
             current_task_space()->push(std::move(task));
             scheduler->notify();
@@ -196,29 +197,25 @@ namespace redGrapes
             return current_task;
         }
 
+        //! enqueue task in activation queue
         void activate_task(TaskVertexPtr vertex_ptr)
         {
-            spdlog::trace("mgr: add task {} to activation queue", vertex_ptr->task->task_id);
+            SPDLOG_TRACE("mgr: add task {} to activation queue", vertex_ptr->task->task_id);
             activation_queue.enqueue(vertex_ptr);
             scheduler->notify();
         }
 
+        //! push next task from activation queue to scheduler, if available
         bool activate_next()
         {
             TaskVertexPtr vertex_ptr;
             if( activation_queue.try_dequeue(vertex_ptr) )
             {
-                spdlog::trace("Manager::activate_next(): activate {}", vertex_ptr->task->task_id);
-                if( scheduler->activate_task(vertex_ptr) )
-                {
-                }
-
+                scheduler->activate_task(vertex_ptr);
                 return true;
             }
             else
-                spdlog::trace("Manager::activate_next(): no tasks");
-
-            return false;
+                return false;
         }
 
         std::shared_ptr<TaskSpace<Task>> current_task_space()
@@ -355,7 +352,7 @@ namespace redGrapes
          */
         void wait_for_all()
         {
-            spdlog::trace("wait for all tasks...");
+            SPDLOG_TRACE("wait for all tasks...");
             if(!current_task())
                 while(!scheduling_graph->empty())
                     thread::idle();
@@ -368,18 +365,13 @@ namespace redGrapes
         {
             while(!scheduling_graph->is_event_reached(event_id))
             {
-                //spdlog::info("yield for event {}", event_id);
                 if(auto cur_vertex = current_task())
                 {
-                    //spdlog::info("vertex_ptr = {}", (void*)cur_vertex->get());
-                    //spdlog::info("task_ptr = {}", (void*)(*cur_vertex)->task.get());
-                    //spdlog::info("yield task {}", (*cur_vertex)->task->task_id);
                     (*cur_vertex)
                         ->task->impl->yield(
                             [this, cur_vertex, event_id]
                             {
                                 auto& task = *(*cur_vertex)->task;
-                                //spdlog::info("pause task {}", task.task_id);
 
                                 task.in_ready_list.clear(); // fixme: this depends on the FIFOProperty
                                 scheduling_graph->task_pause(task.task_id, event_id);

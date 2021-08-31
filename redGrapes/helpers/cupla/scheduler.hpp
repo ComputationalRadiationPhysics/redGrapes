@@ -73,7 +73,7 @@ struct CuplaStream
 
             if( cuplaEventQuery( cupla_event ) == cuplaSuccess )
             {
-                spdlog::trace("cupla event {} ready", cupla_event);
+                SPDLOG_TRACE("cupla event {} ready", cupla_event);
                 EventPool::get().free( cupla_event );
                 events.pop();
 
@@ -105,7 +105,7 @@ struct CuplaStream
         task_ptr->task->cupla_event = cupla_event;
         sg.task_start( task_ptr->task->task_id );
 
-        spdlog::trace( "CuplaStream {}: recorded event {}", cupla_stream, cupla_event );
+        SPDLOG_TRACE( "CuplaStream {}: recorded event {}", cupla_stream, cupla_event );
         events.push( std::make_pair( cupla_event, task_ptr ) );
 
         return cupla_event;
@@ -175,13 +175,13 @@ public:
         for( size_t i = 0; i < stream_count; ++i )
             streams.emplace_back();
 
-        spdlog::trace( "CuplaScheduler: use {} streams", streams.size() );
+        SPDLOG_TRACE( "CuplaScheduler: use {} streams", streams.size() );
     }
 
     bool activate_task( typename Task::VertexPtr task_ptr )
     {
         auto task_id = task_ptr->task->task_id;
-        spdlog::trace("CuplaScheduler: activate task {} \"{}\"", task_id, task_ptr->task->label);
+        SPDLOG_TRACE("CuplaScheduler: activate task {} \"{}\"", task_id, task_ptr->task->label);
 
         if(mgr.get_scheduling_graph()->is_task_ready( task_id ) )
         {
@@ -217,24 +217,24 @@ public:
         unsigned int stream_id = current_stream;
         current_stream = ( current_stream + 1 ) % streams.size();
 
-        spdlog::trace( "Dispatch Cupla task {} \"{}\" on stream {}", task_id, task_ptr->task->label, stream_id );
+        SPDLOG_TRACE( "Dispatch Cupla task {} \"{}\" on stream {}", task_id, task_ptr->task->label, stream_id );
 
         for(auto weak_predecessor_ptr : task_ptr->in_edges)
         {
             if(auto predecessor_ptr = weak_predecessor_ptr.lock())
             {
-                spdlog::trace("cupla scheduler: consider predecessor \"{}\"", predecessor_ptr->task->label);
+                SPDLOG_TRACE("cupla scheduler: consider predecessor \"{}\"", predecessor_ptr->task->label);
 
                 if(auto cupla_event = predecessor_ptr->task->cupla_event)
                 {
-                    spdlog::trace("cupla task {} \"{}\" wait for {}", task_id, task_ptr->task->label, *cupla_event);
+                    SPDLOG_TRACE("cupla task {} \"{}\" wait for {}", task_id, task_ptr->task->label, *cupla_event);
 
                     streams[stream_id].wait_event(*cupla_event);
                 }
             }
         }
 
-        spdlog::trace(
+        SPDLOG_TRACE(
             "CuplaScheduler: start {}",
             task_id
         );
@@ -243,7 +243,7 @@ public:
 
         lock.unlock();
         
-        spdlog::trace(
+        SPDLOG_TRACE(
             "CuplaScheduler: task {} \"{}\"::event = {}",
             task_id,
             task_ptr->task->label,
@@ -259,7 +259,7 @@ public:
             if( auto task_ptr = streams[ stream_id ].poll() )
             {
                 auto task_id = (*task_ptr)->task->task_id;
-                spdlog::trace( "cupla task {} done", task_id );
+                SPDLOG_TRACE( "cupla task {} done", task_id );
 
                 mgr.get_scheduling_graph()->task_end( task_id );
                 mgr.remove_task( *task_ptr );

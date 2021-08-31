@@ -46,7 +46,7 @@ struct DefaultScheduler : public IScheduler<Task>
         thread::idle =
             [this]
             {
-                spdlog::trace("DefaultScheduler::idle()");
+                SPDLOG_TRACE("DefaultScheduler::idle()");
                 std::unique_lock< std::mutex > l( m );
                 cv.wait( l, [this]{ return !wait.test_and_set(); } );
             };
@@ -55,7 +55,7 @@ struct DefaultScheduler : public IScheduler<Task>
     //! wakeup sleeping worker threads
     void notify()
     {
-        spdlog::trace("DefaultScheduler::notify()");
+        SPDLOG_TRACE("DefaultScheduler::notify()");
         {
             std::unique_lock< std::mutex > l( m );
             wait.clear();

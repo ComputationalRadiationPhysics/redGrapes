@@ -107,7 +107,7 @@ namespace redGrapes
 
         void add_edge(TaskVertexPtr u, TaskVertexPtr v)
         {
-            spdlog::trace("TaskSpace: add edge task {} -> task {}", u->task->task_id, v->task->task_id);
+            SPDLOG_TRACE("TaskSpace: add edge task {} -> task {}", u->task->task_id, v->task->task_id);
             v->in_edges.push_back(u);
 
             std::unique_lock<std::shared_mutex> wrlock(u->out_edges_mutex);
@@ -141,13 +141,13 @@ namespace redGrapes
     struct PrecedenceGraph : IPrecedenceGraph<Task>
     {
         using TaskVertexPtr = std::shared_ptr<PrecedenceGraphVertex<Task>>;
-        
+
         void init_dependencies(typename std::list<TaskVertexPtr>::iterator it)
         {
             //std::shared_lock<std::shared_mutex> rdlock(this->mutex);
 
             TaskVertexPtr task_vertex = *it++;
-            spdlog::trace("PrecedenceGraph::init_dependencies({})", task_vertex->task->task_id);
+            SPDLOG_TRACE("PrecedenceGraph::init_dependencies({})", task_vertex->task->task_id);
             for(; it != std::end(this->tasks); ++it)
                 if(EnqueuePolicy::is_serial(*(*it)->task, *task_vertex->task))
                     this->add_edge(*it, task_vertex);
