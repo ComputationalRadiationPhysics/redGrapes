@@ -30,30 +30,35 @@ struct TaskImplBase
         : finished( false )
     {
     }
-    
+
     bool operator() ()
     {
         thread::scope_level = scope_level;
 
-        if( ! resume_cont )
+        if(!resume_cont)
             resume_cont = boost::context::callcc(
-                [this]( boost::context::continuation && c )
+                [this](boost::context::continuation&& c)
                 {
-                    this->yield_cont = std::move( c );
+                    this->yield_cont = std::move(c);
                     this->run();
                     finished = true;
-                    return std::move( this->yield_cont );
-                }
-            );
+                    return std::move(this->yield_cont);
+                });
         else
             resume_cont = resume_cont->resume();
 
         return finished;
     }
 
-    void yield( )
+    template <typename F>
+    void yield( F && f )
     {
-        yield_cont = yield_cont.resume();
+        yield_cont = yield_cont.resume_with(
+            [f](boost::context::continuation&& c)
+            {
+                f();
+                return std::move(c);
+            });
     }
 
     unsigned int scope_level;

@@ -36,6 +36,8 @@ namespace redGrapes
         virtual std::shared_ptr<TaskSpace<Task>> current_task_space() {}
         virtual std::optional<TaskVertexPtr>& current_task() {}
 
+        virtual void update_active_task_spaces() {}
+        
         virtual void activate_task(TaskVertexPtr) {}
         virtual bool activate_next() {}
 

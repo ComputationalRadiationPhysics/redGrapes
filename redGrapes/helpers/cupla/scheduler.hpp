@@ -185,7 +185,7 @@ public:
 
         if(mgr.get_scheduling_graph()->is_task_ready( task_id ) )
         {
-            if(!task_ptr->task->active.test_and_set())
+            if(!task_ptr->task->in_ready_list.test_and_set())
             {
                 std::unique_lock< std::recursive_mutex > lock( mutex );
 
@@ -204,8 +204,6 @@ public:
                 else
                     dispatch_task( lock, task_ptr, task_id );
 
-                mgr.get_scheduler()->notify();//todo:neccessary?
-
                 return true;
             }
         }
@@ -219,8 +217,6 @@ public:
         unsigned int stream_id = current_stream;
         current_stream = ( current_stream + 1 ) % streams.size();
 
-        lock.unlock();
-        
         spdlog::trace( "Dispatch Cupla task {} \"{}\" on stream {}", task_id, task_ptr->task->label, stream_id );
 
         for(auto weak_predecessor_ptr : task_ptr->in_edges)
@@ -245,6 +241,8 @@ public:
 
         streams[ stream_id ].push( task_ptr, *mgr.get_scheduling_graph() );
 
+        lock.unlock();
+        
         spdlog::trace(
             "CuplaScheduler: task {} \"{}\"::event = {}",
             task_id,

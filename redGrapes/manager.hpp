@@ -55,6 +55,7 @@ namespace redGrapes
 
     private:
         moodycamel::ConcurrentQueue<TaskVertexPtr> activation_queue;
+        moodycamel::ConcurrentQueue<std::shared_ptr<TaskSpace<Task>>> active_task_spaces;
 
         std::shared_ptr<SchedulingGraph<Task>> scheduling_graph;
         std::shared_ptr<TaskSpace<Task>> main_space;
@@ -86,6 +87,7 @@ namespace redGrapes
             : scheduling_graph(std::make_shared<SchedulingGraph<Task>>(*this))
             , main_space(std::make_shared<TaskSpace<Task>>(std::make_shared<PrecedenceGraph<Task, ResourceUser>>(), scheduling_graph))
         {
+            active_task_spaces.enqueue(main_space);
             set_scheduler(scheduler::make_default_scheduler<Task>(*this, n_threads));
         }
 
@@ -179,7 +181,7 @@ namespace redGrapes
             else
                 task->impl->scope_level = 1;
 
-            spdlog::debug("Manager::emplace_task {}\n", (TaskProps const&) *task);
+            //spdlog::info("Manager::emplace_task {}\n", (TaskProps const&) *task);
             spdlog::trace("Manager: result_event = {}", result_event);
 
             current_task_space()->push(std::move(task));
@@ -224,15 +226,54 @@ namespace redGrapes
             if(auto task = current_task())
             {
                 if((*task)->children == std::nullopt)
-                    (*task)->children = std::make_shared<TaskSpace<Task>>(
+                {
+                    auto task_space = std::make_shared<TaskSpace<Task>>(
                         std::make_shared<PrecedenceGraph<Task, ResourceUser>>(),
                         scheduling_graph,
                         std::weak_ptr<PrecedenceGraphVertex<Task>>(*task));
+
+                    active_task_spaces.enqueue(task_space);
+
+                    (*task)->children = task_space;
+                }
 
                 return *(*task)->children;
             }
             else
                 return main_space;
+        }
+
+        void update_active_task_spaces()
+        {
+            std::vector< std::shared_ptr< TaskSpace<Task> > > buf;
+
+            std::shared_ptr< TaskSpace<Task> > space;
+            while(active_task_spaces.try_dequeue(space))
+            {
+                while(auto new_task = space->next())
+                    activate_task(*new_task);
+
+                bool remove = false;
+                if( auto parent_weak = space->parent )
+                {
+                    auto parent = parent_weak->lock();
+                    auto parent_task_id = parent->task->task_id;
+                    if(
+                        space->empty() &&
+                        scheduling_graph->is_task_finished(parent_task_id)
+                    )
+                    {
+                        remove_task(parent);
+                        remove = true;
+                    }
+                }
+
+                if(! remove)
+                    buf.push_back(space);
+            }
+
+            for( auto space : buf )
+                active_task_spaces.enqueue(space);
         }
 
         std::shared_ptr<TaskSpace<Task>> get_main_space()
@@ -327,15 +368,22 @@ namespace redGrapes
         {
             while(!scheduling_graph->is_event_reached(event_id))
             {
-                spdlog::trace("yield for event {}", event_id);
+                //spdlog::info("yield for event {}", event_id);
                 if(auto cur_vertex = current_task())
                 {
-                    auto& task = *(*cur_vertex)->task;
-                    spdlog::trace("pause task {}", task.task_id);
+                    //spdlog::info("vertex_ptr = {}", (void*)cur_vertex->get());
+                    //spdlog::info("task_ptr = {}", (void*)(*cur_vertex)->task.get());
+                    //spdlog::info("yield task {}", (*cur_vertex)->task->task_id);
+                    (*cur_vertex)
+                        ->task->impl->yield(
+                            [this, cur_vertex, event_id]
+                            {
+                                auto& task = *(*cur_vertex)->task;
+                                //spdlog::info("pause task {}", task.task_id);
 
-                    task.active.clear(); // fixme: this depends on the FIFOProperty
-                    scheduling_graph->task_pause(task.task_id, event_id);
-                    task.impl->yield();
+                                task.in_ready_list.clear(); // fixme: this depends on the FIFOProperty
+                                scheduling_graph->task_pause(task.task_id, event_id);
+                            });
                 }
                 else
                     thread::idle();

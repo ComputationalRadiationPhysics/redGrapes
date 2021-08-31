@@ -237,6 +237,12 @@ namespace redGrapes
         {
             precedence_graph->remove(v);
         }
+
+        bool empty() const
+        {
+            std::shared_lock<std::shared_mutex> rdlock(precedence_graph->mutex);
+            return precedence_graph->tasks.empty();
+        }
     };
 
 } // namespace redGrapes
