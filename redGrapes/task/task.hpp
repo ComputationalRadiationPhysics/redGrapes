@@ -39,10 +39,22 @@ struct TaskImplBase
             resume_cont = boost::context::callcc(
                 [this](boost::context::continuation&& c)
                 {
-                    this->yield_cont = std::move(c);
+                    {
+                        std::lock_guard< std::mutex > lock( yield_cont_mutex );
+                        this->yield_cont = std::move(c);
+                    }
+
                     this->run();
-                    finished = true;
-                    return std::move(this->yield_cont);
+                    this->finished = true;
+
+                    std::optional< boost::context::continuation > yield_cont;
+
+                    {
+                        std::lock_guard< std::mutex > lock( yield_cont_mutex );
+                        this->yield_cont.swap(yield_cont);
+                    }
+
+                    return std::move(*yield_cont);
                 });
         else
             resume_cont = resume_cont->resume();
@@ -50,21 +62,28 @@ struct TaskImplBase
         return finished;
     }
 
-    template <typename F>
-    void yield( F && f )
+    void yield( EventID event_id )
     {
-        yield_cont = yield_cont.resume_with(
-            [f](boost::context::continuation&& c)
-            {
-                f();
-                return std::move(c);
-            });
+        this->event_id = event_id;
+
+        std::optional< boost::context::continuation > old_yield;
+        this->yield_cont.swap( old_yield );
+
+        boost::context::continuation new_yield = old_yield->resume();
+
+        std::lock_guard< std::mutex > lock( yield_cont_mutex );
+        if( ! yield_cont )
+            yield_cont = std::move(new_yield);
+        // else: yield_cont already been set by another thread running this task
     }
 
     unsigned int scope_level;
+    std::optional< EventID > event_id;
 
 private:
-    boost::context::continuation yield_cont;
+    std::mutex yield_cont_mutex;
+
+    std::optional< boost::context::continuation > yield_cont;
     std::optional< boost::context::continuation > resume_cont;
 };
 

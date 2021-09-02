@@ -25,8 +25,8 @@ namespace scheduler
 
 struct FIFOSchedulerProp
 {
+    std::atomic_flag in_activation_queue = ATOMIC_FLAG_INIT;
     std::atomic_flag in_ready_list = ATOMIC_FLAG_INIT;
-    std::atomic_flag in_running_list = ATOMIC_FLAG_INIT;
 
     FIFOSchedulerProp()
     {
@@ -90,6 +90,15 @@ struct FIFO : public IScheduler< Task >
 
                 if(! (*task_vertex)->children)
                     mgr.remove_task(*task_vertex);
+            }
+            else
+            {
+                Task& task = *(*task_vertex)->task;
+
+                task.in_activation_queue.clear();
+                task.in_ready_list.clear();
+
+                mgr.get_scheduling_graph()->task_pause(task_id, *task.impl->event_id);
             }
 
             return true;

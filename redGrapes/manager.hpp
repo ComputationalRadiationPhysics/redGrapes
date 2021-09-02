@@ -182,7 +182,7 @@ namespace redGrapes
             else
                 task->impl->scope_level = 1;
 
-            //spdlog::info("Manager::emplace_task {}\n", (TaskProps const&) *task);
+            SPDLOG_DEBUG("Manager::emplace_task {}\n", (TaskProps const&) *task);
             SPDLOG_TRACE("Manager: result_event = {}", result_event);
 
             current_task_space()->push(std::move(task));
@@ -201,8 +201,12 @@ namespace redGrapes
         void activate_task(TaskVertexPtr vertex_ptr)
         {
             SPDLOG_TRACE("mgr: add task {} to activation queue", vertex_ptr->task->task_id);
-            activation_queue.enqueue(vertex_ptr);
-            scheduler->notify();
+
+            if(!vertex_ptr->task->in_activation_queue.test_and_set())
+            {
+                activation_queue.enqueue(vertex_ptr);
+                scheduler->notify();
+            }
         }
 
         //! push next task from activation queue to scheduler, if available
@@ -211,6 +215,7 @@ namespace redGrapes
             TaskVertexPtr vertex_ptr;
             if( activation_queue.try_dequeue(vertex_ptr) )
             {
+                vertex_ptr->task->in_activation_queue.clear();
                 scheduler->activate_task(vertex_ptr);
                 return true;
             }
@@ -242,13 +247,23 @@ namespace redGrapes
 
         void update_active_task_spaces()
         {
+            bool notified = false;
+
             std::vector< std::shared_ptr< TaskSpace<Task> > > buf;
 
             std::shared_ptr< TaskSpace<Task> > space;
             while(active_task_spaces.try_dequeue(space))
             {
                 while(auto new_task = space->next())
-                    activate_task(*new_task);
+                {
+                    activation_queue.enqueue(*new_task);
+
+                    if(! notified)
+                    {
+                        scheduler->notify();
+                        notified = true;
+                    }
+                }
 
                 bool remove = false;
                 if( auto parent_weak = space->parent )
@@ -366,17 +381,7 @@ namespace redGrapes
             while(!scheduling_graph->is_event_reached(event_id))
             {
                 if(auto cur_vertex = current_task())
-                {
-                    (*cur_vertex)
-                        ->task->impl->yield(
-                            [this, cur_vertex, event_id]
-                            {
-                                auto& task = *(*cur_vertex)->task;
-
-                                task.in_ready_list.clear(); // fixme: this depends on the FIFOProperty
-                                scheduling_graph->task_pause(task.task_id, event_id);
-                            });
-                }
+                    (*cur_vertex)->task->impl->yield(event_id);
                 else
                     thread::idle();
             }
