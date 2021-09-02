@@ -17,6 +17,8 @@
 namespace redGrapes
 {
 
+using TaskID = unsigned int;
+
 struct IDProperty
 {
 
@@ -28,14 +30,19 @@ private:
     }
 
 public:
-    unsigned int task_id;
+    TaskID task_id;
 
     IDProperty()
-        : task_id( id_counter().fetch_add( 1, std::memory_order_seq_cst ) )
+        : task_id( -1)//id_counter().fetch_add( 1, std::memory_order_seq_cst ) )
     {}
 
     IDProperty( IDProperty && other ) : task_id( other.task_id ) {}
     IDProperty( IDProperty const & other ) : task_id( other.task_id ) {}
+
+    IDProperty & operator=(IDProperty const & other)
+    {
+        return *this;
+    }
 
     template < typename PropertiesBuilder >
     struct Builder

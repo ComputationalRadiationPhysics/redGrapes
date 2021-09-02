@@ -73,7 +73,7 @@ int main()
     > mgr;
     using TaskProperties = decltype(mgr)::TaskProps;
 
-    spdlog::set_level(spdlog::level::debug);
+    spdlog::set_level(spdlog::level::info);
 
     auto default_scheduler = rg::scheduler::make_default_scheduler( mgr );
     auto mpi_scheduler = rg::helpers::mpi::make_mpi_scheduler( mgr, TaskProperties::Builder().scheduling_tags({ SCHED_MPI }) );
@@ -135,7 +135,7 @@ int main()
             {
                 int dst = ( mpi_config->world_rank + 1 ) % mpi_config->world_size;
 
-                mpi_scheduler.emplace_mpi_task(
+                mpi_scheduler.emplace_task(
                     [field, dst, current]( MPI_Request & request ) {
                         MPI_Isend( &field[{3}], sizeof(int), MPI_CHAR, dst, current, MPI_COMM_WORLD, &request );
                     }
@@ -153,7 +153,7 @@ int main()
                 int src = ( mpi_config->world_rank - 1 ) % mpi_config->world_size;
 
                 MPI_Status status =
-                    mpi_scheduler.emplace_mpi_task(
+                    mpi_scheduler.emplace_task(
                         [field, src, current]( MPI_Request & request )
                         {
                             MPI_Irecv( &field[{0}], sizeof(int), MPI_CHAR, src, current, MPI_COMM_WORLD, &request );

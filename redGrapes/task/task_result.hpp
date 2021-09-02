@@ -12,55 +12,52 @@
 
 #include <future>
 
+#include <redGrapes/imanager.hpp>
+
 namespace redGrapes
 {
-
-/*!
- * Wrapper for std::future which consumes jobs
- * instead of waiting in get()
- */
-template <
-    typename T,
-    typename Manager
->
-struct TaskResult : std::future<T>
-{
-    TaskResult( std::future<T> && future, Manager & mgr, typename Manager::EventID result_event )
-        : std::future<T>(std::move(future)), mgr(mgr), result_event( result_event )
-    {}
-
     /*!
-     * yields until the task has a valid result
-     * and retrieves it.
-     *
-     * @return the result
+     * Wrapper for std::future which consumes jobs
+     * instead of waiting in get()
      */
-    T get(void)
+    template<typename Task, typename Result>
+    struct TaskResult : std::future<Result>
     {
-        mgr.yield( result_event );
-        return this->std::future<T>::get();
-    }
+        TaskResult(std::future<Result>&& future, IManager<Task>& mgr, EventID result_event)
+            : std::future<Result>(std::move(future))
+            , mgr(mgr)
+            , result_event(result_event)
+        {
+        }
 
-    /*! check if the result is already computed
-     */
-    bool is_ready(void) const
+        /*!
+         * yields until the task has a valid result
+         * and retrieves it.
+         *
+         * @return the result
+         */
+        Result get(void)
+        {
+            mgr.yield(result_event);
+            return this->std::future<Result>::get();
+        }
+
+        /*! check if the result is already computed
+         */
+        bool is_ready(void) const
+        {
+            return this->wait_for(std::chrono::seconds(0)) == std::future_status::ready;
+        }
+
+    private:
+        IManager<Task>& mgr;
+        EventID result_event;
+    }; // struct TaskResult
+
+    template<typename Task, typename Result>
+    TaskResult<Task, Result> make_task_result(std::future<Result>&& future, IManager<Task>& mgr, EventID event)
     {
-        return this->wait_for(std::chrono::seconds(0)) == std::future_status::ready;
+        return TaskResult<Task, Result>(std::move(future), mgr, event);
     }
-
-  private:
-    Manager & mgr;
-    typename Manager::EventID result_event;
-}; // struct TaskResult
-
-template <
-    typename T,
-    typename Manager
->
-TaskResult<T, Manager> make_task_result(std::future<T>&& future, Manager & mgr, typename Manager::EventID event )
-{
-    return TaskResult< T, Manager >( std::move(future), mgr, event );
-}
 
 } // namespace redGrapes
-

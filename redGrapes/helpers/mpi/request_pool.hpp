@@ -12,6 +12,7 @@
 #include <map>
 #include <memory>
 
+#include <redGrapes/graph/scheduling_graph.hpp>
 
 namespace redGrapes
 {
@@ -20,19 +21,17 @@ namespace helpers
 namespace mpi
 {
 
-template < typename Manager >
+template < typename Task >
 struct RequestPool
 {
-    using EventID = typename Manager::EventID;
-
-    Manager & mgr;
+    IManager< Task > & mgr;
     std::mutex mutex;
 
     std::vector< MPI_Request > requests;
     std::vector< EventID > events;
     std::vector< std::shared_ptr< MPI_Status > > statuses;
 
-    RequestPool( Manager & mgr )
+    RequestPool( IManager< Task > & mgr )
         : mgr(mgr)
     {}
 
@@ -90,6 +89,8 @@ struct RequestPool
     {
         auto status = std::make_shared< MPI_Status >();
         auto event_id = *mgr.create_event();
+
+        SPDLOG_TRACE("MPI RequestPool: status event = {}", event_id);
 
         {
             std::lock_guard<std::mutex> lock( mutex );
