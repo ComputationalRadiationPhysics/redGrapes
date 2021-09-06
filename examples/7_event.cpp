@@ -40,7 +40,8 @@ int main()
     std::cout << "Task 1 finished" << std::endl;
     std::this_thread::sleep_for( std::chrono::seconds(1) );
     std::cout << "reach event" << std::endl;
-    rg.reach_event( event );
+
+    event->reach();
 
     return 0;
 }

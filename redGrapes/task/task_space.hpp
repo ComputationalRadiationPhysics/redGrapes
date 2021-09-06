@@ -16,6 +16,8 @@
 #include <moodycamel/concurrentqueue.h>
 #include <spdlog/spdlog.h>
 
+//#include <redGrapes/graph/scheduling_graph.hpp>
+
 namespace std
 {
     using shared_mutex = shared_timed_mutex;
@@ -166,7 +168,7 @@ namespace redGrapes
     };
 }
 
-#include <redGrapes/graph/scheduling_graph.hpp>
+#include <redGrapes/scheduler/scheduling_graph.hpp>
 
 namespace redGrapes
 {
@@ -175,20 +177,16 @@ namespace redGrapes
     template<typename Task>
     struct TaskSpace : std::enable_shared_from_this<TaskSpace<Task>>
     {
-        moodycamel::ConcurrentQueue<std::unique_ptr<Task>> queue;
-        std::shared_ptr<IPrecedenceGraph<Task>> precedence_graph;
-        std::shared_ptr<SchedulingGraph<Task>> scheduling_graph;
-
-        std::optional<std::weak_ptr<PrecedenceGraphVertex<Task>>> parent;
-
         using TaskVertexPtr = std::shared_ptr<PrecedenceGraphVertex<Task>>;
 
+        moodycamel::ConcurrentQueue<std::unique_ptr<Task>> queue;
+        std::shared_ptr<IPrecedenceGraph<Task>> precedence_graph;
+        std::optional<std::weak_ptr<PrecedenceGraphVertex<Task>>> parent;
+        
         TaskSpace(
             std::shared_ptr<IPrecedenceGraph<Task>> precedence_graph,
-            std::shared_ptr<SchedulingGraph<Task>> scheduling_graph,
             std::optional<std::weak_ptr<PrecedenceGraphVertex<Task>>> parent = std::nullopt)
             : precedence_graph(precedence_graph)
-            , scheduling_graph(scheduling_graph)
             , parent(parent)
         {
         }
@@ -222,8 +220,6 @@ namespace redGrapes
                 // since out_edges has its separate mutex
                 precedence_graph->init_dependencies(it);
 
-                scheduling_graph->add_task(*it);
-
                 return *it;
             }
             else
@@ -244,7 +240,7 @@ namespace redGrapes
         bool empty() const
         {
             std::shared_lock<std::shared_mutex> rdlock(precedence_graph->mutex);
-            return precedence_graph->tasks.empty();
+            return precedence_graph->tasks.empty() && queue.size_approx() == 0;
         }
     };
 

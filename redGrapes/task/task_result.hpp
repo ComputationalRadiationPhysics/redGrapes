@@ -13,6 +13,7 @@
 #include <future>
 
 #include <redGrapes/imanager.hpp>
+#include <redGrapes/scheduler/scheduling_graph.hpp>
 
 namespace redGrapes
 {
@@ -23,7 +24,7 @@ namespace redGrapes
     template<typename Task, typename Result>
     struct TaskResult : std::future<Result>
     {
-        TaskResult(std::future<Result>&& future, IManager<Task>& mgr, EventID result_event)
+        TaskResult(std::future<Result>&& future, IManager<Task>& mgr, std::shared_ptr<scheduler::Event> result_event)
             : std::future<Result>(std::move(future))
             , mgr(mgr)
             , result_event(result_event)
@@ -51,11 +52,11 @@ namespace redGrapes
 
     private:
         IManager<Task>& mgr;
-        EventID result_event;
+        std::shared_ptr< scheduler::Event > result_event;
     }; // struct TaskResult
 
     template<typename Task, typename Result>
-    TaskResult<Task, Result> make_task_result(std::future<Result>&& future, IManager<Task>& mgr, EventID event)
+    TaskResult<Task, Result> make_task_result(std::future<Result>&& future, IManager<Task>& mgr, std::shared_ptr< scheduler::Event > event)
     {
         return TaskResult<Task, Result>(std::move(future), mgr, event);
     }

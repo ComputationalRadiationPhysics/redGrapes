@@ -10,16 +10,15 @@
 #include <memory>
 #include <optional>
 
-#include <redGrapes/task/task_space.hpp>
-
 namespace redGrapes
 {
     template<typename Task>
     struct IManager;
 }
 
-#include <redGrapes/graph/scheduling_graph.hpp>
+#include <redGrapes/scheduler/scheduling_graph.hpp>
 #include <redGrapes/scheduler/scheduler.hpp>
+#include <redGrapes/task/task_space.hpp>
 
 namespace redGrapes
 {
@@ -29,8 +28,7 @@ namespace redGrapes
         using TaskVertexPtr = std::shared_ptr<PrecedenceGraphVertex<Task>>;
         
         virtual ~IManager() {}
-        
-        virtual std::shared_ptr<SchedulingGraph<Task>> get_scheduling_graph() {}
+
         virtual std::shared_ptr<scheduler::IScheduler<Task>> get_scheduler() {}
         virtual std::shared_ptr<TaskSpace<Task>> get_main_space() {}
         virtual std::shared_ptr<TaskSpace<Task>> current_task_space() {}
@@ -41,11 +39,10 @@ namespace redGrapes
         virtual void activate_task(TaskVertexPtr) {}
         virtual bool activate_next() {}
 
-        virtual void yield(EventID event_id) {}
+        virtual std::optional<std::shared_ptr<scheduler::Event>> create_event() {}
+        virtual void yield(std::shared_ptr<scheduler::Event> event_id) {}
         virtual void remove_task(TaskVertexPtr) {}
 
-        virtual std::optional<EventID> create_event() {}
-        virtual void reach_event(EventID event_id) {}
     };
 }
 

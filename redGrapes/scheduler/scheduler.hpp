@@ -10,7 +10,6 @@
 #include <functional>
 #include <memory>
 #include <redGrapes/task/task_space.hpp>
-#include <redGrapes/graph/scheduling_graph.hpp>
 
 namespace redGrapes
 {

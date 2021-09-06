@@ -7,13 +7,15 @@
 
 #include <iostream>
 
+#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
+
 #include <redGrapes/redGrapes.hpp>
 #include <redGrapes/task/property/id.hpp>
 #include <redGrapes/task/property/resource.hpp>
 
 static auto & rg()
 {
-    static redGrapes::RedGrapes<> rg;
+    static redGrapes::RedGrapes<> rg(1);
     return rg;
 }
 
@@ -29,7 +31,7 @@ auto square (int x)
 
 int main()
 {
-    spdlog::set_level(spdlog::level::debug);
+    spdlog::set_level(spdlog::level::trace);
 
     fmt::print( "square(2) = {}\n", square(2).get() );
 

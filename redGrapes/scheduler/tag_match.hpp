@@ -73,12 +73,10 @@ namespace redGrapes
                 this->add_scheduler(supported_tags, s);
             }
 
-            void init_mgr_callbacks(
-                std::shared_ptr<redGrapes::SchedulingGraph<Task>> scheduling_graph,
-                std::shared_ptr<redGrapes::IManager<Task>> mgr)
+            void init_mgr_callbacks(std::shared_ptr<redGrapes::IManager<Task>> mgr)
             {
                 for(auto& s : sub_schedulers)
-                    s.s->init_mgr_callbacks(scheduling_graph, mgr);
+                    s.s->init_mgr_callbacks(mgr);
             }
 
             void notify()

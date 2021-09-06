@@ -14,8 +14,6 @@
 #include <spdlog/spdlog.h>
 #include <moodycamel/concurrentqueue.h>
 
-#include <redGrapes/graph/scheduling_graph.hpp>
-
 #include <redGrapes/task/delayed_functor.hpp>
 #include <redGrapes/task/task_result.hpp>
 #include <redGrapes/task/task.hpp>
@@ -25,6 +23,7 @@
 #include <redGrapes/task/property/id.hpp>
 #include <redGrapes/task/property/resource.hpp>
 
+#include <redGrapes/scheduler/scheduling_graph.hpp>
 #include <redGrapes/scheduler/default_scheduler.hpp>
 
 namespace redGrapes
@@ -34,6 +33,7 @@ namespace redGrapes
     {
         using Props = TaskProperties<TaskPropertyPolicies...>;
         using VertexPtr = std::shared_ptr<PrecedenceGraphVertex<TaskBase<TaskPropertyPolicies...>>>;
+        using WeakVertexPtr = std::weak_ptr<PrecedenceGraphVertex<TaskBase<TaskPropertyPolicies...>>>;
 
         std::shared_ptr<TaskImplBase> impl;
 
@@ -46,10 +46,10 @@ namespace redGrapes
     };
 
     template<typename... TaskPropertyPolicies>
-    class RedGrapes : public virtual IManager<TaskBase<IDProperty, ResourceProperty, scheduler::FIFOSchedulerProp, TaskPropertyPolicies...>>
+    class RedGrapes : public virtual IManager<TaskBase<IDProperty, ResourceProperty, scheduler::SchedulingGraphProp, scheduler::FIFOSchedulerProp, TaskPropertyPolicies...>>
     {
     public:
-        using Task = ::redGrapes::TaskBase<IDProperty, ResourceProperty, scheduler::FIFOSchedulerProp, TaskPropertyPolicies...>;
+        using Task = ::redGrapes::TaskBase<IDProperty, ResourceProperty, scheduler::SchedulingGraphProp, scheduler::FIFOSchedulerProp, TaskPropertyPolicies...>;
         using TaskProps = typename Task::Props;
         using TaskVertexPtr = typename Task::VertexPtr;
 
@@ -57,7 +57,6 @@ namespace redGrapes
         moodycamel::ConcurrentQueue<TaskVertexPtr> activation_queue;
         moodycamel::ConcurrentQueue<std::shared_ptr<TaskSpace<Task>>> active_task_spaces;
 
-        std::shared_ptr<SchedulingGraph<Task>> scheduling_graph;
         std::shared_ptr<TaskSpace<Task>> main_space;
         std::shared_ptr<scheduler::IScheduler<Task>> scheduler;
 
@@ -84,8 +83,7 @@ namespace redGrapes
 
     public:
         RedGrapes( size_t n_threads = std::thread::hardware_concurrency())
-            : scheduling_graph(std::make_shared<SchedulingGraph<Task>>(*this))
-            , main_space(std::make_shared<TaskSpace<Task>>(std::make_shared<PrecedenceGraph<Task, ResourcePrecedencePolicy>>(), scheduling_graph))
+            : main_space(std::make_shared<TaskSpace<Task>>(std::make_shared<PrecedenceGraph<Task, ResourceUser>>()))
         {
             active_task_spaces.enqueue(main_space);
             set_scheduler(scheduler::make_default_scheduler<Task>(*this, n_threads));
@@ -93,13 +91,13 @@ namespace redGrapes
 
         ~RedGrapes()
         {
-            while( ! scheduling_graph->empty() )
+            while( ! main_space->empty() )
             {
-                SPDLOG_TRACE("Manager: idle");
+                SPDLOG_TRACE("RedGrapes: idle");
                 redGrapes::thread::idle();
             }
 
-            SPDLOG_TRACE("Manager: scheduling graph empty!");
+            SPDLOG_TRACE("RedGrapes: scheduling graph empty!");
 
             scheduler->notify();
         }
@@ -111,11 +109,6 @@ namespace redGrapes
         {
             this->scheduler = scheduler;
             //this->scheduler->start();
-        }
-
-        std::shared_ptr< SchedulingGraph<Task> > get_scheduling_graph()
-        {
-            return std::shared_ptr<SchedulingGraph<Task>>(scheduling_graph);
         }
 
         /*! create a new task, as child of the currently running task (if there is one)
@@ -165,14 +158,16 @@ namespace redGrapes
             auto delayed = make_delayed_functor(std::move(impl));
             auto future = delayed.get_future();
 
-            EventID result_event = scheduling_graph->new_event();
             builder.init_id(); // needed because property builder may be copied from a template
+
+            auto result_event = std::make_shared< scheduler::Event >();
             auto task = std::make_unique<Task>(
                 std::bind(
                     [this, result_event](auto&& delayed) mutable
                     {
                         delayed();
-                        reach_event(result_event);
+                        result_event->reach();
+                        scheduler->notify();
                     },
                     std::move(delayed)),
                 std::move(builder));
@@ -182,8 +177,7 @@ namespace redGrapes
             else
                 task->impl->scope_level = 1;
 
-            SPDLOG_DEBUG("Manager::emplace_task {}\n", (TaskProps const&) *task);
-            SPDLOG_TRACE("Manager: result_event = {}", result_event);
+            SPDLOG_DEBUG("RedGrapes::emplace_task {}\n", (TaskProps const&) *task);
 
             current_task_space()->push(std::move(task));
             scheduler->notify();
@@ -231,7 +225,6 @@ namespace redGrapes
                 {
                     auto task_space = std::make_shared<TaskSpace<Task>>(
                         std::make_shared<PrecedenceGraph<Task, ResourceUser>>(),
-                        scheduling_graph,
                         std::weak_ptr<PrecedenceGraphVertex<Task>>(*task));
 
                     active_task_spaces.enqueue(task_space);
@@ -245,37 +238,60 @@ namespace redGrapes
                 return main_space;
         }
 
+        void notify_event( std::shared_ptr< scheduler::Event > event )
+        {
+            
+        }
+
+        void init_new_task( TaskVertexPtr task_ptr )
+        {
+            task_ptr->task->ready_hook =
+                [this, task_ptr]
+                {
+                    activate_task(task_ptr);
+                    //scheduler->notify();
+                };
+
+            task_ptr->task->init_scheduling_graph(
+                task_ptr,
+                [this, task_ptr]
+                {
+                    if(auto children = task_ptr->children)
+                        while(auto new_task = (*children)->next())
+                            init_new_task( task_ptr );
+                    else
+                        remove_task(task_ptr);
+                });
+
+            // maybe the new task is ready
+            auto pe = task_ptr->task->pre_event;
+            if(pe)
+                pe->notify();
+
+            scheduler->notify();
+        }
+
         void update_active_task_spaces()
         {
-            bool notified = false;
-
             std::vector< std::shared_ptr< TaskSpace<Task> > > buf;
 
             std::shared_ptr< TaskSpace<Task> > space;
             while(active_task_spaces.try_dequeue(space))
             {
                 while(auto new_task = space->next())
-                {
-                    activation_queue.enqueue(*new_task);
-
-                    if(! notified)
-                    {
-                        scheduler->notify();
-                        notified = true;
-                    }
-                }
+                    init_new_task(*new_task);
 
                 bool remove = false;
                 if( auto parent_weak = space->parent )
                 {
-                    auto parent = parent_weak->lock();
-                    auto parent_task_id = parent->task->task_id;
+                    auto parent_vertex = parent_weak->lock();
+                    Task & parent_task = *parent_vertex->task;
                     if(
                         space->empty() &&
-                        scheduling_graph->is_task_finished(parent_task_id)
+                        parent_task.is_finished()
                     )
                     {
-                        remove_task(parent);
+                        remove_task(parent_vertex);
                         remove = true;
                     }
                 }
@@ -303,8 +319,10 @@ namespace redGrapes
             if( auto task_space = task_vertex->space.lock() )
                 task_space->remove(task_vertex);
 
-            scheduling_graph->remove_task(task_vertex->task->task_id);
-            scheduler->notify();
+            // drop this to break cycles
+            task_vertex->task->ready_hook = std::function<void()>();
+            task_vertex->task->pre_event = nullptr;
+            task_vertex->task->post_event = nullptr;
         }
 
         /*! Get the TaskID of the currently running task.
@@ -318,23 +336,25 @@ namespace redGrapes
                 return std::experimental::nullopt;
         }
 
-        //! flag the state of the event & update
-        void reach_event(EventID event_id)
-        {
-            scheduling_graph->reach_event(event_id);
-            scheduler->notify();
-        }
-
         /*! Create an event on which the termination of the current task depends.
          *  A task must currently be running.
          *
          * @return Handle to flag the event with `reach_event` later.
          *         nullopt if there is no task running currently
          */
-        std::optional<EventID> create_event()
+        std::optional< std::shared_ptr<scheduler::Event> > create_event()
         {
-            if(auto task_id = get_current_task_id())
-                return scheduling_graph->add_post_dependency(*task_id);
+            if(auto task_ptr = current_task())
+            {
+                auto event = (*task_ptr)->task->make_event();
+                event->reach_hook =
+                    [this]
+                    {
+                        scheduler->notify();
+                    };
+
+                return event;
+            }
             else
                 return std::nullopt;
         }
@@ -344,8 +364,7 @@ namespace redGrapes
         {
             if(auto task_vertex = current_task())
             {
-                (*task_vertex)->task->apply_patch(patch);
-
+                task_vertex->task->apply_patch(patch);
                 /* TODO!
                 auto vertices = task_ptr->graph->update_vertex(task_ptr->vertex);
 
@@ -370,19 +389,19 @@ namespace redGrapes
         {
             SPDLOG_TRACE("wait for all tasks...");
             if(!current_task())
-                while(!scheduling_graph->empty())
+                while(!main_space->empty())
                     thread::idle();
             else
                 throw std::runtime_error("called wait_for_all() inside a task!");
         }
 
         //! pause the currently running task at least until event_id is reached
-        void yield(EventID event_id)
+        void yield( std::shared_ptr<scheduler::Event> event )
         {
-            while(!scheduling_graph->is_event_reached(event_id))
+            while(! event->is_reached() )
             {
                 if(auto cur_vertex = current_task())
-                    (*cur_vertex)->task->impl->yield(event_id);
+                    (*cur_vertex)->task->impl->yield(event);
                 else
                     thread::idle();
             }

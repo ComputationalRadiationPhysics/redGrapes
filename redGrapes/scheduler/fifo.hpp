@@ -83,9 +83,10 @@ struct FIFO : public IScheduler< Task >
     {
         if( auto task_vertex = get_job() )
         {
-            auto task_id = (*task_vertex)->task->task_id;
+            auto & task = *(*task_vertex)->task;
+            auto task_id = task.task_id;
 
-            mgr.get_scheduling_graph()->task_start( task_id );
+            task.pre_event->reach();
 
             mgr.current_task() = task_vertex;
             bool finished = (*(*task_vertex)->task->impl)();
@@ -93,23 +94,17 @@ struct FIFO : public IScheduler< Task >
 
             if(finished)
             {
-                if(auto children = (*task_vertex)->children)
-                    while(auto new_task = (*children)->next())
-                        mgr.activate_task(*new_task);
+                auto pe = task.post_event;
+                pe->reach();
 
-                mgr.get_scheduling_graph()->task_end(task_id);
-
-                if(! (*task_vertex)->children)
-                    mgr.remove_task(*task_vertex);
+                mgr.get_scheduler()->notify();
             }
             else
             {
-                Task& task = *(*task_vertex)->task;
-
                 task.in_activation_queue.clear();
                 task.in_ready_list.clear();
 
-                mgr.get_scheduling_graph()->task_pause(task_id, *task.impl->event_id);
+                task.pause( *(task.impl->event) );
             }
 
             return true;
@@ -121,10 +116,12 @@ struct FIFO : public IScheduler< Task >
     // precedence graph must be locked
     bool activate_task( TaskVertexPtr task_vertex )
     {
-        auto task_id = task_vertex->task->task_id;
-        if(mgr.get_scheduling_graph()->is_task_ready(task_id))
+        auto & task = *task_vertex->task;
+        auto task_id = task.task_id;
+
+        if( task.is_ready() )
         {
-            if(!task_vertex->task->in_ready_list.test_and_set())
+            if(!task.in_ready_list.test_and_set())
             {
                 ready.enqueue(task_vertex);
                 mgr.get_scheduler()->notify();

@@ -62,9 +62,9 @@ struct TaskImplBase
         return finished;
     }
 
-    void yield( EventID event_id )
+    void yield( std::shared_ptr<scheduler::Event> event )
     {
-        this->event_id = event_id;
+        this->event = event;
 
         std::optional< boost::context::continuation > old_yield;
         this->yield_cont.swap( old_yield );
@@ -78,7 +78,7 @@ struct TaskImplBase
     }
 
     unsigned int scope_level;
-    std::optional< EventID > event_id;
+    std::optional< std::shared_ptr<scheduler::Event> > event;
 
 private:
     std::mutex yield_cont_mutex;

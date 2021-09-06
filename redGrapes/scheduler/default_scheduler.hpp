@@ -3,7 +3,7 @@
 
 #include <thread>
 
-#include <redGrapes/graph/scheduling_graph.hpp>
+#include <redGrapes/scheduler/scheduling_graph.hpp>
 
 #include <redGrapes/imanager.hpp>
 #include <redGrapes/task/task_space.hpp>
@@ -29,7 +29,7 @@ struct DefaultScheduler : public IScheduler<Task>
     IManager<Task> & mgr;
     std::shared_ptr<redGrapes::scheduler::FIFO<Task>> fifo;
     std::vector<std::shared_ptr<redGrapes::scheduler::WorkerThread<>>> threads;
-    
+
     DefaultScheduler( IManager<Task> & mgr, size_t n_threads = std::thread::hardware_concurrency() ) :
         mgr(mgr),
         fifo( std::make_shared< redGrapes::scheduler::FIFO< Task > >(mgr) )

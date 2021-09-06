@@ -9,6 +9,8 @@
  * @file examples/game_of_life.cpp
  */
 
+#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
+
 #include <array>
 #include <cstdlib>
 #include <iostream>
@@ -41,7 +43,8 @@ Cell next_state( Cell const neighbours [][size.x+2] )
 
 int main( int, char * [] )
 {
-    redGrapes::RedGrapes<> rg;
+    spdlog::set_level( spdlog::level::trace );
+    redGrapes::RedGrapes<> mgr(4);
 
     using Buffer =
         std::array<

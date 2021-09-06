@@ -12,8 +12,8 @@
 #include <optional>
 #include <functional>
 #include <memory>
+#include <redGrapes/scheduler/scheduling_graph.hpp>
 #include <redGrapes/scheduler/scheduler.hpp>
-#include <redGrapes/graph/scheduling_graph.hpp>
 #include <redGrapes/helpers/cuda/event_pool.hpp>
 
 #include <spdlog/spdlog.h>
@@ -90,7 +90,7 @@ struct CudaStream
         cudaStreamWaitEvent( cuda_stream, e, 0 );
     }
 
-    cudaEvent_t push( typename Task::VertexPtr task_ptr, SchedulingGraph<Task> & sg )
+    cudaEvent_t push( typename Task::VertexPtr task_ptr )
     {
         std::lock_guard< std::recursive_mutex > lock( mutex );
 
@@ -101,9 +101,10 @@ struct CudaStream
 
         cudaEvent_t cuda_event = EventPool::get().alloc();
         cudaEventRecord( cuda_event, cuda_stream );
-
         task_ptr->task->cuda_event = cuda_event;
-        sg.task_start( task_ptr->task->task_id );
+
+        auto pe = task_ptr->task->pre_event;
+        pe->reach();
 
         SPDLOG_TRACE( "CudaStream {}: recorded event {}", cuda_stream, cuda_event );
         events.push( std::make_pair( cuda_event, task_ptr ) );
@@ -159,7 +160,7 @@ private:
 
 public:
     CudaScheduler(
-                   IManager<Task> & mgr,
+        IManager<Task> & mgr,
         std::function< bool(typename Task::VertexPtr) > is_cuda_task,
         size_t stream_count = 1,
         bool cuda_graph_enabled = false
@@ -183,7 +184,7 @@ public:
         auto task_id = task_ptr->task->task_id;
         SPDLOG_TRACE("CudaScheduler: activate task {} \"{}\"", task_id, task_ptr->task->label);
 
-        if(mgr.get_scheduling_graph()->is_task_ready( task_id ) )
+        if( task_ptr->task->is_ready() )
         {
             if(!task_ptr->task->in_ready_list.test_and_set())
             {
@@ -204,6 +205,8 @@ public:
                 else
                     dispatch_task( lock, task_ptr, task_id );
 
+                mgr.get_scheduler()->notify();
+                
                 return true;
             }
         }
@@ -239,7 +242,7 @@ public:
             task_id
         );
 
-        streams[ stream_id ].push( task_ptr, *mgr.get_scheduling_graph() );
+        streams[ stream_id ].push( task_ptr );
 
         lock.unlock();
         
@@ -261,8 +264,10 @@ public:
                 auto task_id = (*task_ptr)->task->task_id;
                 SPDLOG_TRACE( "cuda task {} done", task_id );
 
-                mgr.get_scheduling_graph()->task_end( task_id );
-                mgr.remove_task( *task_ptr );
+                auto pe = (*task_ptr)->task->post_event;
+                pe->reach();
+
+                mgr.get_scheduler()->notify();
             }
         }
     }
