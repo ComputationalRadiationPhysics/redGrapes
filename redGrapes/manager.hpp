@@ -46,7 +46,7 @@ namespace redGrapes
     };
 
     template<typename... TaskPropertyPolicies>
-    class RedGrapes : public virtual IManager<TaskBase<IDProperty, ResourceProperty, scheduler::FIFOSchedulerProp, TaskPropertyPolicies...>>
+    class Manager : public virtual IManager<TaskBase<IDProperty, ResourceProperty, scheduler::FIFOSchedulerProp, TaskPropertyPolicies...>>
     {
     public:
         using Task = ::redGrapes::TaskBase<IDProperty, ResourceProperty, scheduler::FIFOSchedulerProp, TaskPropertyPolicies...>;
@@ -83,15 +83,15 @@ namespace redGrapes
         };
 
     public:
-        RedGrapes( size_t n_threads = std::thread::hardware_concurrency())
+        Manager( size_t n_threads = std::thread::hardware_concurrency())
             : scheduling_graph(std::make_shared<SchedulingGraph<Task>>(*this))
-            , main_space(std::make_shared<TaskSpace<Task>>(std::make_shared<PrecedenceGraph<Task, ResourcePrecedencePolicy>>(), scheduling_graph))
+            , main_space(std::make_shared<TaskSpace<Task>>(std::make_shared<PrecedenceGraph<Task, ResourceUser>>(), scheduling_graph))
         {
             active_task_spaces.enqueue(main_space);
             set_scheduler(scheduler::make_default_scheduler<Task>(*this, n_threads));
         }
 
-        ~RedGrapes()
+        ~Manager()
         {
             while( ! scheduling_graph->empty() )
             {
@@ -344,8 +344,7 @@ namespace redGrapes
         {
             if(auto task_vertex = current_task())
             {
-                (*task_vertex)->task->apply_patch(patch);
-
+                task_vertex->task->apply_patch(patch);
                 /* TODO!
                 auto vertices = task_ptr->graph->update_vertex(task_ptr->vertex);
 
