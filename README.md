@@ -50,15 +50,14 @@ See [examples](examples) for examples covering more features.
 ```cpp
 #include <cassert>
 #include <iostream>
-#include <redGrapes/manager.hpp>
+#include <redGrapes/redGrapes.hpp>
 #include <redGrapes/resource/ioresource.hpp>
-
-namespace rg = redGrapes;
 
 int main()
 {
     rg::RedGrapes<> rg;
-    rg::IOResource< int > a;
+
+    redGrapes::IOResource< int > a;
 
     rg.emplace_task(
         [] ( auto a ) { *a = 123; },
