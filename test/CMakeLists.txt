@@ -103,7 +103,6 @@ endif()
 
 set(TEST_SOURCES
     main.cpp
-    dependency_manager.cpp
     access.cpp
     resource.cpp
     resource_user.cpp

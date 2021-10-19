@@ -11,121 +11,87 @@
 
 #pragma once
 
-#include <boost/graph/adjacency_matrix.hpp>
-#include <redGrapes/access/dependency_manager.hpp>
-
-#include <fmt/format.h>
 #include <fmt/color.h>
+#include <fmt/format.h>
 
 namespace redGrapes
 {
-namespace access
-{
-
-/**
- * Implements the concept @ref AccessPolicy
- */
-struct IOAccess
-{
-    enum Mode
+    namespace access
     {
-        root,
-        read,
-        write,
-        aadd,
-        amul,
-    } mode;
-
-    IOAccess()
-      : mode(root) {}
-
-    IOAccess( enum Mode mode_ )
-      : mode(mode_) {}
-
-    static bool
-    is_serial(
-        IOAccess a,
-        IOAccess b
-    )
-    {
-        return m().is_serial(a.mode, b.mode);
-    }
-
-    bool operator==(IOAccess const & other) const
-    {
-        return this->mode == other.mode;
-    }
-
-    bool
-    is_superset_of(IOAccess a) const
-    {
-        return m().is_superset(this->mode, a.mode);
-    }
-
-  private:
-    using Graph = boost::adjacency_matrix<boost::undirectedS>;
-    struct Initializer
-    {
-        void operator() (Graph& g) const
+        /**
+         * Implements the concept @ref AccessPolicy
+         */
+        struct IOAccess
         {
-            // atomic operations
-            boost::add_edge(root, read, g);
-            boost::add_edge(root, aadd, g);
-            boost::add_edge(root, amul, g);
+            enum Mode
+            {
+                write,
+                read,
+                aadd,
+                amul,
+            } mode;
 
-            // non-atomic
-            boost::add_edge(root, write, g);
-            boost::add_edge(write, write, g);
-        };
-    }; // struct Initializer
+            IOAccess() : mode(write)
+            {
+            }
 
-    static StaticDependencyManager<Graph, Initializer, 5> const & m(void)
-    {
-        static StaticDependencyManager<
-            Graph,
-            Initializer,
-            5
-        > const m;
-        return m;
-    }
-}; // struct IOAccess
+            IOAccess(enum Mode mode_) : mode(mode_)
+            {
+            }
 
-} // namespace access
+            bool operator==(IOAccess const& other) const
+            {
+                return this->mode == other.mode;
+            }
+
+            static bool is_serial(IOAccess a, IOAccess b)
+            {
+                return
+                    !( (a.mode == read && b.mode == read)
+                    || (a.mode == aadd && b.mode == aadd)
+                    || (a.mode == amul && b.mode == amul));
+            }
+
+            bool is_superset_of(IOAccess a) const
+            {
+                return (this->mode == write) || (this->mode == a.mode);
+            }
+        }; // struct IOAccess
+
+    } // namespace access
 
 } // namespace redGrapes
 
-template <>
-struct fmt::formatter<
-    redGrapes::access::IOAccess
->
+template<>
+struct fmt::formatter<redGrapes::access::IOAccess>
 {
-    constexpr auto parse( format_parse_context& ctx )
+    constexpr auto parse(format_parse_context& ctx)
     {
         return ctx.begin();
     }
 
-    template < typename FormatContext >
-    auto format(
-        redGrapes::access::IOAccess const & acc,
-        FormatContext & ctx
-    )
+    template<typename FormatContext>
+    auto format(redGrapes::access::IOAccess const& acc, FormatContext& ctx)
     {
         std::string mode_str;
 
         switch(acc.mode)
-	{
-        case redGrapes::access::IOAccess::root: mode_str = "root"; break;
-        case redGrapes::access::IOAccess::read: mode_str = "read"; break;
-        case redGrapes::access::IOAccess::write: mode_str = "write"; break;
-        case redGrapes::access::IOAccess::aadd: mode_str = "atomicAdd"; break;
-        case redGrapes::access::IOAccess::amul: mode_str = "atomicMul"; break;
-	}
+        {
+        case redGrapes::access::IOAccess::read:
+            mode_str = "read";
+            break;
+        case redGrapes::access::IOAccess::write:
+            mode_str = "write";
+            break;
+        case redGrapes::access::IOAccess::aadd:
+            mode_str = "atomicAdd";
+            break;
+        case redGrapes::access::IOAccess::amul:
+            mode_str = "atomicMul";
+            break;
+        }
 
-        return fmt::format_to(
-                   ctx.out(),
-                   "{{ \"IOAccess\" : \"{}\" }}",
-                   mode_str
-               );
+        return fmt::format_to(ctx.out(), "{{ \"IOAccess\" : \"{}\" }}", mode_str);
     }
 };
 
