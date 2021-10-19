@@ -8,25 +8,26 @@
 #include <thread>
 #include <chrono>
 #include <iostream>
+
+#include <redGrapes/redGrapes.hpp>
 #include <redGrapes/resource/ioresource.hpp>
-#include <redGrapes/manager.hpp>
 #include <redGrapes/scheduler/default_scheduler.hpp>
 
 int main( int, char*[] )
 {
-    redGrapes::Manager<> mgr;
-    using Properties = decltype( mgr )::TaskProps;
+    redGrapes::RedGrapes<> rg;
+    using Properties = decltype( rg )::TaskProps;
 
     redGrapes::IOResource< int > a;
 
-    mgr.emplace_task(
-        [&mgr]( auto a )
+    rg.emplace_task(
+        [&rg]( auto a )
         {
             std::cout << "f1 writes A" << std::endl;
             std::this_thread::sleep_for( std::chrono::seconds(1) );
 
             std::cout << "f1 now only reads A" << std::endl;
-            mgr.update_properties(
+            rg.update_properties(
                 Properties::Patch::Builder()
                     .remove_resources({ a.write() })
                     .add_resources({ a.read() })
@@ -38,7 +39,7 @@ int main( int, char*[] )
         a.write()
     );
 
-    mgr.emplace_task(
+    rg.emplace_task(
         []( auto a )
         {
             std::cout << "f2 reads A" << std::endl;

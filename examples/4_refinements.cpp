@@ -12,38 +12,38 @@
 #include <redGrapes/property/resource.hpp>
 #include <redGrapes/property/label.hpp>
 #include <redGrapes/property/inherit.hpp>
-#include <redGrapes/manager.hpp>
+#include <redGrapes/redGrapes.hpp>
 
 int main( int, char*[] )
 {
-    redGrapes::Manager< redGrapes::LabelProperty > mgr;
-    using TaskProperties = decltype( mgr )::TaskProps;
+    redGrapes::RedGrapes< redGrapes::LabelProperty > rg;
+    using TaskProperties = decltype( rg )::TaskProps;
 
-    mgr.emplace_task(
-        [&mgr]
+    rg.emplace_task(
+        [&rg]
         {
             std::cout << "f1" << "..." << std::endl;
             
             int i = 0;
-            for( auto t : mgr.backtrace() )
+            for( auto t : rg.backtrace() )
             {
                 fmt::print("refinement 1 backtrace [{}]: {}\n", i, (TaskProperties const&)t);
                 i++;
             }
 
-            mgr.emplace_task(
+            rg.emplace_task(
                 []{
                     fmt::print("Refinement 1\n");
                     std::this_thread::sleep_for( std::chrono::seconds(1) );
                 });
 
-            mgr.emplace_task(
-                [&mgr]{
+            rg.emplace_task(
+                [&rg]{
                     fmt::print("Refinement 2\n");
                     std::this_thread::sleep_for( std::chrono::seconds(1) );
 
                     int i = 0;
-                    for( auto t : mgr.backtrace() )
+                    for( auto t : rg.backtrace() )
                     {
                         fmt::print("refinement 2 backtrace [{}]: {}\n", i, (TaskProperties const&)t);
                         i++;

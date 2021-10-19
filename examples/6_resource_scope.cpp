@@ -5,24 +5,25 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
+#include <redGrapes/redGrapes.hpp>
+
 #include <redGrapes/resource/ioresource.hpp>
 #include <redGrapes/property/resource.hpp>
 #include <redGrapes/property/inherit.hpp>
-#include <redGrapes/manager.hpp>
 
 int main()
 {
-    redGrapes::Manager<> mgr;
+    redGrapes::RedGrapes<> rg;
 
     redGrapes::IOResource< int > a; // scope-level=0
 
-    mgr.emplace_task(
-        [&mgr]( auto a )
+    rg.emplace_task(
+        [&rg]( auto a )
         {
             std::cout << "scope = " << redGrapes::thread::scope_level << std::endl;
             redGrapes::IOResource<int> b; // scope-level=1
 
-            mgr.emplace_task(
+            rg.emplace_task(
                 []( auto b )
                 {
                     *b = 1;

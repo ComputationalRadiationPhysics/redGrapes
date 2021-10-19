@@ -46,7 +46,7 @@ namespace redGrapes
     };
 
     template<typename... TaskPropertyPolicies>
-    class Manager : public virtual IManager<TaskBase<IDProperty, ResourceProperty, scheduler::FIFOSchedulerProp, TaskPropertyPolicies...>>
+    class RedGrapes : public virtual IManager<TaskBase<IDProperty, ResourceProperty, scheduler::FIFOSchedulerProp, TaskPropertyPolicies...>>
     {
     public:
         using Task = ::redGrapes::TaskBase<IDProperty, ResourceProperty, scheduler::FIFOSchedulerProp, TaskPropertyPolicies...>;
@@ -83,7 +83,7 @@ namespace redGrapes
         };
 
     public:
-        Manager( size_t n_threads = std::thread::hardware_concurrency())
+        RedGrapes( size_t n_threads = std::thread::hardware_concurrency())
             : scheduling_graph(std::make_shared<SchedulingGraph<Task>>(*this))
             , main_space(std::make_shared<TaskSpace<Task>>(std::make_shared<PrecedenceGraph<Task, ResourceUser>>(), scheduling_graph))
         {
@@ -91,7 +91,7 @@ namespace redGrapes
             set_scheduler(scheduler::make_default_scheduler<Task>(*this, n_threads));
         }
 
-        ~Manager()
+        ~RedGrapes()
         {
             while( ! scheduling_graph->empty() )
             {
