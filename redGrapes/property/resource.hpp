@@ -120,7 +120,7 @@ struct ResourceProperty : ResourceUser
     }
 };
 
-struct ResourceEnqueuePolicy
+struct ResourcePrecedencePolicy
 {
     static bool is_serial(ResourceProperty const & a, ResourceProperty const & b)
     {

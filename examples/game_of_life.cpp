@@ -14,11 +14,12 @@
 #include <iostream>
 #include <random>
 #include <thread>
+
+#include <redGrapes/redGrapes.hpp>
 #include <redGrapes/resource/fieldresource.hpp>
 #include <redGrapes/resource/ioresource.hpp>
 #include <redGrapes/property/resource.hpp>
 #include <redGrapes/property/inherit.hpp>
-#include <redGrapes/manager.hpp>
 
 struct Vec2 { int x, y; };
 enum Cell { DEAD, ALIVE };
@@ -40,7 +41,7 @@ Cell next_state( Cell const neighbours [][size.x+2] )
 
 int main( int, char * [] )
 {
-    redGrapes::Manager<> mgr;
+    redGrapes::RedGrapes<> rg;
 
     using Buffer =
         std::array<
@@ -59,7 +60,7 @@ int main( int, char * [] )
     int current = 0;
 
     // initialization
-    mgr.emplace_task(
+    rg.emplace_task(
         []( auto buf )
         {
             std::default_random_engine generator;
@@ -77,7 +78,7 @@ int main( int, char * [] )
         int next = ( current + 1 ) % buffers.size();
 
         // copy borders
-        mgr.emplace_task(
+        rg.emplace_task(
             []( auto buf )
             {
                 for ( size_t x = 0; x < size.x+2; ++x )
@@ -95,7 +96,7 @@ int main( int, char * [] )
         );
 
         // print buffer
-        mgr.emplace_task(
+        rg.emplace_task(
             []( auto buf )
             {
                 for ( size_t x = 1; x < size.x; ++x )
@@ -114,7 +115,7 @@ int main( int, char * [] )
         // calculate next step
         for ( size_t x = 1; x <= size.x; x += chunk_size.x )
             for ( size_t y = 1; y <= size.y; y += chunk_size.y )
-                mgr.emplace_task(
+                rg.emplace_task(
                     [x, y]( auto dst, auto src )
                     {
                         for ( int xi = 0; xi < chunk_size.x; ++xi )

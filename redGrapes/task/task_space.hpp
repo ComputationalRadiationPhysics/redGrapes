@@ -16,8 +16,6 @@
 #include <moodycamel/concurrentqueue.h>
 #include <spdlog/spdlog.h>
 
-#include <redGrapes/graph/scheduling_graph.hpp>
-
 namespace std
 {
     using shared_mutex = shared_timed_mutex;
@@ -115,7 +113,7 @@ namespace redGrapes
         }
     };
 
-    /*! EnqueuePolicy where all vertices are connected
+    /*! PrecedencePolicy where all vertices are connected
      */
     struct AllSequential
     {
@@ -126,7 +124,7 @@ namespace redGrapes
         }
     };
 
-    /*! EnqueuePolicy where no vertex has edges
+    /*! PrecedencePolicy where no vertex has edges
      */
     struct AllParallel
     {
@@ -137,7 +135,7 @@ namespace redGrapes
         }
     };
 
-    template<typename Task, typename EnqueuePolicy>
+    template<typename Task, typename PrecedencePolicy>
     struct PrecedenceGraph : IPrecedenceGraph<Task>
     {
         using TaskVertexPtr = std::shared_ptr<PrecedenceGraphVertex<Task>>;
@@ -149,7 +147,7 @@ namespace redGrapes
             TaskVertexPtr task_vertex = *it++;
             SPDLOG_TRACE("PrecedenceGraph::init_dependencies({})", task_vertex->task->task_id);
             for(; it != std::end(this->tasks); ++it)
-                if(EnqueuePolicy::is_serial(*(*it)->task, *task_vertex->task))
+                if(PrecedencePolicy::is_serial(*(*it)->task, *task_vertex->task))
                     this->add_edge(*it, task_vertex);
         }
 
@@ -160,13 +158,18 @@ namespace redGrapes
             std::remove_if(
                 std::begin(v->out_edges),
                 std::end(v->out_edges),
-                [v](TaskVertexPtr w) { return !EnqueuePolicy::is_serial(*v->task, *w->task); });
+                [v](TaskVertexPtr w) { return !PrecedencePolicy::is_serial(*v->task, *w->task); });
             */
             // todo: in edges?
             // todo: update scheduling graph
         }
     };
+}
 
+#include <redGrapes/graph/scheduling_graph.hpp>
+
+namespace redGrapes
+{
     /*!
      */
     template<typename Task>

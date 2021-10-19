@@ -7,19 +7,19 @@
 
 #include <iostream>
 
-#include <redGrapes/manager.hpp>
+#include <redGrapes/redGrapes.hpp>
 #include <redGrapes/property/id.hpp>
 #include <redGrapes/property/resource.hpp>
 
-static auto & mgr()
+static auto & rg()
 {
-    static redGrapes::Manager<> m;
-    return m;
+    static redGrapes::RedGrapes<> rg;
+    return rg;
 }
 
 auto square (int x)
 {
-    return mgr().emplace_task(
+    return rg().emplace_task(
         [x]
         {
             return x*x;

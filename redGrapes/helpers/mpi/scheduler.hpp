@@ -10,8 +10,8 @@
 #include <functional>
 #include <memory>
 
+#include <redGrapes/redGrapes.hpp>
 #include <redGrapes/helpers/mpi/request_pool.hpp>
-#include <redGrapes/manager.hpp>
 #include <redGrapes/scheduler/fifo.hpp>
 
 namespace redGrapes

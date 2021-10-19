@@ -57,22 +57,22 @@ namespace rg = redGrapes;
 
 int main()
 {
-    rg::Manager<> mgr;
+    rg::RedGrapes<> rg;
     rg::IOResource< int > a;
 
-    mgr.emplace_task(
+    rg.emplace_task(
         [] ( auto a ) { *a = 123; },
         a.write()
     );
 
     /* the following tasks may run in parallel,
-	 * but will only start once the first is done.
-	 */
-    mgr.emplace_task(
+     * but will only start once the first is done.
+     */
+    rg.emplace_task(
         [] ( auto a ) { assert( *a == 123 ); },
         a.read()
     );
-    mgr.emplace_task(
+    rg.emplace_task(
         [] ( auto a ) { std::cout << a << std::endl; },
         a.read()
     );
@@ -152,7 +152,6 @@ Its conceptual design is based on a [whitepaper by A. Huebl, R. Widera, and A. M
 RedGrapes requires a compiler supporting the C++14 standard.
 RedGrapes further depends on the following libraries:
 
-* [Boost Graph](https://www.boost.org/doc/libs/1_71_0/libs/graph/doc/)
 * [optional for C++14](https://github.com/akrzemi1/Optional) by [Andrzej Krzemienski](https://github.com/akrzemi1)
 * [ConcurrentQueue](https://github.com/cameron314/concurrentqueue) by [Cameron Desrochers](https://moodycamel.com/)
 * [spdlog](https://github.com/gabime/spdlog)

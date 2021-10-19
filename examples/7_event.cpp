@@ -9,27 +9,27 @@
 #include <thread>
 #include <chrono>
 
-#include <redGrapes/manager.hpp>
+#include <redGrapes/redGrapes.hpp>
 #include <redGrapes/property/inherit.hpp>
 #include <redGrapes/property/resource.hpp>
 #include <redGrapes/resource/ioresource.hpp>
 
 int main()
 {
-    redGrapes::Manager<> mgr;
-    using TaskProperties = decltype( mgr )::TaskProps;
+    redGrapes::RedGrapes<> rg;
+    using TaskProperties = decltype( rg )::TaskProps;
 
     redGrapes::Resource< redGrapes::access::IOAccess > r1;
 
-    auto event_f = mgr.emplace_task(
-        [&mgr] {
+    auto event_f = rg.emplace_task(
+        [&rg] {
             std::cout << "Task 1" << std::endl;
-            return *mgr.create_event();
+            return *rg.create_event();
         },
         TaskProperties::Builder().resources({ r1.make_access(redGrapes::access::IOAccess::write) })
     );
 
-    mgr.emplace_task(
+    rg.emplace_task(
         [] {
             std::cout << "Task 2" << std::endl;
         },
@@ -40,7 +40,7 @@ int main()
     std::cout << "Task 1 finished" << std::endl;
     std::this_thread::sleep_for( std::chrono::seconds(1) );
     std::cout << "reach event" << std::endl;
-    mgr.reach_event( event );
+    rg.reach_event( event );
 
     return 0;
 }

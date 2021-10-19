@@ -1,5 +1,5 @@
 
-#include <redGrapes/manager.hpp>
+#include <redGrapes/redGrapes.hpp>
 #include <redGrapes/resource/ioresource.hpp>
 #include <redGrapes/resource/fieldresource.hpp>
 #include <redGrapes/helpers/mpi/scheduler.hpp>
@@ -68,15 +68,15 @@ int main()
     */
     MPI_Init( nullptr, nullptr );
     
-    rg::Manager<
+    rg::RedGrapes<
         rg::scheduler::SchedulingTagProperties< SchedulerTags >
-    > mgr;
-    using TaskProperties = decltype(mgr)::TaskProps;
+    > rg;
+    using TaskProperties = decltype(rg)::TaskProps;
 
     spdlog::set_level(spdlog::level::info);
 
-    auto default_scheduler = rg::scheduler::make_default_scheduler( mgr );
-    auto mpi_scheduler = rg::helpers::mpi::make_mpi_scheduler( mgr, TaskProperties::Builder().scheduling_tags({ SCHED_MPI }) );
+    auto default_scheduler = rg::scheduler::make_default_scheduler( rg );
+    auto mpi_scheduler = rg::helpers::mpi::make_mpi_scheduler( rg, TaskProperties::Builder().scheduling_tags({ SCHED_MPI }) );
 
     // initialize main thread to execute tasks from the mpi-queue and poll
     rg::thread::idle =
@@ -86,14 +86,14 @@ int main()
             mpi_scheduler.request_pool->poll();
         };
 
-    mgr.set_scheduler(
-        rg::scheduler::make_tag_match_scheduler( mgr )
+    rg.set_scheduler(
+        rg::scheduler::make_tag_match_scheduler( rg )
             .add({}, default_scheduler)
             .add({ SCHED_MPI }, mpi_scheduler.fifo));
 
     // initialize MPI config
     rg::IOResource< MPIConfig > mpi_config;
-    mgr.emplace_task(
+    rg.emplace_task(
         []( auto config ) {
             MPI_Comm_rank(MPI_COMM_WORLD, &config->world_rank);
             MPI_Comm_size(MPI_COMM_WORLD, &config->world_size);
@@ -111,7 +111,7 @@ int main()
     int current = 0;
 
     // initialize
-    mgr.emplace_task(
+    rg.emplace_task(
         []( auto buf, auto mpi_config )
         {
             int offset = 3 * mpi_config->world_rank;
@@ -130,7 +130,7 @@ int main()
          * Communication
          */
         // Send
-        mgr.emplace_task(
+        rg.emplace_task(
             [i, current, mpi_scheduler]( auto field, auto mpi_config )
             {
                 int dst = ( mpi_config->world_rank + 1 ) % mpi_config->world_size;
@@ -147,7 +147,7 @@ int main()
         );
 
         // Receive
-        mgr.emplace_task(
+        rg.emplace_task(
             [i, current, mpi_scheduler]( auto field, auto mpi_config )
             {
                 int src = ( mpi_config->world_rank - 1 ) % mpi_config->world_size;
@@ -172,7 +172,7 @@ int main()
          * Compute iteration
          */
         for( size_t i = 1; i < field[current]->size(); ++i )
-            mgr.emplace_task(
+            rg.emplace_task(
                 [i]( auto dst, auto src )
                 {
                     dst[{i}] = src[{i - 1}];
@@ -184,7 +184,7 @@ int main()
         /*
          * Write Output
          */
-        mgr.emplace_task(
+        rg.emplace_task(
             [i]( auto buf, auto mpi_config )
             {                
                 std::cout << "Step[" << i << "], rank[" << mpi_config->world_rank << "] :: ";
@@ -199,7 +199,7 @@ int main()
         current = next;
     }
 
-    mgr.emplace_task(
+    rg.emplace_task(
         []( auto m )
         {
             MPI_Finalize();
