@@ -85,7 +85,7 @@ namespace redGrapes
     public:
         RedGrapes( size_t n_threads = std::thread::hardware_concurrency())
             : scheduling_graph(std::make_shared<SchedulingGraph<Task>>(*this))
-            , main_space(std::make_shared<TaskSpace<Task>>(std::make_shared<PrecedenceGraph<Task, ResourceUser>>(), scheduling_graph))
+            , main_space(std::make_shared<TaskSpace<Task>>(std::make_shared<PrecedenceGraph<Task, ResourcePrecedencePolicy>>(), scheduling_graph))
         {
             active_task_spaces.enqueue(main_space);
             set_scheduler(scheduler::make_default_scheduler<Task>(*this, n_threads));
