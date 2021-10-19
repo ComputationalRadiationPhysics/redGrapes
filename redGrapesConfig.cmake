@@ -5,7 +5,7 @@ include(CMakeFindDependencyMacro)
 project(redGrapes VERSION 0.1.0)
 set(CMAKE_CXX_STANDARD 14)
 
-find_package(Boost 1.62.0 REQUIRED COMPONENTS graph context)
+find_package(Boost 1.62.0 REQUIRED COMPONENTS context)
 find_package(fmt REQUIRED)
 find_package(spdlog REQUIRED)
 
