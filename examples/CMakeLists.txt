@@ -9,6 +9,7 @@ include_directories(SYSTEM ${redGrapes_INCLUDE_DIRS})
 find_package(Threads REQUIRED)
 find_package(MPI)
 find_package(PNGwriter)
+find_package(LAPACK)
 
 set(EXAMPLE_NAMES
     1_resources
@@ -19,7 +20,6 @@ set(EXAMPLE_NAMES
     6_resource_scope
     7_event
     game_of_life
-    mpi
 )
 
 foreach(examplename ${EXAMPLE_NAMES})
@@ -28,7 +28,20 @@ foreach(examplename ${EXAMPLE_NAMES})
     target_link_libraries(${examplename} PRIVATE Threads::Threads)
 endforeach()
 
-target_link_libraries(mpi PRIVATE MPI::MPI_CXX)
+if(MPI_FOUND)
+    add_executable(mpi mpi.cpp)
+    target_link_libraries(mpi PRIVATE redGrapes)
+    target_link_libraries(mpi PRIVATE Threads::Threads)
+    target_link_libraries(mpi PRIVATE MPI::MPI_CXX)
+endif()
+
+if(LAPACK_FOUND)
+    add_executable(cholesky cholesky.cpp)
+    target_link_libraries(cholesky PRIVATE redGrapes)
+    target_link_libraries(cholesky PRIVATE Threads::Threads)
+    target_compile_options(cholesky PRIVATE ${LAPACK_LINKER_FLAGS})
+    target_link_libraries(cholesky PRIVATE ${LAPACK_LIBRARIES})
+endif()
 
 include(CheckLanguage)
 check_language(CUDA)
@@ -45,4 +58,4 @@ if(CMAKE_CUDA_COMPILER)
     target_link_libraries(cuda_mandelbrot PRIVATE Threads::Threads)
     target_link_libraries(cuda_mandelbrot PRIVATE PNGwriter::PNGwriter)
 endif()
-  
+
