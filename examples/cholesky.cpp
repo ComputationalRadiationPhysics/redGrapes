@@ -49,7 +49,7 @@ int main(int argc, char* argv[])
     // initialize tiled matrix in column-major layout
     std::vector<redGrapes::IOResource<double*>> A(nblks * nblks);
 
-    // allocate each tile (also in column-major layou)
+    // allocate each tile (also in column-major layout)
     for(int j = 0; j < nblks; ++j)
         for(int i = 0; i < nblks; ++i)
             A[j * nblks + i] = new double[blksz * blksz];
@@ -75,7 +75,7 @@ int main(int argc, char* argv[])
             {
                 // A[i,j] = A[i,j] - A[i,k] * (A[j,k])^t
                 rg.emplace_task(
-                    [blksz, nblks, i, j, k](auto a, auto b, auto c)
+                    [blksz](auto a, auto b, auto c)
                     {
                         spdlog::info("dgemm");
                         cblas_dgemm(CblasColMajor, CblasNoTrans, CblasTrans,
@@ -92,7 +92,7 @@ int main(int argc, char* argv[])
         {
             // A[j,j] = A[j,j] - A[j,i] * (A[j,i])^t
             rg.emplace_task(
-                [i, j, blksz, nblks](auto a, auto c)
+                [blksz, nblks](auto a, auto c)
                 {
                     spdlog::info("dsyrk");
                     cblas_dsyrk(CblasColMajor, CblasLower, CblasNoTrans,
@@ -115,7 +115,7 @@ int main(int argc, char* argv[])
         {
             // A[i,j] <- A[i,j] = X * (A[j,j])^t
             rg.emplace_task(
-                [blksz, nblks, i, j](auto a, auto b)
+                [blksz, nblks](auto a, auto b)
                 {
                     spdlog::info("dtrsm");
                     cblas_dtrsm(CblasColMajor,
