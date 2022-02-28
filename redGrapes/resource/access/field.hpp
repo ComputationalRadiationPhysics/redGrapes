@@ -11,9 +11,9 @@
 
 #pragma once
 
-#include <redGrapes/access/io.hpp>
-#include <redGrapes/access/area.hpp>
-#include <redGrapes/access/combine.hpp>
+#include <redGrapes/resource/access/io.hpp>
+#include <redGrapes/resource/access/area.hpp>
+#include <redGrapes/resource/access/combine.hpp>
 
 namespace redGrapes
 {

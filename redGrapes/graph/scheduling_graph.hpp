@@ -9,7 +9,7 @@
 
 #include <mutex>
 #include <cassert>
-#include <redGrapes/property/id.hpp>
+#include <redGrapes/task/property/id.hpp>
 #include <spdlog/spdlog.h>
 
 namespace redGrapes

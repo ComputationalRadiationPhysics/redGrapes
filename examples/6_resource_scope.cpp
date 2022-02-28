@@ -8,8 +8,8 @@
 #include <redGrapes/redGrapes.hpp>
 
 #include <redGrapes/resource/ioresource.hpp>
-#include <redGrapes/property/resource.hpp>
-#include <redGrapes/property/inherit.hpp>
+#include <redGrapes/task/property/resource.hpp>
+#include <redGrapes/task/property/inherit.hpp>
 
 int main()
 {

@@ -13,7 +13,7 @@
 
 #include <type_traits>
 #include <fmt/format.h>
-#include <redGrapes/property/trait.hpp>
+#include <redGrapes/task/property/trait.hpp>
 
 namespace redGrapes
 {

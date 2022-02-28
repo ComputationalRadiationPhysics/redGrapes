@@ -20,10 +20,10 @@
 #include <redGrapes/task/task_result.hpp>
 #include <redGrapes/task/task.hpp>
 
-#include <redGrapes/property/inherit.hpp>
-#include <redGrapes/property/trait.hpp>
-#include <redGrapes/property/id.hpp>
-#include <redGrapes/property/resource.hpp>
+#include <redGrapes/task/property/inherit.hpp>
+#include <redGrapes/task/property/trait.hpp>
+#include <redGrapes/task/property/id.hpp>
+#include <redGrapes/task/property/resource.hpp>
 
 #include <redGrapes/scheduler/default_scheduler.hpp>
 

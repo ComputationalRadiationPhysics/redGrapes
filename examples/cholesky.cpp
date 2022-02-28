@@ -1,8 +1,8 @@
 #include <iostream>
 #include <cblas.h>
 #include <lapacke.h>
-#include <redGrapes/property/inherit.hpp>
-#include <redGrapes/property/label.hpp>
+#include <redGrapes/task/property/inherit.hpp>
+#include <redGrapes/task/property/label.hpp>
 #include <redGrapes/redGrapes.hpp>
 #include <redGrapes/resource/ioresource.hpp>
 
