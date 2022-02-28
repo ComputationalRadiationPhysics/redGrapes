@@ -18,8 +18,8 @@
 #include <redGrapes/redGrapes.hpp>
 #include <redGrapes/resource/fieldresource.hpp>
 #include <redGrapes/resource/ioresource.hpp>
-#include <redGrapes/property/resource.hpp>
-#include <redGrapes/property/inherit.hpp>
+#include <redGrapes/task/property/resource.hpp>
+#include <redGrapes/task/property/inherit.hpp>
 
 struct Vec2 { int x, y; };
 enum Cell { DEAD, ALIVE };

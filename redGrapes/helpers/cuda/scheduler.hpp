@@ -7,8 +7,6 @@
 
 #pragma once
 
-#include <cuda.h>
-#include <cuda_runtime.h>
 #include <unordered_map>
 #include <queue>
 #include <optional>
@@ -17,6 +15,9 @@
 #include <redGrapes/scheduler/scheduler.hpp>
 #include <redGrapes/graph/scheduling_graph.hpp>
 #include <redGrapes/helpers/cuda/event_pool.hpp>
+
+#include <spdlog/spdlog.h>
+#include <fmt/format.h>
 
 namespace redGrapes
 {
@@ -33,15 +34,16 @@ namespace cuda
 
 // this class is not thread safe
 template <
-    typename TaskPtr
+    typename Task
 >
 struct CudaStream
 {
     cudaStream_t cuda_stream;
+    std::recursive_mutex mutex;
     std::queue<
         std::pair<
             cudaEvent_t,
-            TaskPtr
+            typename Task::VertexPtr
         >
     > events;
 
@@ -50,14 +52,20 @@ struct CudaStream
         cudaStreamCreate( &cuda_stream );
     }
 
+    CudaStream( CudaStream const & other )
+    {
+        spdlog::warn("CudaStream copy constructor called!");
+    }
+
     ~CudaStream()
     {
         cudaStreamDestroy( cuda_stream );
     }
 
     // returns the finished task
-    std::optional< TaskPtr > poll()
+    std::optional< typename Task::VertexPtr > poll()
     {
+        std::lock_guard< std::recursive_mutex > lock( mutex );
         if( ! events.empty() )
         {
             auto cuda_event = events.front().first;
@@ -65,12 +73,12 @@ struct CudaStream
 
             if( cudaEventQuery( cuda_event ) == cudaSuccess )
             {
+                SPDLOG_TRACE("cuda event {} ready", cuda_event);
                 EventPool::get().free( cuda_event );
                 events.pop();
 
                 return task_ptr;
             }
-
         }
 
         return std::nullopt;
@@ -78,19 +86,26 @@ struct CudaStream
 
     void wait_event( cudaEvent_t e )
     {
+        std::lock_guard< std::recursive_mutex > lock( mutex );
         cudaStreamWaitEvent( cuda_stream, e, 0 );
     }
 
-    cudaEvent_t push( TaskPtr & task_ptr )
+    cudaEvent_t push( typename Task::VertexPtr task_ptr, SchedulingGraph<Task> & sg )
     {
+        std::lock_guard< std::recursive_mutex > lock( mutex );
+
         // TODO: is there a better way than setting a global variable?
         thread::current_cuda_stream = cuda_stream;
 
-        task_ptr.get().impl->run();
+        task_ptr->task->impl->run();
 
         cudaEvent_t cuda_event = EventPool::get().alloc();
         cudaEventRecord( cuda_event, cuda_stream );
 
+        task_ptr->task->cuda_event = cuda_event;
+        sg.task_start( task_ptr->task->task_id );
+
+        SPDLOG_TRACE( "CudaStream {}: recorded event {}", cuda_stream, cuda_event );
         events.push( std::make_pair( cuda_event, task_ptr ) );
 
         return cuda_event;
@@ -99,12 +114,9 @@ struct CudaStream
 
 struct CudaTaskProperties
 {
-    bool cuda_flag;
     std::optional< cudaEvent_t > cuda_event;
 
-    CudaTaskProperties()
-        : cuda_flag( false )
-    {}
+    CudaTaskProperties() {}
 
     template < typename PropertiesBuilder >
     struct Builder
@@ -114,12 +126,6 @@ struct CudaTaskProperties
         Builder( PropertiesBuilder & b )
             : builder(b)
         {}
-
-        PropertiesBuilder cuda_task()
-        {
-            builder.prop.cuda_flag = true;
-            return builder;
-        }
     };
 
     struct Patch
@@ -130,93 +136,144 @@ struct CudaTaskProperties
             Builder( PatchBuilder & ) {}
         };
     };
+
     void apply_patch( Patch const & ) {};
 };
 
 template <
-    typename TaskID,
-    typename TaskPtr
+    typename Task
 >
-struct CudaScheduler : redGrapes::scheduler::SchedulerBase< TaskID, TaskPtr >
+struct CudaScheduler : redGrapes::scheduler::IScheduler< Task >
 {
 private:
     bool recording;
     bool cuda_graph_enabled;
 
+    std::recursive_mutex mutex;
     unsigned int current_stream;
-    std::vector< CudaStream< TaskPtr > > streams;
+    std::vector< CudaStream< Task > > streams;
+
+    std::function< bool(typename Task::VertexPtr) > is_cuda_task;
+
+    IManager< Task > & mgr;
 
 public:
     CudaScheduler(
-        size_t stream_count = 8,
+                   IManager<Task> & mgr,
+        std::function< bool(typename Task::VertexPtr) > is_cuda_task,
+        size_t stream_count = 1,
         bool cuda_graph_enabled = false
     ) :
-        streams( stream_count ),
+        mgr(mgr),
+        is_cuda_task( is_cuda_task ),
         current_stream( 0 ),
         cuda_graph_enabled( cuda_graph_enabled )
-    {}
-
-    void activate_task( TaskPtr task_ptr )
     {
-        auto task_id = task_ptr.get().task_id;
+        // reserve to avoid copy constructor of CudaStream
+        streams.reserve( stream_count );
 
-        if(
-            this->scheduling_graph->is_task_ready( task_id ) &&
-            ! task_ptr.get().cuda_event
-        )
+        for( size_t i = 0; i < stream_count; ++i )
+            streams.emplace_back();
+
+        SPDLOG_TRACE( "CudaScheduler: use {} streams", streams.size() );
+    }
+
+    bool activate_task( typename Task::VertexPtr task_ptr )
+    {
+        auto task_id = task_ptr->task->task_id;
+        SPDLOG_TRACE("CudaScheduler: activate task {} \"{}\"", task_id, task_ptr->task->label);
+
+        if(mgr.get_scheduling_graph()->is_task_ready( task_id ) )
         {
-            if( cuda_graph_enabled && ! recording )
+            if(!task_ptr->task->in_ready_list.test_and_set())
             {
-                recording = true;
-                //TODO: cudaBeginGraphRecord();
+                std::unique_lock< std::recursive_mutex > lock( mutex );
 
-                dispatch_task( task_ptr, task_id );
+                if( cuda_graph_enabled && ! recording )
+                {
+                    recording = true;
+                    //TODO: cudaBeginGraphRecord();
 
-                //TODO: cudaEndGraphRecord();
-                recording = false;
+                    dispatch_task( lock, task_ptr, task_id );
 
-                //TODO: submitGraph();
+                    //TODO: cudaEndGraphRecord();
+                    recording = false;
+
+                    //TODO: submitGraph();
+                }
+                else
+                    dispatch_task( lock, task_ptr, task_id );
+
+                return true;
             }
-            else
-                dispatch_task( task_ptr, task_id );
         }
+
+        return false;
     }
 
     //! submits the call to the cuda runtime
-    void dispatch_task( TaskPtr task_ptr, TaskID task_id )
+    void dispatch_task( std::unique_lock< std::recursive_mutex > & lock, typename Task::VertexPtr task_ptr, TaskID task_id )
     {
+        unsigned int stream_id = current_stream;
         current_stream = ( current_stream + 1 ) % streams.size();
 
-        for( auto predecessor_ptr : task_ptr.get_predecessors() )
-            if( auto cuda_event = predecessor_ptr.get().cuda_event )
-                streams[current_stream].wait_event( *cuda_event );
+        SPDLOG_TRACE( "Dispatch Cuda task {} \"{}\" on stream {}", task_id, task_ptr->task->label, stream_id );
 
-        this->scheduling_graph->task_start( task_id );
-        task_ptr.get().cuda_event = streams[ current_stream ].push( task_ptr );
+        for(auto weak_predecessor_ptr : task_ptr->in_edges)
+        {
+            if(auto predecessor_ptr = weak_predecessor_ptr.lock())
+            {
+                SPDLOG_TRACE("cuda scheduler: consider predecessor \"{}\"", predecessor_ptr->task->label);
 
-        this->activate_followers( task_ptr );
+                if(auto cuda_event = predecessor_ptr->task->cuda_event)
+                {
+                    SPDLOG_TRACE("cuda task {} \"{}\" wait for {}", task_id, task_ptr->task->label, *cuda_event);
+
+                    streams[stream_id].wait_event(*cuda_event);
+                }
+            }
+        }
+
+        SPDLOG_TRACE(
+            "CudaScheduler: start {}",
+            task_id
+        );
+
+        streams[ stream_id ].push( task_ptr, *mgr.get_scheduling_graph() );
+
+        lock.unlock();
+        
+        SPDLOG_TRACE(
+            "CudaScheduler: task {} \"{}\"::event = {}",
+            task_id,
+            task_ptr->task->label,
+            *task_ptr->task->cuda_event
+        );
     }
 
     //! checks if some cuda calls finished and notify the redGrapes manager
     void poll()
     {
-        for( int stream_id = 0; stream_id < streams.size(); ++stream_id )
+        for( size_t stream_id = 0; stream_id < streams.size(); ++stream_id )
         {
             if( auto task_ptr = streams[ stream_id ].poll() )
             {
-                auto task_id = task_ptr->locked_get().task_id;
+                auto task_id = (*task_ptr)->task->task_id;
+                SPDLOG_TRACE( "cuda task {} done", task_id );
 
-                this->scheduling_graph->task_end( task_id );
-                this->activate_followers( *task_ptr );
-                this->remove_task( *task_ptr );
+                mgr.get_scheduling_graph()->task_end( task_id );
+                mgr.remove_task( *task_ptr );
             }
         }
     }
 
-    bool task_dependency_type( TaskPtr a, TaskPtr b )
+    /*! whats the task dependency type for the edge a -> b (task a precedes task b)
+     * @return true if task b depends on the pre event of task a, false if task b depends on the post event of task b.
+     */
+    bool task_dependency_type( typename Task::VertexPtr a, typename Task::VertexPtr b )
     {
-        assert( b.get().cuda_flag );
-        return a.get().cuda_flag;
+        assert( is_cuda_task( b ) );
+        return is_cuda_task( a );
     }
 };
 
@@ -227,17 +284,17 @@ template <
     typename Manager
 >
 auto make_cuda_scheduler(
-    Manager & m,
+    Manager & mgr,
+    std::function< bool(typename Manager::Task::VertexPtr) > is_cuda_task,
     size_t n_streams = 8,
     bool graph_enabled = false
 )
 {
     return std::make_shared<
-               CudaScheduler<
-                   typename Manager::TaskID,
-                   typename Manager::TaskPtr
-               >
+        CudaScheduler< typename Manager::Task >
            >(
+               mgr,
+               is_cuda_task,
                n_streams,
                graph_enabled
            );
@@ -248,5 +305,27 @@ auto make_cuda_scheduler(
 } // namespace helpers
 
 } // namespace redGrapes
+
+
+template <>
+struct fmt::formatter< redGrapes::helpers::cuda::CudaTaskProperties >
+{
+    constexpr auto parse( format_parse_context& ctx )
+    {
+        return ctx.begin();
+    }
+
+    template < typename FormatContext >
+    auto format(
+        redGrapes::helpers::cuda::CudaTaskProperties const & prop,
+        FormatContext & ctx
+    )
+    {
+        if( auto e = prop.cuda_event )
+            return fmt::format_to( ctx.out(), "\"cuda_event\" : {}", *e );
+        else
+            return fmt::format_to( ctx.out(), "\"cuda_event\" : null");
+    }
+};
 
 

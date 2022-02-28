@@ -13,10 +13,10 @@
 
 #include <limits>
 
-#include <redGrapes/access/field.hpp>
+#include <redGrapes/resource/access/field.hpp>
 #include <redGrapes/resource/resource.hpp>
-#include <redGrapes/property/resource.hpp>
-#include <redGrapes/property/trait.hpp>
+#include <redGrapes/task/property/resource.hpp>
+#include <redGrapes/task/property/trait.hpp>
 
 namespace redGrapes
 {

@@ -9,9 +9,9 @@
 #include <chrono>
 #include <iostream>
 
-#include <redGrapes/property/resource.hpp>
-#include <redGrapes/property/label.hpp>
-#include <redGrapes/property/inherit.hpp>
+#include <redGrapes/task/property/resource.hpp>
+#include <redGrapes/task/property/label.hpp>
+#include <redGrapes/task/property/inherit.hpp>
 #include <redGrapes/redGrapes.hpp>
 
 int main( int, char*[] )

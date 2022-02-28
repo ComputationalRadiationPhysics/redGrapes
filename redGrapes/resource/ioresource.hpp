@@ -11,9 +11,9 @@
 
 #pragma once
 
-#include <redGrapes/access/io.hpp>
-#include <redGrapes/property/resource.hpp>
-#include <redGrapes/property/trait.hpp>
+#include <redGrapes/task/property/resource.hpp>
+#include <redGrapes/task/property/trait.hpp>
+#include <redGrapes/resource/access/io.hpp>
 #include <redGrapes/resource/resource.hpp>
 
 namespace redGrapes

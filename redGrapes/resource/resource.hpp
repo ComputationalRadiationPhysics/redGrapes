@@ -19,7 +19,7 @@
 #include <functional>
 
 #include <redGrapes/thread_local.hpp>
-#include <redGrapes/property/trait.hpp>
+#include <redGrapes/task/property/trait.hpp>
 
 #include <fmt/format.h>
 

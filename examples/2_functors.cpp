@@ -8,8 +8,8 @@
 #include <iostream>
 
 #include <redGrapes/redGrapes.hpp>
-#include <redGrapes/property/id.hpp>
-#include <redGrapes/property/resource.hpp>
+#include <redGrapes/task/property/id.hpp>
+#include <redGrapes/task/property/resource.hpp>
 
 static auto & rg()
 {
