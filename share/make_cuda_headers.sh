@@ -1,6 +1,6 @@
 #!/bin/sh
 
-for f in $(find -L redGrapes/helpers/cupla -name '*.hpp');
+for f in $(find -L redGrapes/dispatch/cupla -name '*.hpp');
 do
     TARGET=$(echo $f | sed -e 's/cupla/cuda/g');
     mv -f $TARGET $TARGET.bak;

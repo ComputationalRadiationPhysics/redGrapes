@@ -9,7 +9,7 @@
 #include <redGrapes/task/task_space.hpp>
 #include <redGrapes/scheduler/scheduler.hpp>
 #include <redGrapes/scheduler/fifo.hpp>
-#include <redGrapes/scheduler/worker.hpp>
+#include <redGrapes/dispatch/thread/worker.hpp>
 
 namespace redGrapes
 {
@@ -28,7 +28,7 @@ struct DefaultScheduler : public IScheduler<Task>
 
     IManager<Task> & mgr;
     std::shared_ptr<redGrapes::scheduler::FIFO<Task>> fifo;
-    std::vector<std::shared_ptr<redGrapes::scheduler::WorkerThread<>>> threads;
+    std::vector<std::shared_ptr<redGrapes::dispatch::thread::WorkerThread<>>> threads;
 
     DefaultScheduler( IManager<Task> & mgr, size_t n_threads = std::thread::hardware_concurrency() ) :
         mgr(mgr),
@@ -36,14 +36,14 @@ struct DefaultScheduler : public IScheduler<Task>
     {
         for( size_t i = 0; i < n_threads; ++i )
             threads.emplace_back(
-                 std::make_shared< redGrapes::scheduler::WorkerThread<> >(
+                 std::make_shared< redGrapes::dispatch::thread::WorkerThread<> >(
                      [this] { return this->fifo->consume(); }
                  )
             );
 
         // if not configured otherwise,
         // the main thread will simply wait
-        thread::idle =
+        dispatch::thread::idle =
             [this]
             {
                 SPDLOG_TRACE("DefaultScheduler::idle()");

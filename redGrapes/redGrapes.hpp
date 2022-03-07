@@ -94,7 +94,7 @@ namespace redGrapes
             while( ! main_space->empty() )
             {
                 SPDLOG_TRACE("RedGrapes: idle");
-                redGrapes::thread::idle();
+                redGrapes::dispatch::thread::idle();
             }
 
             SPDLOG_TRACE("RedGrapes: scheduling graph empty!");
@@ -364,7 +364,7 @@ namespace redGrapes
         {
             if(auto task_vertex = current_task())
             {
-                task_vertex->task->apply_patch(patch);
+                (*task_vertex)->task->apply_patch(patch);
                 /* TODO!
                 auto vertices = task_ptr->graph->update_vertex(task_ptr->vertex);
 
@@ -390,7 +390,7 @@ namespace redGrapes
             SPDLOG_TRACE("wait for all tasks...");
             if(!current_task())
                 while(!main_space->empty())
-                    thread::idle();
+                    dispatch::thread::idle();
             else
                 throw std::runtime_error("called wait_for_all() inside a task!");
         }
@@ -403,7 +403,7 @@ namespace redGrapes
                 if(auto cur_vertex = current_task())
                     (*cur_vertex)->task->impl->yield(event);
                 else
-                    thread::idle();
+                    dispatch::thread::idle();
             }
         }
 

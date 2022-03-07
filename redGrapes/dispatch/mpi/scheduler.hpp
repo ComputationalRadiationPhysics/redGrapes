@@ -11,12 +11,12 @@
 #include <memory>
 
 #include <redGrapes/redGrapes.hpp>
-#include <redGrapes/helpers/mpi/request_pool.hpp>
+#include <redGrapes/dispatch/mpi/request_pool.hpp>
 #include <redGrapes/scheduler/fifo.hpp>
 
 namespace redGrapes
 {
-    namespace helpers
+    namespace dispatch
     {
         namespace mpi
         {
@@ -57,5 +57,5 @@ namespace redGrapes
             }
 
         } // namespace mpi
-    } // namespace helpers
+    } // namespace dispatch
 } // namespace redGrapes

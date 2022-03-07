@@ -44,7 +44,7 @@ Cell next_state( Cell const neighbours [][size.x+2] )
 int main( int, char * [] )
 {
     spdlog::set_level( spdlog::level::trace );
-    redGrapes::RedGrapes<> mgr(4);
+    redGrapes::RedGrapes<> rg(4);
 
     using Buffer =
         std::array<

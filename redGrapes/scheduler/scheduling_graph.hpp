@@ -13,7 +13,7 @@
 #include <cassert>
 #include <spdlog/spdlog.h>
 
-#include <redGrapes/property/id.hpp>
+#include <redGrapes/task/property/id.hpp>
 //#include <redGrapes/imanager.hpp>
 
 namespace std
@@ -64,6 +64,7 @@ struct Event
     //! the set of subsequent events
     std::vector< std::shared_ptr<Event> > followers;
     std::shared_mutex followers_mutex;
+
     std::recursive_mutex mutex;
 
     std::function< void() > ready_hook;

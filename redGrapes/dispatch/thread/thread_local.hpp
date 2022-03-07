@@ -8,7 +8,8 @@
 
 namespace redGrapes
 {
-
+namespace dispatch
+{
 namespace thread
 {
 
@@ -17,7 +18,7 @@ static thread_local unsigned int scope_level;
 
 static thread_local std::function< void () > idle;
 
+} // namespace dispatch
 } // namespace thread
-
 } // namespace redGrapes
 

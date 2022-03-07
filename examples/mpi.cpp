@@ -2,7 +2,7 @@
 #include <redGrapes/redGrapes.hpp>
 #include <redGrapes/resource/ioresource.hpp>
 #include <redGrapes/resource/fieldresource.hpp>
-#include <redGrapes/helpers/mpi/scheduler.hpp>
+#include <redGrapes/dispatch/mpi/scheduler.hpp>
 
 #include  <redGrapes/scheduler/default_scheduler.hpp>
 #include  <redGrapes/scheduler/tag_match.hpp>
@@ -76,10 +76,10 @@ int main()
     spdlog::set_level(spdlog::level::info);
 
     auto default_scheduler = rg::scheduler::make_default_scheduler( rg );
-    auto mpi_scheduler = rg::helpers::mpi::make_mpi_scheduler( rg, TaskProperties::Builder().scheduling_tags({ SCHED_MPI }) );
+    auto mpi_scheduler = rg::dispatch::mpi::make_mpi_scheduler( rg, TaskProperties::Builder().scheduling_tags({ SCHED_MPI }) );
 
     // initialize main thread to execute tasks from the mpi-queue and poll
-    rg::thread::idle =
+    rg::dispatch::thread::idle =
         [mpi_scheduler]
         {
             mpi_scheduler.fifo->consume();

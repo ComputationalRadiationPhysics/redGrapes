@@ -23,11 +23,11 @@ class ResourceUser
 {
   public:
     ResourceUser()
-        : scope_level( thread::scope_level ) {}
+        : scope_level( dispatch::thread::scope_level ) {}
 
     ResourceUser( std::list<ResourceAccess> const & access_list_ )
         : access_list( access_list_ )
-        , scope_level( thread::scope_level )
+        , scope_level( dispatch::thread::scope_level )
     {}
 
     static bool

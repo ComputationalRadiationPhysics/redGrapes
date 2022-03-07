@@ -12,7 +12,7 @@
 
 namespace redGrapes
 {
-namespace helpers
+namespace dispatch
 {
 namespace cupla
 {
@@ -70,7 +70,7 @@ private:
 
 } // namespace cupla
 
-} // namespace helpers
+} // namespace dispatch
     
 } // namespace redGrapes
 

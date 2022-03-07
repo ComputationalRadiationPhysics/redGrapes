@@ -15,7 +15,7 @@
 #include <moodycamel/concurrentqueue.h>
 
 #include <redGrapes/scheduler/scheduler.hpp>
-#include <redGrapes/thread_local.hpp>
+#include <redGrapes/dispatch/thread/thread_local.hpp>
 #include <redGrapes/imanager.hpp>
 
 namespace redGrapes

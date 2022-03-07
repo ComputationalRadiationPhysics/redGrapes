@@ -12,7 +12,7 @@
 
 namespace redGrapes
 {
-namespace helpers
+namespace dispatch
 {
 namespace cuda
 {
@@ -70,7 +70,7 @@ private:
 
 } // namespace cuda
 
-} // namespace helpers
+} // namespace dispatch
     
 } // namespace redGrapes
 

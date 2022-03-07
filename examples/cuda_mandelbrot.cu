@@ -12,13 +12,13 @@
 #include <functional>
 #include <chrono>
 
-#include <redGrapes/helpers/cuda/scheduler.hpp>
+#include <redGrapes/dispatch/cuda/scheduler.hpp>
 #include <redGrapes/scheduler/default_scheduler.hpp>
 #include <redGrapes/scheduler/tag_match.hpp>
 #include <redGrapes/resource/fieldresource.hpp>
 #include <redGrapes/resource/ioresource.hpp>
-#include <redGrapes/property/resource.hpp>
-#include <redGrapes/manager.hpp>
+#include <redGrapes/task/property/resource.hpp>
+#include <redGrapes/redGrapes.hpp>
 
 namespace rg = redGrapes;
 
@@ -72,8 +72,8 @@ int main()
     > mgr;
 
     auto default_scheduler = rg::scheduler::make_default_scheduler( mgr, 8 /* number of threads */);
-    auto cuda_scheduler = rg::helpers::cuda::make_cuda_scheduler( mgr, 8 /* number of cuda streams */ );
-    rg::thread::idle =
+    auto cuda_scheduler = rg::dispatch::cuda::make_cuda_scheduler( mgr, 8 /* number of cuda streams */ );
+    rg::dispatch::thread::idle =
         [cuda_scheduler]
         {
 	    cuda_scheduler->poll();

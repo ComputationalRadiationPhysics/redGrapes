@@ -16,7 +16,7 @@
 
 namespace redGrapes
 {
-namespace helpers
+namespace dispatch
 {
 namespace mpi
 {
@@ -106,8 +106,6 @@ struct RequestPool
 };
 
 } // namespace mpi
-
-} // namespace helpers
-
+} // namespace dispatch
 } // namespace redGrapes
 

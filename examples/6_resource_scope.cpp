@@ -20,19 +20,19 @@ int main()
     rg.emplace_task(
         [&rg]( auto a )
         {
-            std::cout << "scope = " << redGrapes::thread::scope_level << std::endl;
+            std::cout << "scope = " << redGrapes::dispatch::thread::scope_level << std::endl;
             redGrapes::IOResource<int> b; // scope-level=1
 
             rg.emplace_task(
                 []( auto b )
                 {
                     *b = 1;
-                    std::cout << "scope = " << redGrapes::thread::scope_level << std::endl;
+                    std::cout << "scope = " << redGrapes::dispatch::thread::scope_level << std::endl;
                 },
                 b.write()
             ).get();
 
-            std::cout << "scope = " << redGrapes::thread::scope_level << std::endl;
+            std::cout << "scope = " << redGrapes::dispatch::thread::scope_level << std::endl;
         },
         a.read()
     );

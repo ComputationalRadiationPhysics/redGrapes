@@ -14,7 +14,7 @@
 
 #include <boost/context/continuation.hpp>
 
-#include <redGrapes/thread_local.hpp>
+#include <redGrapes/dispatch/thread/thread_local.hpp>
 
 namespace redGrapes
 {
@@ -33,7 +33,7 @@ struct TaskImplBase
 
     bool operator() ()
     {
-        thread::scope_level = scope_level;
+        dispatch::thread::scope_level = scope_level;
 
         if(!resume_cont)
             resume_cont = boost::context::callcc(

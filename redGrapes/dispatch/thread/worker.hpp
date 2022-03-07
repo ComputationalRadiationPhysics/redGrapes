@@ -13,7 +13,9 @@
 
 namespace redGrapes
 {
-namespace scheduler
+namespace dispatch
+{
+namespace thread
 {
 
 /*! Worker Interface
@@ -111,7 +113,7 @@ struct WorkerThread
                  * and therefore yield() guarantees to do
                  * a context-switch instead of idling
                  */
-                redGrapes::thread::idle =
+                redGrapes::dispatch::thread::idle =
                     [this]
                     {
                         throw std::runtime_error("idle in worker thread!");
@@ -129,7 +131,7 @@ struct WorkerThread
     }
 };
 
-} // namespace scheduler
-
+} // namespace thread
+} // namespace dispatch
 } // namespace redGrapes
 

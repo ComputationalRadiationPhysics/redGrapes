@@ -18,7 +18,7 @@
 #include <iostream>
 #include <functional>
 
-#include <redGrapes/thread_local.hpp>
+#include <redGrapes/dispatch/thread/thread_local.hpp>
 #include <redGrapes/task/property/trait.hpp>
 
 #include <fmt/format.h>
@@ -49,7 +49,7 @@ public:
      */
     ResourceBase()
         : id( getID() )
-        , scope_level( thread::scope_level )
+        , scope_level( dispatch::thread::scope_level )
     {}
     /*
     template < typename AccessPolicy >
