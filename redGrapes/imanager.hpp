@@ -18,6 +18,7 @@ namespace redGrapes
 
 #include <redGrapes/scheduler/scheduling_graph.hpp>
 #include <redGrapes/scheduler/scheduler.hpp>
+#include <redGrapes/scheduler/event.hpp>
 #include <redGrapes/task/task_space.hpp>
 
 namespace redGrapes
@@ -25,13 +26,11 @@ namespace redGrapes
     template<typename Task>
     struct IManager
     {
-        using TaskVertexPtr = std::shared_ptr<PrecedenceGraphVertex<Task>>;
-        
         virtual ~IManager() {}
 
         virtual std::shared_ptr<scheduler::IScheduler<Task>> get_scheduler() {}
-        virtual std::shared_ptr<TaskSpace<Task>> get_main_space() {}
-        virtual std::shared_ptr<TaskSpace<Task>> current_task_space() {}
+        virtual std::shared_ptr<TaskSpace> get_main_space() {}
+        virtual std::shared_ptr<TaskSpace> current_task_space() {}
         virtual std::optional<TaskVertexPtr>& current_task() {}
 
         virtual void update_active_task_spaces() {}
@@ -39,8 +38,9 @@ namespace redGrapes
         virtual void activate_task(TaskVertexPtr) {}
         virtual bool activate_next() {}
 
-        virtual std::optional<std::shared_ptr<scheduler::Event>> create_event() {}
-        virtual void yield(std::shared_ptr<scheduler::Event> event_id) {}
+        virtual void notify_event(scheduler::EventPtr event) {}
+        virtual std::optional<scheduler::EventPtr> create_event() {}
+        virtual void yield(scheduler::EventPtr event) {}
         virtual void remove_task(TaskVertexPtr) {}
 
     };

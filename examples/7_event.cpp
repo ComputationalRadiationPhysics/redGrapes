@@ -5,6 +5,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
+#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
+
 #include <iostream>
 #include <thread>
 #include <chrono>
@@ -16,7 +18,9 @@
 
 int main()
 {
-    redGrapes::RedGrapes<> rg;
+    spdlog::set_level( spdlog::level::trace );
+
+    redGrapes::RedGrapes<> rg(1);
     using TaskProperties = decltype( rg )::TaskProps;
 
     redGrapes::Resource< redGrapes::access::IOAccess > r1;
@@ -41,7 +45,7 @@ int main()
     std::this_thread::sleep_for( std::chrono::seconds(1) );
     std::cout << "reach event" << std::endl;
 
-    event->reach();
+    rg.notify_event( event );
 
     return 0;
 }

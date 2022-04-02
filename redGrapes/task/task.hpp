@@ -1,109 +1,67 @@
-/* Copyright 2019-2020 Michael Sippel
+/* Copyright 2022 Michael Sippel
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
-
 #pragma once
 
-#include <mutex>
-#include <functional>
-#include <vector>
-#include <optional>
+#include <redGrapes/task/task_base.hpp>
 
-#include <boost/context/continuation.hpp>
-
-#include <redGrapes/dispatch/thread/thread_local.hpp>
+#include <redGrapes/task/property/inherit.hpp>
+#include <redGrapes/task/property/trait.hpp>
+#include <redGrapes/task/property/id.hpp>
+#include <redGrapes/task/property/resource.hpp>
 
 namespace redGrapes
 {
-
-struct TaskImplBase
+namespace task
 {
-    virtual ~TaskImplBase() {};
-    virtual void run() = 0;
 
-    bool finished;
-
-    TaskImplBase()
-        : finished( false )
+    template<typename... TaskPropertyPolicies>
+    struct PropTask : TaskBase, TaskProperties<TaskPropertyPolicies...>
     {
-    }
+        using Props = TaskProperties<TaskPropertyPolicies...>;
+        using VertexPtr = std::shared_ptr< PrecedenceGraphVertex >;
+        using WeakVertexPtr = std::weak_ptr< PrecedenceGraphVertex >;
 
-    bool operator() ()
+        unsigned int scope_level;
+
+        virtual ~PropTask() {}
+
+        PropTask(TaskProperties<TaskPropertyPolicies...>&& prop)
+            : TaskProperties<TaskPropertyPolicies...>(prop)
+        {
+        }
+    };
+
+    template<typename F, typename... TaskPropertyPolicies>
+    struct FunTask : PropTask<TaskPropertyPolicies...>
     {
-        dispatch::thread::scope_level = scope_level;
+        F impl;
 
-        if(!resume_cont)
-            resume_cont = boost::context::callcc(
-                [this](boost::context::continuation&& c)
-                {
-                    {
-                        std::lock_guard< std::mutex > lock( yield_cont_mutex );
-                        this->yield_cont = std::move(c);
-                    }
+        virtual ~FunTask() {}
 
-                    this->run();
-                    this->finished = true;
+        FunTask(F&& f, TaskProperties<TaskPropertyPolicies...>&& prop)
+            : PropTask<TaskPropertyPolicies...>(std::move(prop))
+            , impl(std::move(f))
+        {
+        }
 
-                    std::optional< boost::context::continuation > yield_cont;
+        void run()
+        {
+            impl();
+        }
+    };
 
-                    {
-                        std::lock_guard< std::mutex > lock( yield_cont_mutex );
-                        this->yield_cont.swap(yield_cont);
-                    }
 
-                    return std::move(*yield_cont);
-                });
-        else
-            resume_cont = resume_cont->resume();
+template <typename F, typename... TaskPropertyPolicies>
+std::unique_ptr<FunTask<F, TaskPropertyPolicies...>> make_fun_task(F&& f, TaskProperties<TaskPropertyPolicies...> prop) {
+    return std::make_unique<FunTask<F, TaskPropertyPolicies...>>(std::move(f), std::move(prop));
+}
 
-        return finished;
-    }
 
-    void yield( std::shared_ptr<scheduler::Event> event )
-    {
-        this->event = event;
-
-        std::optional< boost::context::continuation > old_yield;
-        this->yield_cont.swap( old_yield );
-
-        boost::context::continuation new_yield = old_yield->resume();
-
-        std::lock_guard< std::mutex > lock( yield_cont_mutex );
-        if( ! yield_cont )
-            yield_cont = std::move(new_yield);
-        // else: yield_cont already been set by another thread running this task
-    }
-
-    unsigned int scope_level;
-    std::optional< std::shared_ptr<scheduler::Event> > event;
-
-private:
-    std::mutex yield_cont_mutex;
-
-    std::optional< boost::context::continuation > yield_cont;
-    std::optional< boost::context::continuation > resume_cont;
-};
-
-// TODO: just use std::function
-template< typename NullaryCallable >
-struct FunctorTask : TaskImplBase
-{
-    FunctorTask( NullaryCallable && impl )
-        : impl( std::move(impl) )
-    {}
-
-    ~FunctorTask(){}
-
-    void run()
-    {
-        this->impl();
-    }
-
-private:
-    NullaryCallable impl;
-};
+} // namespace task
 
 } // namespace redGrapes
+

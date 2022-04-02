@@ -23,13 +23,13 @@ namespace redGrapes
             template<typename Manager>
             struct MPIScheduler
             {
-                Manager* mgr;
+                Manager & mgr;
                 std::shared_ptr<RequestPool<typename Manager::Task>> request_pool;
                 std::shared_ptr<scheduler::FIFO<typename Manager::Task>> fifo;
                 typename Manager::Task::Props mpi_props;
 
                 MPIScheduler(Manager& mgr, typename Manager::Task::Props mpi_props)
-                    : mgr(&mgr)
+                    : mgr(mgr)
                     , request_pool(std::make_shared<RequestPool<typename Manager::Task>>(mgr))
                     , fifo(scheduler::make_fifo_scheduler(mgr))
                     , mpi_props(mpi_props)
@@ -39,7 +39,7 @@ namespace redGrapes
                 template<typename F>
                 TaskResult<typename Manager::Task, MPI_Status> emplace_task(F&& f) const
                 {
-                    return mgr->emplace_task(
+                    return mgr.emplace_task(
                         [request_pool = this->request_pool, f{std::move(f)}]() -> MPI_Status
                         {
                             MPI_Request request;

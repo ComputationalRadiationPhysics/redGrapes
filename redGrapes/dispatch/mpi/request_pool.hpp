@@ -64,7 +64,7 @@ struct RequestPool
                 *(this->statuses[ idx ]) = out_statuses[ i ];
 
                 // finish task waiting for request
-                events[ idx ]->reach();
+                mgr.notify_event( events[ idx ] );
 
                 requests.erase( requests.begin() + idx );
                 statuses.erase( statuses.begin() + idx );
@@ -90,7 +90,7 @@ struct RequestPool
         auto status = std::make_shared< MPI_Status >();
         auto event = *mgr.create_event();
 
-        SPDLOG_TRACE("MPI RequestPool: status event = {}", event_id);
+        SPDLOG_TRACE("MPI RequestPool: status event = {}", (void*)event.get());
 
         {
             std::lock_guard<std::mutex> lock( mutex );

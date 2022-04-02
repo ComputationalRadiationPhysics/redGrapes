@@ -15,6 +15,7 @@
 #include <moodycamel/concurrentqueue.h>
 
 #include <redGrapes/scheduler/scheduler.hpp>
+#include <redGrapes/dispatch/thread/worker.hpp>
 #include <redGrapes/dispatch/thread/thread_local.hpp>
 #include <redGrapes/imanager.hpp>
 
@@ -67,8 +68,6 @@ struct FIFOSchedulerProp
 template < typename Task >
 struct FIFO : public IScheduler< Task >
 {
-    using TaskVertexPtr = std::shared_ptr<PrecedenceGraphVertex<Task>>;
-
     IManager<Task>& mgr;
 
     moodycamel::ConcurrentQueue< TaskVertexPtr > ready;
@@ -78,62 +77,14 @@ struct FIFO : public IScheduler< Task >
     {
     }
 
-    //! returns true if a job was consumed, false if queue is empty
-    bool consume()
+    void activate_task( TaskVertexPtr task_vertex )
     {
-        if( auto task_vertex = get_job() )
-        {
-            auto & task = *(*task_vertex)->task;
-            auto task_id = task.task_id;
-
-            task.pre_event->reach();
-
-            mgr.current_task() = task_vertex;
-            bool finished = (*(*task_vertex)->task->impl)();
-            mgr.current_task() = std::nullopt;
-
-            if(finished)
-            {
-                auto pe = task.post_event;
-                pe->reach();
-
-                mgr.get_scheduler()->notify();
-            }
-            else
-            {
-                task.in_activation_queue.clear();
-                task.in_ready_list.clear();
-
-                task.pause( *(task.impl->event) );
-            }
-
-            return true;
-        }
-        else
-            return false;
+        ready.enqueue(task_vertex);        
     }
 
-    // precedence graph must be locked
-    bool activate_task( TaskVertexPtr task_vertex )
-    {
-        auto & task = *task_vertex->task;
-        auto task_id = task.task_id;
-
-        if( task.is_ready() )
-        {
-            if(!task.in_ready_list.test_and_set())
-            {
-                ready.enqueue(task_vertex);
-                mgr.get_scheduler()->notify();
-
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-private:
+    /*! take a job from the ready queue
+     * if none available, update 
+     */
     std::optional<TaskVertexPtr> get_job()
     {
         if( auto task_vertex = try_next_task() )
@@ -145,6 +96,9 @@ private:
         }
     }
 
+    /*! call the manager to activate tasks until we get at least
+     * one in the ready queue
+     */
     std::optional<TaskVertexPtr> try_next_task()
     {
         do

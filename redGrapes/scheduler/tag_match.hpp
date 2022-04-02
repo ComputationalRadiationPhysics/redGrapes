@@ -50,7 +50,7 @@ namespace redGrapes
         template<typename Task, std::size_t T_tag_count = 64>
         struct TagMatch : IScheduler<Task>
         {
-            using TaskPtr = std::shared_ptr<PrecedenceGraphVertex<Task>>;
+            using TaskPtr = std::shared_ptr<PrecedenceGraphVertex>;
 
             struct SubScheduler
             {
@@ -73,12 +73,6 @@ namespace redGrapes
                 this->add_scheduler(supported_tags, s);
             }
 
-            void init_mgr_callbacks(std::shared_ptr<redGrapes::IManager<Task>> mgr)
-            {
-                for(auto& s : sub_schedulers)
-                    s.s->init_mgr_callbacks(mgr);
-            }
-
             void notify()
             {
                 for(auto& s : sub_schedulers)
@@ -98,15 +92,15 @@ namespace redGrapes
             bool task_dependency_type(typename Task::VertexPtr a, typename Task::VertexPtr b)
             {
                 /// fixme: b or a ?
-                if(auto sub_scheduler = get_matching_scheduler(b->task->required_scheduler_tags))
+                if(auto sub_scheduler = get_matching_scheduler(b->template get_task<Task>().required_scheduler_tags))
                     return (*sub_scheduler)->task_dependency_type(a, b);
                 else
                     throw std::runtime_error("no scheduler found for task");
             }
 
-            bool activate_task(typename Task::VertexPtr task_ptr)
+            void activate_task(typename Task::VertexPtr task_ptr)
             {
-                if(auto sub_scheduler = get_matching_scheduler(task_ptr->task->required_scheduler_tags))
+                if(auto sub_scheduler = get_matching_scheduler(task_ptr->template get_task<Task>().required_scheduler_tags))
                     return (*sub_scheduler)->activate_task(task_ptr);
                 else
                     throw std::runtime_error("no scheduler found for task");

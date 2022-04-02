@@ -25,54 +25,52 @@ namespace std
 
 namespace redGrapes
 {
-    template<typename Task>
     struct PrecedenceGraphVertex;
+    struct TaskSpace;
 
-    template<typename Task>
+    using TaskVertexPtr = std::shared_ptr< PrecedenceGraphVertex >;
+
     struct ITaskSpace
     {
-        using TaskVertexPtr = std::shared_ptr<PrecedenceGraphVertex<Task>>;
-
         virtual ~ITaskSpace() = 0;
 
         virtual std::optional<TaskVertexPtr> next() = 0;
-        virtual void push(std::unique_ptr<Task>&& task) = 0;
+        virtual void push(std::unique_ptr<ITask>&& task) = 0;
         virtual void remove(TaskVertexPtr v) = 0;
     };
 
-    template<typename Task>
-    struct TaskSpace;
-
-    template<typename Task>
     struct PrecedenceGraphVertex
     {
-        std::unique_ptr<Task> task;
+        std::unique_ptr<ITask> task;
 
-        std::weak_ptr<TaskSpace<Task>> space;
-        std::optional<std::shared_ptr<TaskSpace<Task>>> children;
+        std::weak_ptr< TaskSpace > space;
+        std::optional<std::shared_ptr<TaskSpace>> children;
 
         // out_edges needs a mutex because edges will be added later on
-        std::vector<std::weak_ptr<PrecedenceGraphVertex<Task>>> out_edges;
+        std::vector<std::weak_ptr<PrecedenceGraphVertex>> out_edges;
         std::shared_mutex out_edges_mutex;
 
         // in edges dont need a mutex because they are initialized
         // once by `init_dependencies()` and only read afterwards.
         // expired pointers must be ignored
-        std::vector<std::weak_ptr<PrecedenceGraphVertex<Task>>> in_edges;
+        std::vector<std::weak_ptr<PrecedenceGraphVertex>> in_edges;
 
-        PrecedenceGraphVertex(std::unique_ptr<Task>&& task, std::weak_ptr<TaskSpace<Task>> space)
+        PrecedenceGraphVertex(std::unique_ptr<ITask>&& task, std::weak_ptr<TaskSpace> space)
             : task(std::move(task))
             , space(space)
             , children(std::nullopt)
         {
         }
+
+        template <typename Task>
+        Task & get_task()
+        {
+            return dynamic_cast<Task&>(*task);
+        }
     };
 
-    template<typename Task>
     struct IPrecedenceGraph
     {
-        using TaskVertexPtr = std::shared_ptr<PrecedenceGraphVertex<Task>>;
-
         //! stores insert order of all tasks
         std::list<TaskVertexPtr> tasks;
         std::shared_mutex mutex;
@@ -83,13 +81,8 @@ namespace redGrapes
             //assert(tasks.empty());
         }
 
-        virtual void init_dependencies(typename std::list<TaskVertexPtr>::iterator it)
-        {
-        }
-        virtual void update_dependencies(TaskVertexPtr v)
-        {
-        }
-
+        virtual void init_dependencies(typename std::list<TaskVertexPtr>::iterator it) = 0;
+        virtual std::vector< TaskVertexPtr > update_dependencies(TaskVertexPtr v) = 0;
         void remove(TaskVertexPtr v)
         {
             std::unique_lock<std::shared_mutex> wrlock(mutex);
@@ -107,7 +100,7 @@ namespace redGrapes
 
         void add_edge(TaskVertexPtr u, TaskVertexPtr v)
         {
-            SPDLOG_TRACE("TaskSpace: add edge task {} -> task {}", u->task->task_id, v->task->task_id);
+            //SPDLOG_TRACE("TaskSpace: add edge task {} -> task {}", u->task->task_id, v->task->task_id);
             v->in_edges.push_back(u);
 
             std::unique_lock<std::shared_mutex> wrlock(u->out_edges_mutex);
@@ -138,54 +131,60 @@ namespace redGrapes
     };
 
     template<typename Task, typename PrecedencePolicy>
-    struct PrecedenceGraph : IPrecedenceGraph<Task>
+    struct PrecedenceGraph : IPrecedenceGraph
     {
-        using TaskVertexPtr = std::shared_ptr<PrecedenceGraphVertex<Task>>;
-
         void init_dependencies(typename std::list<TaskVertexPtr>::iterator it)
         {
             //std::shared_lock<std::shared_mutex> rdlock(this->mutex);
 
             TaskVertexPtr task_vertex = *it++;
-            SPDLOG_TRACE("PrecedenceGraph::init_dependencies({})", task_vertex->task->task_id);
+            //SPDLOG_TRACE("PrecedenceGraph::init_dependencies({})", task_vertex->task->task_id);
             for(; it != std::end(this->tasks); ++it)
-                if(PrecedencePolicy::is_serial(*(*it)->task, *task_vertex->task))
+                if(PrecedencePolicy::is_serial((*it)->template get_task<Task>(), task_vertex->template get_task<Task>()))
                     this->add_edge(*it, task_vertex);
         }
 
-        void update_dependencies(TaskVertexPtr v)
+        //! remove all edges that are outdated according to PrecedencePolicy
+        std::vector< TaskVertexPtr > update_dependencies(TaskVertexPtr v)
         {
-            /*
             std::unique_lock<std::shared_mutex> wrlock(v->out_edges_mutex);
-            std::remove_if(
-                std::begin(v->out_edges),
-                std::end(v->out_edges),
-                [v](TaskVertexPtr w) { return !PrecedencePolicy::is_serial(*v->task, *w->task); });
-            */
-            // todo: in edges?
-            // todo: update scheduling graph
+
+            std::vector< TaskVertexPtr > revoked_vertices;
+
+            for( unsigned i = 0; i < v->out_edges.size(); ++i)
+            {
+                TaskVertexPtr follower_vertex = v->out_edges[i].lock();
+
+                if( !PrecedencePolicy::is_serial(v->template get_task<Task>(), follower_vertex->template get_task<Task>()) )
+                {
+                    revoked_vertices.push_back(follower_vertex);
+
+                    std::remove_if(
+                       std::begin(follower_vertex->in_edges),
+                       std::end(follower_vertex->in_edges),
+                       [v](std::weak_ptr<PrecedenceGraphVertex> prev) { return prev.lock() == v; });
+
+                    v->out_edges.erase(std::next(std::begin(v->out_edges), i--));
+                }
+            }
+
+            return revoked_vertices;
         }
     };
-}
 
-#include <redGrapes/scheduler/scheduling_graph.hpp>
-
-namespace redGrapes
-{
     /*!
      */
-    template<typename Task>
-    struct TaskSpace : std::enable_shared_from_this<TaskSpace<Task>>
+    struct TaskSpace : std::enable_shared_from_this<TaskSpace>
     {
-        using TaskVertexPtr = std::shared_ptr<PrecedenceGraphVertex<Task>>;
+        using TaskVertexPtr = std::shared_ptr<PrecedenceGraphVertex>;
 
-        moodycamel::ConcurrentQueue<std::unique_ptr<Task>> queue;
-        std::shared_ptr<IPrecedenceGraph<Task>> precedence_graph;
-        std::optional<std::weak_ptr<PrecedenceGraphVertex<Task>>> parent;
-        
+        moodycamel::ConcurrentQueue<std::unique_ptr<ITask>> queue;
+        std::shared_ptr<IPrecedenceGraph> precedence_graph;
+        std::optional<std::weak_ptr<PrecedenceGraphVertex>> parent;
+
         TaskSpace(
-            std::shared_ptr<IPrecedenceGraph<Task>> precedence_graph,
-            std::optional<std::weak_ptr<PrecedenceGraphVertex<Task>>> parent = std::nullopt)
+            std::shared_ptr<IPrecedenceGraph> precedence_graph,
+            std::optional<std::weak_ptr<PrecedenceGraphVertex>> parent = std::nullopt)
             : precedence_graph(precedence_graph)
             , parent(parent)
         {
@@ -207,13 +206,13 @@ namespace redGrapes
             // since `try_dequeue()` is lock-free
             std::unique_lock<std::shared_mutex> wrlock(precedence_graph->mutex);
 
-            std::unique_ptr<Task> task;
+            std::unique_ptr<ITask> task;
             if(queue.try_dequeue(task))
             {
                 // insert the new task upfront, so we iterate from latest to earliest.
                 auto it = precedence_graph->tasks.insert(
                     std::begin(precedence_graph->tasks),
-                    std::make_shared<PrecedenceGraphVertex<Task>>(std::move(task), this->shared_from_this()));
+                    std::make_shared<PrecedenceGraphVertex>(std::move(task), this->shared_from_this()));
                 //wrlock.unlock();
 
                 // from now on, the precedence graph can be shared-locked,
@@ -227,7 +226,7 @@ namespace redGrapes
         }
 
         //! add task to the queue, will be processed lazily by `next()`
-        void push(std::unique_ptr<Task>&& task)
+        void push(std::unique_ptr<ITask>&& task)
         {
             queue.enqueue(std::move(task));
         }

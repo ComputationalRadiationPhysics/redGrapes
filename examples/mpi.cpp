@@ -1,3 +1,4 @@
+#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
 
 #include <redGrapes/redGrapes.hpp>
 #include <redGrapes/resource/ioresource.hpp>
@@ -61,6 +62,9 @@ struct fmt::formatter< SchedulerTags >
 
 int main()
 {
+    //spdlog::set_pattern("[thread %t] %^[%l]%$ %v");
+    //spdlog::set_level( spdlog::level::trace );
+
     /*
     int prov;
     MPI_Init_thread( nullptr, nullptr, MPI_THREAD_MULTIPLE, &prov );
@@ -73,17 +77,16 @@ int main()
     > rg;
     using TaskProperties = decltype(rg)::TaskProps;
 
-    spdlog::set_level(spdlog::level::info);
-
-    auto default_scheduler = rg::scheduler::make_default_scheduler( rg );
+    auto default_scheduler = rg::scheduler::make_default_scheduler( rg, 1 );
     auto mpi_scheduler = rg::dispatch::mpi::make_mpi_scheduler( rg, TaskProperties::Builder().scheduling_tags({ SCHED_MPI }) );
 
     // initialize main thread to execute tasks from the mpi-queue and poll
     rg::dispatch::thread::idle =
-        [mpi_scheduler]
+        [&rg, mpi_scheduler]
         {
-            mpi_scheduler.fifo->consume();
             mpi_scheduler.request_pool->poll();
+            if( auto task = mpi_scheduler.fifo->get_job() )
+                rg::dispatch::thread::execute_task< decltype(rg)::Task >( rg, *task );
         };
 
     rg.set_scheduler(

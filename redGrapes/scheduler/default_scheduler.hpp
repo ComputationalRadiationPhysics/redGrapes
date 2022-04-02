@@ -27,17 +27,26 @@ struct DefaultScheduler : public IScheduler<Task>
     std::atomic_flag wait = ATOMIC_FLAG_INIT;
 
     IManager<Task> & mgr;
-    std::shared_ptr<redGrapes::scheduler::FIFO<Task>> fifo;
-    std::vector<std::shared_ptr<redGrapes::dispatch::thread::WorkerThread<>>> threads;
+    std::shared_ptr<scheduler::FIFO<Task>> fifo;
+    std::vector<std::shared_ptr<dispatch::thread::WorkerThread>> threads;
 
     DefaultScheduler( IManager<Task> & mgr, size_t n_threads = std::thread::hardware_concurrency() ) :
         mgr(mgr),
-        fifo( std::make_shared< redGrapes::scheduler::FIFO< Task > >(mgr) )
+        fifo( std::make_shared< scheduler::FIFO< Task > >(mgr) )
     {
         for( size_t i = 0; i < n_threads; ++i )
             threads.emplace_back(
-                 std::make_shared< redGrapes::dispatch::thread::WorkerThread<> >(
-                     [this] { return this->fifo->consume(); }
+                 std::make_shared< dispatch::thread::WorkerThread >(
+                     [this]
+                     {
+                         if( auto task = this->fifo->get_job() )
+                         {
+                             dispatch::thread::execute_task<Task>( this->mgr, *task );
+                             return true;
+                         }
+                         else
+                             return false;
+                     }
                  )
             );
 
@@ -52,6 +61,11 @@ struct DefaultScheduler : public IScheduler<Task>
             };
     }
 
+    void activate_task( TaskVertexPtr task_vertex )
+    {
+        fifo->activate_task( task_vertex );
+    }
+
     //! wakeup sleeping worker threads
     void notify()
     {
@@ -63,13 +77,7 @@ struct DefaultScheduler : public IScheduler<Task>
         cv.notify_one();
 
         for( auto & thread : threads )
-            thread->worker.notify();
-    }
-
-    bool
-    activate_task( std::shared_ptr<PrecedenceGraphVertex<Task>> task_vertex_ptr )
-    {
-        return fifo->activate_task( task_vertex_ptr );
+            thread->notify();
     }
 };
 

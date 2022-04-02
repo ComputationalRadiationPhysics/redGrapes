@@ -11,6 +11,8 @@
 #include <atomic>
 #include <functional>
 
+#include <redGrapes/task/task_base.hpp>
+
 namespace redGrapes
 {
 namespace dispatch
@@ -18,93 +20,68 @@ namespace dispatch
 namespace thread
 {
 
-/*! Worker Interface
- */
-struct IWorker
+template < typename Task, typename RedGrapes, typename TaskVertexPtr >
+void execute_task( RedGrapes & rg, TaskVertexPtr task_vertex )
 {
-    virtual ~IWorker() {};
+    auto & task = task_vertex->template get_task<Task>();
+    assert( task.is_ready() );
 
-    /*! Start a loop consuming work until stop() is called.
-     */
-    virtual void work() = 0;
+    SPDLOG_TRACE("thread dispatch: execute task {}", task.task_id);
 
-    /*! Notify worker about potentially new work.
-     * Wakes up worker thread if it was suspended previously.
-     */
-    virtual void notify() = 0;
+    rg.notify_event( task.pre_event );
 
-    /*! Causes work() to return.
-     */
-    virtual void stop() = 0;
-};
+    scope_level = task.scope_level;
+    rg.current_task() = task_vertex;
 
-/*! Worker that sleeps when no work is available.
+    if( auto event = task() )
+    {
+        task.sg_pause( *task.event );
+
+        task.pre_event->up();
+        rg.notify_event( task.pre_event );
+    }
+    else
+        rg.notify_event( task.post_event );
+
+    rg.current_task() = std::nullopt;
+}
+
+/*!
+ * Creates a thread which repeatedly calls consume()
+ * until stop() is invoked or the object destroyed.
+ *
+ * Sleeps when no jobs are available.
  */
-struct DefaultWorker : IWorker
+struct WorkerThread
 {
 private:
-    std::mutex m;
-    std::condition_variable cv;
 
+    /*! executes some job,
+     * returns true if more jobs are available
+     * and false if the worker thread should sleep
+     */
+    std::function< bool () > consume;
+
+    /*! if true, the thread shall stop
+     * instead of waiting when consume() is out of jobs
+     */
     std::atomic_bool m_stop;
+
+    //! is set when the worker thread is currently waiting
     std::atomic_flag wait = ATOMIC_FLAG_INIT;
 
-    std::function< bool () > consume;
+    std::mutex m;
+    std::condition_variable cv;
+    std::thread thread;
 
 public:
     /*!
      * @param consume function that executes a task if possible and returns
      *                if any work is left
      */
-    DefaultWorker( std::function< bool () > consume ) :
-        m_stop( false ),
-        consume( consume )
-    {}
-    
-    void work()
-    {
-        while( ! m_stop )
-        {
-            {
-                std::unique_lock< std::mutex > l( m );
-                cv.wait( l, [this]{ return !wait.test_and_set(); } );
-            }
-
-            while( consume() );
-        }
-
-        SPDLOG_TRACE("Worker Finished!");
-    }
-
-    void notify()
-    {
-        {
-            std::unique_lock< std::mutex > l( m );
-            wait.clear();
-        }
-        cv.notify_one();
-    }
-
-    void stop()
-    {
-        SPDLOG_TRACE("Worker::stop()");
-        m_stop = true;
-        notify();
-    }
-};
-
-/*! Creates a thread which runs the work() function of Worker.
- *
- * @tparam Worker must satisfy the IWorker concept/interface
- */
-template < typename Worker = DefaultWorker >
-struct WorkerThread
-{
-    Worker worker;
-    std::thread thread;
-
     WorkerThread( std::function< bool () > consume ) :
-        worker( consume ),
+        m_stop( false ),
+        consume( consume ),
         thread(
             [this]
             {
@@ -119,15 +96,41 @@ struct WorkerThread
                         throw std::runtime_error("idle in worker thread!");
                     };
 
-                this->worker.work();
+                while( ! m_stop )
+                {
+                    SPDLOG_TRACE("Worker Thread: sleep");
+                    std::unique_lock< std::mutex > l( m );
+                    cv.wait( l, [this]{ return !wait.test_and_set(); } );
+                    l.unlock();
+
+                    while( this->consume() );
+                }
+
+                SPDLOG_TRACE("Worker Finished!");
             }
         )
     {}
 
     ~WorkerThread()
     {
-        worker.stop();
+        stop();
         thread.join();
+    }
+    
+    void notify()
+    {
+        std::unique_lock< std::mutex > l( m );
+        wait.clear();
+        l.unlock();
+
+        cv.notify_one();
+    }
+
+    void stop()
+    {
+        SPDLOG_TRACE("Worker::stop()");
+        m_stop = true;
+        notify();
     }
 };
 

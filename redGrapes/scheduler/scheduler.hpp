@@ -10,6 +10,7 @@
 #include <functional>
 #include <memory>
 #include <redGrapes/task/task_space.hpp>
+#include <redGrapes/scheduler/scheduling_graph.hpp>
 
 namespace redGrapes
 {
@@ -23,24 +24,17 @@ struct IScheduler
 {
     virtual ~IScheduler() {}
 
-    using TaskPtr = std::shared_ptr<PrecedenceGraphVertex<Task>>;
-
     /*! whats the task dependency type for the edge a -> b (task a precedes task b)
      * @return true if task b depends on the pre event of task a, false if task b depends on the post event of task b.
      */
-    virtual bool task_dependency_type( TaskPtr a, TaskPtr b )
+    virtual bool task_dependency_type( TaskVertexPtr a, TaskVertexPtr b )
     {
         return false;
     }
 
-    /*! Tell the scheduler to consider dispatching a task.
-     * @return if task is ready
-     */
-    virtual bool activate_task( TaskPtr task_ptr ) = 0;
+    virtual void activate_task( TaskVertexPtr task_vertex ) {}
 
-    /*! Notify the scheduler that the scheduling graph has changed.
-     * The scheduler should now reconsider activated tasks which were not ready before
-     */
+    //! wakeup to call activate_next()
     virtual void notify() {}
 };
 
