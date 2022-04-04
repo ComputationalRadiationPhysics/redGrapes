@@ -20,35 +20,22 @@ namespace scheduler
  * Combines a FIFO with worker threads
  */
 template<typename Task>
-struct DefaultScheduler : public IScheduler<Task>
+struct DefaultScheduler : public IScheduler
 {
     std::mutex m;
     std::condition_variable cv;
     std::atomic_flag wait = ATOMIC_FLAG_INIT;
 
-    IManager<Task> & mgr;
-    std::shared_ptr<scheduler::FIFO<Task>> fifo;
-    std::vector<std::shared_ptr<dispatch::thread::WorkerThread>> threads;
+    IManager & mgr;
+    std::shared_ptr< scheduler::FIFO > fifo;
+    std::vector<std::shared_ptr<dispatch::thread::WorkerThread<Task>>> threads;
 
-    DefaultScheduler( IManager<Task> & mgr, size_t n_threads = std::thread::hardware_concurrency() ) :
+    DefaultScheduler( IManager & mgr, size_t n_threads = std::thread::hardware_concurrency() ) :
         mgr(mgr),
-        fifo( std::make_shared< scheduler::FIFO< Task > >(mgr) )
+        fifo( std::make_shared< scheduler::FIFO >(mgr) )
     {
         for( size_t i = 0; i < n_threads; ++i )
-            threads.emplace_back(
-                 std::make_shared< dispatch::thread::WorkerThread >(
-                     [this]
-                     {
-                         if( auto task = this->fifo->get_job() )
-                         {
-                             dispatch::thread::execute_task<Task>( this->mgr, *task );
-                             return true;
-                         }
-                         else
-                             return false;
-                     }
-                 )
-            );
+            threads.emplace_back(std::make_shared< dispatch::thread::WorkerThread<Task> >(mgr, this->fifo));
 
         // if not configured otherwise,
         // the main thread will simply wait
@@ -84,7 +71,7 @@ struct DefaultScheduler : public IScheduler<Task>
 /*! Factory function to easily create a default-scheduler object
  */
 template<typename Task>
-auto make_default_scheduler(IManager<Task>& mgr, size_t n_threads = std::thread::hardware_concurrency())
+auto make_default_scheduler(IManager & mgr, size_t n_threads = std::thread::hardware_concurrency())
 {
     return std::make_shared<DefaultScheduler<Task>>(mgr, n_threads);
 }

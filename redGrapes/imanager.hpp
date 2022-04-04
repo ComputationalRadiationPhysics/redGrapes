@@ -12,7 +12,6 @@
 
 namespace redGrapes
 {
-    template<typename Task>
     struct IManager;
 }
 
@@ -23,12 +22,11 @@ namespace redGrapes
 
 namespace redGrapes
 {
-    template<typename Task>
     struct IManager
     {
         virtual ~IManager() {}
 
-        virtual std::shared_ptr<scheduler::IScheduler<Task>> get_scheduler() {}
+        virtual std::shared_ptr<scheduler::IScheduler> get_scheduler() {}
         virtual std::shared_ptr<TaskSpace> get_main_space() {}
         virtual std::shared_ptr<TaskSpace> current_task_space() {}
         virtual std::optional<TaskVertexPtr>& current_task() {}

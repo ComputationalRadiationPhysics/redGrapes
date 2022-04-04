@@ -52,15 +52,12 @@ void execute_task( RedGrapes & rg, TaskVertexPtr task_vertex )
  *
  * Sleeps when no jobs are available.
  */
+template < typename Task >
 struct WorkerThread
 {
 private:
-
-    /*! executes some job,
-     * returns true if more jobs are available
-     * and false if the worker thread should sleep
-     */
-    std::function< bool () > consume;
+    IManager & mgr;
+    std::shared_ptr< scheduler::IScheduler > scheduler;
 
     /*! if true, the thread shall stop
      * instead of waiting when consume() is out of jobs
@@ -79,9 +76,10 @@ public:
      * @param consume function that executes a task if possible and returns
      *                if any work is left
      */
-    WorkerThread( std::function< bool () > consume ) :
+    WorkerThread( IManager & mgr, std::shared_ptr< scheduler::IScheduler > scheduler ) :
         m_stop( false ),
-        consume( consume ),
+        mgr( mgr ),
+        scheduler( scheduler ),
         thread(
             [this]
             {
@@ -103,7 +101,8 @@ public:
                     cv.wait( l, [this]{ return !wait.test_and_set(); } );
                     l.unlock();
 
-                    while( this->consume() );
+                    while( auto task = this->scheduler->get_job() )
+                        dispatch::thread::execute_task<Task>( this->mgr, *task );
                 }
 
                 SPDLOG_TRACE("Worker Finished!");

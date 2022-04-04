@@ -19,11 +19,15 @@ namespace scheduler
 
 /*! Scheduler Interface
  */
-template < typename Task >
 struct IScheduler
 {
     virtual ~IScheduler() {}
 
+    virtual std::optional< TaskVertexPtr > get_job()
+    {
+        return std::nullopt;
+    }
+    
     /*! whats the task dependency type for the edge a -> b (task a precedes task b)
      * @return true if task b depends on the pre event of task a, false if task b depends on the post event of task b.
      */

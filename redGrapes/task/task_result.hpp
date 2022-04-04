@@ -21,10 +21,10 @@ namespace redGrapes
      * Wrapper for std::future which consumes jobs
      * instead of waiting in get()
      */
-    template<typename Task, typename Result>
+    template<typename Result>
     struct TaskResult : std::future<Result>
     {
-        TaskResult(std::future<Result>&& future, IManager<Task>& mgr, std::shared_ptr<scheduler::Event> result_event)
+        TaskResult(std::future<Result>&& future, IManager & mgr, std::shared_ptr<scheduler::Event> result_event)
             : std::future<Result>(std::move(future))
             , mgr(mgr)
             , result_event(result_event)
@@ -51,14 +51,14 @@ namespace redGrapes
         }
 
     private:
-        IManager<Task>& mgr;
+        IManager & mgr;
         std::shared_ptr< scheduler::Event > result_event;
     }; // struct TaskResult
 
-    template<typename Task, typename Result>
-    TaskResult<Task, Result> make_task_result(std::future<Result>&& future, IManager<Task>& mgr, std::shared_ptr< scheduler::Event > event)
+    template<typename Result>
+    TaskResult<Result> make_task_result(std::future<Result>&& future, IManager& mgr, std::shared_ptr< scheduler::Event > event)
     {
-        return TaskResult<Task, Result>(std::move(future), mgr, event);
+        return TaskResult<Result>(std::move(future), mgr, event);
     }
 
 } // namespace redGrapes

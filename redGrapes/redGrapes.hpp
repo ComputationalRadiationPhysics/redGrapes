@@ -31,19 +31,15 @@ namespace redGrapes
     template<
         typename... TaskPropertyPolicies
     >
-    class RedGrapes
-        : public virtual IManager<
-            task::PropTask<
-                IDProperty,
-                ResourceProperty,
-                scheduler::SchedulingGraphProp,
-                scheduler::FIFOSchedulerProp,
-                TaskPropertyPolicies...
-            >
-        >
+    class RedGrapes : public virtual IManager
     {
     public:
-        using Task = task::PropTask<IDProperty, ResourceProperty, scheduler::SchedulingGraphProp, scheduler::FIFOSchedulerProp, TaskPropertyPolicies...>;
+        using Task = task::PropTask<
+            IDProperty,
+            ResourceProperty,
+            scheduler::SchedulingGraphProp,
+            TaskPropertyPolicies...
+        >;
         using TaskProps = typename Task::Props;
         using TaskVertexPtr = typename Task::VertexPtr;
 
@@ -52,7 +48,7 @@ namespace redGrapes
         moodycamel::ConcurrentQueue<std::shared_ptr<TaskSpace>> active_task_spaces;
 
         std::shared_ptr<TaskSpace> main_space;
-        std::shared_ptr<scheduler::IScheduler<Task>> scheduler;
+        std::shared_ptr<scheduler::IScheduler> scheduler;
 
         template<typename... Args>
         static inline void pass(Args&&...)
@@ -99,7 +95,7 @@ namespace redGrapes
         /*! Initialize the scheduler to work with this manager.
          * Must be called at initialization before any call to `emplace_task`.
          */
-        void set_scheduler(std::shared_ptr<scheduler::IScheduler<Task>> scheduler)
+        void set_scheduler(std::shared_ptr<scheduler::IScheduler> scheduler)
         {
             this->scheduler = scheduler;
             //this->scheduler->start();
@@ -323,7 +319,7 @@ namespace redGrapes
             return main_space;
         }
 
-        std::shared_ptr< scheduler::IScheduler<Task> > get_scheduler()
+        std::shared_ptr< scheduler::IScheduler > get_scheduler()
         {
             return scheduler;
         }

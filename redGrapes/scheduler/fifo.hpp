@@ -24,56 +24,14 @@ namespace redGrapes
 namespace scheduler
 {
 
-struct FIFOSchedulerProp
+struct FIFO : public IScheduler
 {
-    std::atomic_flag in_activation_queue = ATOMIC_FLAG_INIT;
-    std::atomic_flag in_ready_list = ATOMIC_FLAG_INIT;
-
-    FIFOSchedulerProp()
-    {
-    }
-    FIFOSchedulerProp(FIFOSchedulerProp&& other)
-    {
-    }
-    FIFOSchedulerProp(FIFOSchedulerProp const& other)
-    {
-    }
-    FIFOSchedulerProp& operator=(FIFOSchedulerProp const& other)
-    {
-        return *this;
-    }
-
-    template<typename PropertiesBuilder>
-    struct Builder
-    {
-        PropertiesBuilder& builder;
-
-        Builder(PropertiesBuilder& b) : builder(b)
-        {
-        }
-    };
-
-    struct Patch
-    {
-        template <typename PatchBuilder>
-        struct Builder
-        {
-            Builder( PatchBuilder & ) {}
-        };
-    };
-
-    void apply_patch( Patch const & ) {};
-};
-
-template < typename Task >
-struct FIFO : public IScheduler< Task >
-{
-    IManager<Task>& mgr;
+    IManager & mgr;
 
     moodycamel::ConcurrentQueue< TaskVertexPtr > ready;
     moodycamel::ConcurrentQueue< TaskVertexPtr > running;
 
-    FIFO(IManager<Task>& mgr) : mgr(mgr)
+    FIFO(IManager & mgr) : mgr(mgr)
     {
     }
 
@@ -113,40 +71,6 @@ struct FIFO : public IScheduler< Task >
     }
 };
 
-/*! Factory function to easily create a fifo-scheduler object
- */
-template <
-    typename Task
->
-auto make_fifo_scheduler(
-    IManager< Task > & m
-)
-{
-    return std::make_shared<
-               FIFO< Task >
-           >(m);
-}
-
 } // namespace scheduler
-
 } // namespace redGrapes
-
-
-template<>
-struct fmt::formatter<redGrapes::scheduler::FIFOSchedulerProp>
-{
-    constexpr auto parse(format_parse_context& ctx)
-    {
-        return ctx.begin();
-    }
-
-    template<typename FormatContext>
-    auto format(redGrapes::scheduler::FIFOSchedulerProp const& prop, FormatContext& ctx)
-    {
-        auto out = ctx.out();
-        format_to(out, "\"active\": 0");
-        return out;
-    }
-};
-
 
