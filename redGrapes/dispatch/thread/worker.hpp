@@ -20,8 +20,8 @@ namespace dispatch
 namespace thread
 {
 
-template < typename Task, typename RedGrapes, typename TaskVertexPtr >
-void execute_task( RedGrapes & rg, TaskVertexPtr task_vertex )
+template < typename Task, typename TaskVertexPtr >
+void execute_task( IManager & rg, TaskVertexPtr task_vertex )
 {
     auto & task = task_vertex->template get_task<Task>();
     assert( task.is_ready() );

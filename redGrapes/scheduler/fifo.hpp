@@ -37,7 +37,7 @@ struct FIFO : public IScheduler
 
     void activate_task( TaskVertexPtr task_vertex )
     {
-        ready.enqueue(task_vertex);        
+        ready.enqueue(task_vertex);
     }
 
     /*! take a job from the ready queue
@@ -59,13 +59,13 @@ struct FIFO : public IScheduler
      */
     std::optional<TaskVertexPtr> try_next_task()
     {
-        do
+        //do
         {
             TaskVertexPtr task_vertex;
             if(ready.try_dequeue(task_vertex))
                 return task_vertex;
         }
-        while( mgr.activate_next() );
+        //while( mgr.activate_next() );
 
         return std::nullopt;
     }

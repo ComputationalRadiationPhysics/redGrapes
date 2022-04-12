@@ -190,9 +190,10 @@ namespace redGrapes
         void activate_task(TaskVertexPtr vertex_ptr)
         {
             SPDLOG_TRACE("mgr: add task {} to activation queue", vertex_ptr->template get_task<Task>().task_id);
-            activation_queue.enqueue(vertex_ptr);
+            //activation_queue.enqueue(vertex_ptr);
+            scheduler->activate_task(vertex_ptr);
         }
-
+        /*
         //! push next task from activation queue to scheduler, if available
         bool activate_next()
         {
@@ -207,6 +208,7 @@ namespace redGrapes
             else
                 return false;
         }
+        */
 
         std::shared_ptr<TaskSpace> current_task_space()
         {
