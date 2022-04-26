@@ -2,7 +2,7 @@
 #pragma once
 
 #include <thread>
-
+#include <pthread.h>
 #include <redGrapes/scheduler/scheduling_graph.hpp>
 
 #include <redGrapes/imanager.hpp>
@@ -34,9 +34,22 @@ struct DefaultScheduler : public IScheduler
         mgr(mgr),
         fifo( std::make_shared< scheduler::FIFO >(mgr) )
     {
+        cpu_set_t cpuset;
+        CPU_ZERO(&cpuset);
+        CPU_SET(0, &cpuset);
+        sched_setaffinity (getpid(), sizeof(cpuset), &cpuset);
+
         for( size_t i = 0; i < n_threads; ++i )
+        {
             threads.emplace_back(std::make_shared< dispatch::thread::WorkerThread<Task> >(mgr, this->fifo));
 
+            cpu_set_t cpuset;
+            CPU_ZERO(&cpuset);
+            CPU_SET(i+1, &cpuset);
+            int rc = pthread_setaffinity_np(threads[i]->thread.native_handle(),
+                                            sizeof(cpu_set_t), &cpuset);
+        }
+        
         // if not configured otherwise,
         // the main thread will simply wait
         dispatch::thread::idle =

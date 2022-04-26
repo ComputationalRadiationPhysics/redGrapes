@@ -69,6 +69,8 @@ private:
 
     std::mutex m;
     std::condition_variable cv;
+
+public:
     std::thread thread;
 
 public:
