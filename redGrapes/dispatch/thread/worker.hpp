@@ -28,20 +28,20 @@ void execute_task( IManager & rg, TaskVertexPtr task_vertex )
 
     SPDLOG_TRACE("thread dispatch: execute task {}", task.task_id);
 
-    rg.notify_event( task.pre_event );
+    rg.notify_event( scheduler::EventPtr{ scheduler::T_EVT_PRE, task_vertex } );
 
     scope_level = task.scope_level;
     rg.current_task() = task_vertex;
 
     if( auto event = task() )
     {
-        task.sg_pause( *task.event );
+        //task.sg_pause( *event );
 
-        task.pre_event->up();
-        rg.notify_event( task.pre_event );
+        task.pre_event.up();
+        rg.notify_event( scheduler::EventPtr{ scheduler::T_EVT_PRE, task_vertex } );
     }
     else
-        rg.notify_event( task.post_event );
+        rg.notify_event( scheduler::EventPtr{ scheduler::T_EVT_POST, task_vertex } );
 
     rg.current_task() = std::nullopt;
 }

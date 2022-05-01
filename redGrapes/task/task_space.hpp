@@ -63,6 +63,12 @@ namespace redGrapes
         }
 
         template <typename Task>
+        Task & get_dyn_task()
+        {
+            return dynamic_cast<Task&>(*task);
+        }
+
+        template <typename Task>
         Task & get_task()
         {
             // use dynamic_cast for debug

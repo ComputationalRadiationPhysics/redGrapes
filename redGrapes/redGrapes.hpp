@@ -23,6 +23,7 @@
 #include <redGrapes/task/property/resource.hpp>
 
 #include <redGrapes/scheduler/scheduling_graph.hpp>
+#include <redGrapes/scheduler/event.hpp>
 #include <redGrapes/scheduler/default_scheduler.hpp>
 #include <redGrapes/dispatch/dispatcher.hpp>
 
@@ -155,14 +156,12 @@ namespace redGrapes
 
             builder.init_id(); // needed because property builder may be copied from a template
 
-            auto result_event = std::make_shared< scheduler::Event >();
-
             auto task = task::make_fun_task(
                 std::bind(
-                    [this, result_event](auto&& delayed) mutable
-                    {                        
+                    []( auto&& delayed ) mutable
+                    {
                         delayed();
-                        this->notify_event(result_event);
+                        //this->notify_event(scheduler::EventPtr{ scheduler::T_EVT_RES, task_vertex });
                     },
                     std::move(delayed)),
                 (TaskProps)builder);
@@ -177,7 +176,7 @@ namespace redGrapes
             current_task_space()->push(std::move(task));
             scheduler->notify();
 
-            return make_task_result(std::move(future), *this, result_event);
+            return make_task_result(std::move(future), *this, scheduler::EventPtr{ scheduler::T_EVT_RES, std::weak_ptr<PrecedenceGraphVertex>() });//, task_vertex });
         }
 
         std::optional<TaskVertexPtr>& current_task()
@@ -231,14 +230,14 @@ namespace redGrapes
                 return main_space;
         }
 
-        void notify_event( std::shared_ptr< scheduler::Event > event )
+        void notify_event( scheduler::EventPtr event )
         {
-            event->notify(
-                [this]( int state, std::shared_ptr< scheduler::Event > event )
+            event.notify(
+                [this]( int state, scheduler::EventPtr event )
                 {
-                    SPDLOG_TRACE("notify event {} state={}", (void*)event.get(), state);
+                    SPDLOG_TRACE("notify state={}", state);
 
-                    auto weak_task_vertex = event->task_vertex;
+                    auto weak_task_vertex = event.task_vertex;
                     auto task_vertex = weak_task_vertex.lock();
 
                     if( task_vertex )
@@ -246,14 +245,14 @@ namespace redGrapes
                         Task & task = task_vertex->get_task<Task>();
 
                         // pre event ready
-                        if( event == task.pre_event && state == 1 )
+                        if( event.tag == scheduler::T_EVT_PRE && state == 1 )
                         {
                             SPDLOG_TRACE("pre event ready");
                             this->activate_task(task_vertex);
                         }
 
                         // post event reached
-                        if( event == task.post_event && state == 0 )
+                        if( event.tag == scheduler::T_EVT_POST && state == 0 )
                         {
                             SPDLOG_TRACE("post event reached");
                             if(auto children = task_vertex->children)
@@ -262,8 +261,8 @@ namespace redGrapes
                                     auto & task = (*new_task)->get_task<Task>();
                                     task.template sg_init<Task>(*this, *new_task);
 
-                                    task.pre_event->up();
-                                    notify_event( task.pre_event );
+                                    task.pre_event.up();
+                                    notify_event( scheduler::EventPtr{ scheduler::T_EVT_PRE, *new_task });
                                 }
                             else
                                 this->remove_task(task_vertex);
@@ -289,8 +288,8 @@ namespace redGrapes
                     auto & task = (*new_task)->get_task<Task>();
                     task.template sg_init<Task>(*this, *new_task);
 
-                    task.pre_event->up();
-                    notify_event( task.pre_event );
+                    task.pre_event.up();
+                    notify_event( scheduler::EventPtr{ scheduler::T_EVT_PRE, *new_task } );
                 }
 
                 bool remove = false;
@@ -342,7 +341,7 @@ namespace redGrapes
          * @return Handle to flag the event with `reach_event` later.
          *         nullopt if there is no task running currently
          */
-        std::optional< std::shared_ptr<scheduler::Event> > create_event()
+        std::optional< scheduler::EventPtr > create_event()
         {
             if(auto task_ptr = current_task())
                 return (*task_ptr)->template get_task<Task>().make_event();
