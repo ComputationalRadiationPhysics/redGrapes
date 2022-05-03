@@ -7,61 +7,62 @@
 #pragma once
 
 #include <redGrapes/task/task_base.hpp>
-
 #include <redGrapes/task/property/inherit.hpp>
 #include <redGrapes/task/property/trait.hpp>
 #include <redGrapes/task/property/id.hpp>
 #include <redGrapes/task/property/resource.hpp>
+#include <redGrapes/task/property/graph.hpp>
 
 namespace redGrapes
 {
-namespace task
+
+using TaskProperties = TaskProperties1<
+    IDProperty,
+    ResourceProperty,
+    GraphProperty
+#ifdef REDGRAPES_TASK_PROPERTIES
+    , REDGRAPES_TASK_PROPERTIES
+#endif
+>;
+
+struct Task :
+        TaskBase,
+        TaskProperties,
+        std::enable_shared_from_this<Task>
 {
-
-    template<typename... TaskPropertyPolicies>
-    struct PropTask : TaskBase, TaskProperties<TaskPropertyPolicies...>
+    virtual ~Task() {}
+    
+    Task(TaskProperties && prop)
+        : TaskProperties(std::move(prop))
     {
-        using Props = TaskProperties<TaskPropertyPolicies...>;
-        using VertexPtr = std::shared_ptr< PrecedenceGraphVertex >;
-        using WeakVertexPtr = std::weak_ptr< PrecedenceGraphVertex >;
+    }
 
-        unsigned int scope_level;
+};
 
-        virtual ~PropTask() {}
+template<typename F>
+struct FunTask : Task
+{
+    F impl;
 
-        PropTask(TaskProperties<TaskPropertyPolicies...>&& prop)
-            : TaskProperties<TaskPropertyPolicies...>(prop)
-        {
-        }
-    };
+    virtual ~FunTask() {}
 
-    template<typename F, typename... TaskPropertyPolicies>
-    struct FunTask : PropTask<TaskPropertyPolicies...>
+    FunTask(F&& f, TaskProperties&& prop)
+        : Task(std::move(prop))
+        , impl(std::move(f))
     {
-        F impl;
+    }
 
-        virtual ~FunTask() {}
+    void run()
+    {
+        impl( *this );
+    }
+};
 
-        FunTask(F&& f, TaskProperties<TaskPropertyPolicies...>&& prop)
-            : PropTask<TaskPropertyPolicies...>(std::move(prop))
-            , impl(std::move(f))
-        {
-        }
-
-        void run()
-        {
-            impl();
-        }
-    };
-
-
-template <typename F, typename... TaskPropertyPolicies>
-std::unique_ptr<FunTask<F, TaskPropertyPolicies...>> make_fun_task(F&& f, TaskProperties<TaskPropertyPolicies...> prop) {
-    return std::make_unique<FunTask<F, TaskPropertyPolicies...>>(std::move(f), std::move(prop));
+template<typename F>
+std::shared_ptr<FunTask<F>> make_fun_task(F&& f, TaskProperties && prop)
+{
+    return std::make_shared<FunTask<F>>(std::move(f), std::move(prop));
 }
-
-
-} // namespace task
 
 } // namespace redGrapes
 

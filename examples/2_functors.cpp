@@ -8,22 +8,18 @@
 #include <iostream>
 
 #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
+//#define REDGRAPES_TASK_PROPERTIES redGrapes::LabelProperty
 
 #include <redGrapes/redGrapes.hpp>
 #include <redGrapes/task/property/id.hpp>
 #include <redGrapes/task/property/resource.hpp>
 
-static auto & rg()
-{
-    static redGrapes::RedGrapes<> rg(1);
-    return rg;
-}
-
 auto square (int x)
 {
-    return rg().emplace_task(
+    return redGrapes::emplace_task(
         [x]
         {
+            fmt::print("hello\n");
             return x*x;
         }
     );
@@ -33,8 +29,12 @@ int main()
 {
     spdlog::set_level(spdlog::level::trace);
 
+    redGrapes::init_default(1);
+    
     fmt::print( "square(2) = {}\n", square(2).get() );
 
+    redGrapes::finalize();
+    
     return 0;
 }
 

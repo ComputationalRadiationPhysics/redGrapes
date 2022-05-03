@@ -18,7 +18,7 @@
 #include <iostream>
 #include <functional>
 
-#include <redGrapes/dispatch/thread/thread_local.hpp>
+#include <redGrapes/context.hpp>
 #include <redGrapes/task/property/trait.hpp>
 
 #include <fmt/format.h>
@@ -32,13 +32,7 @@ class Resource;
 class ResourceBase
 {
 protected:
-    static int getID()
-    {
-        static std::mutex m;
-        static int id_counter;
-        std::lock_guard<std::mutex> lock(m);
-        return id_counter ++;
-    }
+    static int getID();
 
 public:
     unsigned int id;
@@ -47,18 +41,7 @@ public:
     /**
      * Create a new resource with an unused ID.
      */
-    ResourceBase()
-        : id( getID() )
-        , scope_level( dispatch::thread::scope_level )
-    {}
-    /*
-    template < typename AccessPolicy >
-    ResourceAccess make_access( AccessPolicy access ) const
-    {
-        Resource<AccessPolicy> res( *this );
-        return res.make_access( access );
-    }
-    */
+    ResourceBase();
 };
 
 template <typename AccessPolicy>

@@ -5,7 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
+#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_OFF
 
 #include <iostream>
 #include <thread>
@@ -18,34 +18,34 @@
 
 int main()
 {
-    spdlog::set_level( spdlog::level::trace );
+    //spdlog::set_level( spdlog::level::trace );
 
-    redGrapes::RedGrapes<> rg(1);
-    using TaskProperties = decltype( rg )::TaskProps;
+    redGrapes::init_default(1);
 
     redGrapes::Resource< redGrapes::access::IOAccess > r1;
 
-    auto event_f = rg.emplace_task(
-        [&rg] {
+    auto event_f = redGrapes::emplace_task(
+        [] {
             std::cout << "Task 1" << std::endl;
-            return *rg.create_event();
+            return redGrapes::create_event();
         },
-        TaskProperties::Builder().resources({ r1.make_access(redGrapes::access::IOAccess::write) })
+        redGrapes::TaskProperties::Builder().resources({ r1.make_access(redGrapes::access::IOAccess::write) })
     );
 
-    rg.emplace_task(
+    redGrapes::emplace_task(
         [] {
             std::cout << "Task 2" << std::endl;
         },
-        TaskProperties::Builder().resources({ r1.make_access(redGrapes::access::IOAccess::write) })
+        redGrapes::TaskProperties::Builder().resources({ r1.make_access(redGrapes::access::IOAccess::write) })
     );
 
     auto event = event_f.get();
     std::cout << "Task 1 finished" << std::endl;
-    std::this_thread::sleep_for( std::chrono::seconds(1) );
-    std::cout << "reach event" << std::endl;
 
-    rg.notify_event( event );
+    std::this_thread::sleep_for( std::chrono::seconds(1) );
+
+    std::cout << "notify event" << std::endl;
+    event->notify();
 
     return 0;
 }

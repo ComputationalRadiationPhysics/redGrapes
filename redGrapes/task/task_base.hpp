@@ -16,19 +16,18 @@
 
 #include <redGrapes/scheduler/event.hpp>
 #include <redGrapes/task/itask.hpp>
-#include <redGrapes/dispatch/thread/thread_local.hpp>
 
 namespace redGrapes
 {
 
-struct TaskBase : ITask
+struct TaskBase : virtual ITask
 {
     bool finished;
 
     virtual ~TaskBase() {}
     TaskBase() : finished(false) {}
 
-    std::optional< std::shared_ptr<scheduler::Event> > operator() ()
+    std::optional< scheduler::EventPtr > operator() ()
     {
         if(!resume_cont)
             resume_cont = boost::context::callcc(
@@ -57,7 +56,7 @@ struct TaskBase : ITask
         return event;
     }
 
-    void yield( std::shared_ptr<scheduler::Event> event )
+    void yield( scheduler::EventPtr event )
     {
         this->event = event;
 
@@ -72,8 +71,8 @@ struct TaskBase : ITask
         // else: yield_cont already been set by another thread running this task
     }
 
-    std::optional< std::shared_ptr<scheduler::Event> > event;
-
+    std::optional< scheduler::EventPtr > event;
+    
 private:
     std::mutex yield_cont_mutex;
 

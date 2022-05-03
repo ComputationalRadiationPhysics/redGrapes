@@ -11,13 +11,12 @@
 #pragma once
 
 #include <future>
-
-#include <redGrapes/imanager.hpp>
-#include <redGrapes/scheduler/scheduling_graph.hpp>
 #include <redGrapes/scheduler/event.hpp>
 
 namespace redGrapes
 {
+    void yield( scheduler::EventPtr event );
+
     /*!
      * Wrapper for std::future which consumes jobs
      * instead of waiting in get()
@@ -25,9 +24,8 @@ namespace redGrapes
     template<typename Result>
     struct TaskResult : std::future<Result>
     {
-        TaskResult(std::future<Result>&& future, IManager & mgr, scheduler::EventPtr result_event)
+        TaskResult(std::future<Result>&& future, scheduler::EventPtr result_event)
             : std::future<Result>(std::move(future))
-            , mgr(mgr)
             , result_event(result_event)
         {
         }
@@ -40,7 +38,7 @@ namespace redGrapes
          */
         Result get(void)
         {
-            mgr.yield(result_event);
+            yield(result_event);
             return this->std::future<Result>::get();
         }
 
@@ -52,14 +50,13 @@ namespace redGrapes
         }
 
     private:
-        IManager & mgr;
         scheduler::EventPtr result_event;
     }; // struct TaskResult
 
     template<typename Result>
-    TaskResult<Result> make_task_result(std::future<Result>&& future, IManager& mgr, scheduler::EventPtr event)
+    TaskResult<Result> make_task_result(std::future<Result>&& future, scheduler::EventPtr event)
     {
-        return TaskResult<Result>(std::move(future), mgr, event);
+        return TaskResult<Result>(std::move(future), event);
     }
 
 } // namespace redGrapes

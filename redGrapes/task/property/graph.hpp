@@ -11,17 +11,17 @@
 #include <mutex>
 #include <shared_mutex>
 #include <cassert>
+#include <optional>
 #include <spdlog/spdlog.h>
 
-#include <redGrapes/task/itask.hpp>
-#include <redGrapes/task/task_space.hpp>
-#include <redGrapes/task/property/id.hpp>
+#include <redGrapes/task/property/inherit.hpp>
 #include <redGrapes/scheduler/event.hpp>
 
 namespace redGrapes
 {
-namespace scheduler
-{
+
+struct Task;
+struct TaskSpace;
 
 /*!
  * Each task associates with two events:
@@ -42,28 +42,51 @@ namespace scheduler
  * With child-tasks, the post-event of the child task
  * precedes the parent tasks post-event.
  */
-struct SchedulingGraphProp
+struct GraphProperty// : virtual ITaskProperty
 {
-    Event pre_event;
-    Event post_event;
-    Event result_event;
+    std::weak_ptr< Task > xty_task; // TODO cleanup
+    std::shared_ptr< Task > get_task();
+
+    GraphProperty();
+    GraphProperty(GraphProperty const &);
+
+    //! number of parents
+    unsigned int scope_depth;
+
+    //! task space that contains this task, must not be null
+    std::shared_ptr< TaskSpace > space;
+
+    //! task space for children, may be null
+    std::shared_ptr< TaskSpace > children;
+
+    // in edges dont need a mutex because they are initialized
+    // once by `init_dependencies()` and only read afterwards.
+    // expired pointers must be ignored
+    std::vector<std::weak_ptr<Task>> in_edges;
+
+    scheduler::Event pre_event;
+    scheduler::Event post_event;
+    scheduler::Event result_event;
+
+    void add_dependency( std::shared_ptr<Task> preceding_task );
+
+    scheduler::EventPtr get_pre_event();
+    scheduler::EventPtr get_post_event();
+    scheduler::EventPtr get_result_event();
 
     bool is_ready();
     bool is_running();
     bool is_finished();
 
-    SchedulingGraphProp();
-    SchedulingGraphProp(SchedulingGraphProp const &);
-    
     /*! create a new event which precedes the tasks post-event
      */
-    EventPtr make_event();
+    scheduler::EventPtr make_event();
 
     /*!
      * represent ›pausation of the task until event is reached‹
      * in the scheduling graph
      */
-    void sg_pause( EventPtr event );
+    void sg_pause( scheduler::EventPtr event );
 
     /*!
      * Insert a new task and add the same dependencies as in the precedence graph.
@@ -71,8 +94,7 @@ struct SchedulingGraphProp
      *
      * The precedence graph containing the task is assumed to be locked.
      */
-    template < typename Task, typename RedGrapes >
-    void sg_init( RedGrapes & rg, TaskVertexPtr task_vertex );
+    void sg_init();
 
     /*! remove revoked dependencies (e.g. after access demotion)
      *
@@ -81,9 +103,7 @@ struct SchedulingGraphProp
      *
      * The precedence graph containing task_vertex is assumed to be locked.
      */
-    template < typename Task, typename RedGrapes >
-    void sg_revoke_followers( RedGrapes & rg, TaskVertexPtr task_vertex, std::vector<TaskVertexPtr> revoked_followers );
-
+    void sg_revoke_followers( std::vector<scheduler::EventPtr> revoked_events );
 
     template < typename PropertiesBuilder >
     struct Builder
@@ -107,12 +127,10 @@ struct SchedulingGraphProp
     void apply_patch( Patch const & ) {};
 };
 
-} // namespace scheduler
-
 } // namespace redGrapes
 
 template <>
-struct fmt::formatter< redGrapes::scheduler::SchedulingGraphProp >
+struct fmt::formatter< redGrapes::GraphProperty >
 {
     constexpr auto parse( format_parse_context& ctx )
     {
@@ -121,15 +139,11 @@ struct fmt::formatter< redGrapes::scheduler::SchedulingGraphProp >
 
     template < typename FormatContext >
     auto format(
-        redGrapes::scheduler::SchedulingGraphProp const & sg_prop,
+        redGrapes::GraphProperty const & sg_prop,
         FormatContext & ctx
     )
     {
         return ctx.out();
     }
 };
-
-#include <redGrapes/scheduler/event.cpp>
-#include <redGrapes/scheduler/event_ptr.cpp>
-#include <redGrapes/scheduler/scheduling_graph.cpp>
 

@@ -9,11 +9,12 @@
 
 #include <functional>
 #include <memory>
-#include <redGrapes/task/task_space.hpp>
-#include <redGrapes/scheduler/scheduling_graph.hpp>
 
 namespace redGrapes
 {
+
+struct Task;
+
 namespace scheduler
 {
 
@@ -23,20 +24,20 @@ struct IScheduler
 {
     virtual ~IScheduler() {}
 
-    virtual std::optional< TaskVertexPtr > get_job()
+    virtual std::shared_ptr<Task> get_job()
     {
-        return std::nullopt;
+        return std::shared_ptr<Task>();
     }
     
     /*! whats the task dependency type for the edge a -> b (task a precedes task b)
      * @return true if task b depends on the pre event of task a, false if task b depends on the post event of task b.
      */
-    virtual bool task_dependency_type( TaskVertexPtr a, TaskVertexPtr b )
+    virtual bool task_dependency_type( std::shared_ptr<Task> a, std::shared_ptr<Task> b )
     {
         return false;
     }
 
-    virtual void activate_task( TaskVertexPtr task_vertex ) {}
+    virtual void activate_task( std::shared_ptr<Task> task_vertex ) {}
 
     //! wakeup to call activate_next()
     virtual void notify() {}

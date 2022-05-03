@@ -5,19 +5,20 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-#pragma once
+#include <optional>
 
 #include <redGrapes/scheduler/event.hpp>
-#include <redGrapes/scheduler/scheduling_graph.hpp>
+#include <redGrapes/task/property/graph.hpp>
+#include <redGrapes/task/task.hpp>
 
 namespace redGrapes
 {
 namespace scheduler
 {
 
-bool EventPtr::operator==( EventPtr const & other )
+bool EventPtr::operator==( EventPtr const & other ) const
 {
-    return this->tag == other.tag && this->task_vertex.lock() == other.task_vertex.lock();
+    return this->tag == other.tag && this->task == other.task;
 }
 
 Event & EventPtr::get_event() const
@@ -25,11 +26,11 @@ Event & EventPtr::get_event() const
     switch( tag )
     {
     case T_EVT_PRE:
-        return task_vertex.lock()->template get_dyn_task<SchedulingGraphProp>().pre_event;
+        return task->pre_event;
     case T_EVT_POST:
-        return task_vertex.lock()->template get_dyn_task<SchedulingGraphProp>().post_event;
+        return task->post_event;
     case T_EVT_RES:
-        return task_vertex.lock()->template get_dyn_task<SchedulingGraphProp>().result_event;
+        return task->result_event;
     case T_EVT_EXT:
         return *external_event;
     default:

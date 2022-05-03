@@ -3,8 +3,12 @@
 #include <lapacke.h>
 #include <redGrapes/task/property/inherit.hpp>
 #include <redGrapes/task/property/label.hpp>
+
+#define REDGRAPES_TASK_PROPERTIES redGrapes::LabelProperty
 #include <redGrapes/redGrapes.hpp>
 #include <redGrapes/resource/ioresource.hpp>
+
+namespace rg = redGrapes;
 
 void print_matrix(std::vector<redGrapes::IOResource<double*>> A, int n_blocks, int blocksize);
 
@@ -29,8 +33,7 @@ int main(int argc, char* argv[])
     if(argc >= 4)
         n_threads = atoi(argv[3]);
 
-    redGrapes::RedGrapes<redGrapes::LabelProperty> rg(n_threads);
-    using TaskProperties = decltype(rg)::TaskProps;
+    rg::init_default(n_threads);
 
     size_t N = nblks * blksz;
 
@@ -47,7 +50,7 @@ int main(int argc, char* argv[])
 
 
     // initialize tiled matrix in column-major layout
-    std::vector<redGrapes::IOResource<double*>> A(nblks * nblks);
+    std::vector<rg::IOResource<double*>> A(nblks * nblks);
 
     // allocate each tile (also in column-major layout)
     for(int j = 0; j < nblks; ++j)
@@ -74,14 +77,14 @@ int main(int argc, char* argv[])
             for(size_t i = j + 1; i < nblks; i++)
             {
                 // A[i,j] = A[i,j] - A[i,k] * (A[j,k])^t
-                rg.emplace_task(
+                rg::emplace_task(
                     [blksz](auto a, auto b, auto c)
                     {
                         spdlog::info("dgemm");
                         cblas_dgemm(CblasColMajor, CblasNoTrans, CblasTrans,
                                     blksz, blksz, blksz, -1.0, *a, blksz, *b, blksz, 1.0, *c, blksz);
                     },
-                    TaskProperties::Builder().label("gemm"),
+                    rg::TaskProperties::Builder().label("gemm"),
                     A[k * nblks + i].read(),
                     A[k * nblks + j].read(),
                     A[j * nblks + i].write());
@@ -91,7 +94,7 @@ int main(int argc, char* argv[])
         for(size_t i = 0; i < j; i++)
         {
             // A[j,j] = A[j,j] - A[j,i] * (A[j,i])^t
-            rg.emplace_task(
+            rg::emplace_task(
                 [blksz, nblks](auto a, auto c)
                 {
                     spdlog::info("dsyrk");
@@ -103,7 +106,7 @@ int main(int argc, char* argv[])
         }
 
         // Cholesky Factorization of A[j,j]
-        rg.emplace_task(
+        rg::emplace_task(
             [j, blksz, nblks](auto a)
             {
                 spdlog::info("dpotrf");
@@ -114,7 +117,7 @@ int main(int argc, char* argv[])
         for(size_t i = j + 1; i < nblks; i++)
         {
             // A[i,j] <- A[i,j] = X * (A[j,j])^t
-            rg.emplace_task(
+            rg::emplace_task(
                 [blksz, nblks](auto a, auto b)
                 {
                     spdlog::info("dtrsm");
@@ -127,7 +130,7 @@ int main(int argc, char* argv[])
         }
     }
 
-    rg.wait_for_all();
+    rg::finalize();
 
     print_matrix(A, nblks, blksz);
 

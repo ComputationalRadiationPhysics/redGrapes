@@ -14,10 +14,6 @@
 #include <memory>
 #include <spdlog/spdlog.h>
 
-#include <redGrapes/task/itask.hpp>
-#include <redGrapes/task/property/id.hpp>
-#include <redGrapes/task/task_space.hpp>
-
 namespace std
 {
     using shared_mutex = shared_timed_mutex;
@@ -25,6 +21,9 @@ namespace std
 
 namespace redGrapes
 {
+
+struct Task;
+
 namespace scheduler
 {
 
@@ -80,11 +79,10 @@ enum EventPtrTag {
 struct EventPtr
 {
     enum EventPtrTag tag;
-
-    std::weak_ptr< PrecedenceGraphVertex > task_vertex;
+    std::shared_ptr< Task > task;
     std::shared_ptr< Event > external_event;
 
-    bool operator==( EventPtr const & other );
+    bool operator==( EventPtr const & other ) const;
 
     Event & get_event() const;
     Event & operator*() const;
@@ -93,12 +91,8 @@ struct EventPtr
     /*! A preceding event was reached and thus an incoming edge got removed.
      * This events state is decremented and recursively notifies its followers
      * in case it is now also reached.
-     *
-     * @param hook 
-     * @return previous state of event
      */
-    template < typename F >
-    int notify( F && hook );
+    void notify();
 };
 
 } // namespace scheduler

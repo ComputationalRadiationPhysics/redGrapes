@@ -47,25 +47,23 @@ namespace redGrapes
             };
         };
 
-        template<typename Task, std::size_t T_tag_count = 64>
-        struct TagMatch : IScheduler<Task>
+        template<std::size_t T_tag_count = 64>
+        struct TagMatch : IScheduler
         {
-            using TaskPtr = std::shared_ptr<PrecedenceGraphVertex>;
-
             struct SubScheduler
             {
                 std::bitset<T_tag_count> supported_tags;
-                std::shared_ptr<IScheduler<Task>> s;
+                std::shared_ptr< IScheduler > s;
             };
 
             std::vector<SubScheduler> sub_schedulers;
 
-            void add_scheduler(std::bitset<T_tag_count> supported_tags, std::shared_ptr<IScheduler<Task>> s)
+            void add_scheduler(std::bitset<T_tag_count> supported_tags, std::shared_ptr<IScheduler> s)
             {
                 sub_schedulers.push_back(SubScheduler{supported_tags, s});
             }
 
-            void add_scheduler(std::initializer_list<unsigned> tag_list, std::shared_ptr<IScheduler<Task>> s)
+            void add_scheduler(std::initializer_list<unsigned> tag_list, std::shared_ptr<IScheduler> s)
             {
                 std::bitset<T_tag_count> supported_tags;
                 for(auto tag : tag_list)
@@ -79,7 +77,7 @@ namespace redGrapes
                     s.s->notify();
             }
 
-            std::optional<std::shared_ptr<IScheduler<Task>>> get_matching_scheduler(
+            std::optional<std::shared_ptr<IScheduler>> get_matching_scheduler(
                 std::bitset<T_tag_count> const& required_tags)
             {
                 for(auto const& s : sub_schedulers)
@@ -89,7 +87,7 @@ namespace redGrapes
                 return std::nullopt;
             }
 
-            bool task_dependency_type(typename Task::VertexPtr a, typename Task::VertexPtr b)
+            bool task_dependency_type(std::shared_ptr<Task> a, std::shared_ptr<Task> b)
             {
                 /// fixme: b or a ?
                 if(auto sub_scheduler = get_matching_scheduler(b->template get_task<Task>().required_scheduler_tags))
@@ -98,10 +96,10 @@ namespace redGrapes
                     throw std::runtime_error("no scheduler found for task");
             }
 
-            void activate_task(typename Task::VertexPtr task_ptr)
+            void activate_task(std::shared_ptr<Task> task)
             {
-                if(auto sub_scheduler = get_matching_scheduler(task_ptr->template get_task<Task>().required_scheduler_tags))
-                    return (*sub_scheduler)->activate_task(task_ptr);
+                if(auto sub_scheduler = get_matching_scheduler(task->required_scheduler_tags))
+                    return (*sub_scheduler)->activate_task(task);
                 else
                     throw std::runtime_error("no scheduler found for task");
             }
@@ -109,27 +107,26 @@ namespace redGrapes
 
         /*! Factory function to easily create a tag-match-scheduler object
          */
-        template<typename Task>
         struct TagMatchBuilder
         {
-            std::shared_ptr<TagMatch<Task>> tag_match;
+            std::shared_ptr<TagMatch> tag_match;
 
-            operator std::shared_ptr<IScheduler<Task>>() const
+            operator std::shared_ptr<IScheduler>() const
             {
                 return tag_match;
             }
 
-            TagMatchBuilder add(std::initializer_list<unsigned> tags, std::shared_ptr<IScheduler<Task>> s)
+            TagMatchBuilder add(std::initializer_list<unsigned> tags, std::shared_ptr<IScheduler> s)
             {
                 tag_match->add_scheduler(tags, s);
                 return *this;
             }
         };
 
-        template<typename Task, size_t T_tag_count = 64>
-        auto make_tag_match_scheduler(IManager<Task>& m)
+        template<size_t T_tag_count = 64>
+        auto make_tag_match_scheduler(IManager& m)
         {
-            return TagMatchBuilder<Task>{std::make_shared<TagMatch<Task, T_tag_count>>()};
+            return TagMatchBuilder{std::make_shared<TagMatch<T_tag_count>>()};
         }
 
 

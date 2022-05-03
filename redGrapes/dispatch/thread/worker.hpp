@@ -10,8 +10,11 @@
 #include <thread>
 #include <atomic>
 #include <functional>
+#include <memory>
 
-#include <redGrapes/task/task_base.hpp>
+#include <redGrapes/scheduler/event.hpp>
+#include <redGrapes/task/task.hpp>
+#include <redGrapes/context.hpp>
 
 namespace redGrapes
 {
@@ -20,31 +23,7 @@ namespace dispatch
 namespace thread
 {
 
-template < typename Task, typename TaskVertexPtr >
-void execute_task( IManager & rg, TaskVertexPtr task_vertex )
-{
-    auto & task = task_vertex->template get_task<Task>();
-    assert( task.is_ready() );
-
-    SPDLOG_TRACE("thread dispatch: execute task {}", task.task_id);
-
-    rg.notify_event( scheduler::EventPtr{ scheduler::T_EVT_PRE, task_vertex } );
-
-    scope_level = task.scope_level;
-    rg.current_task() = task_vertex;
-
-    if( auto event = task() )
-    {
-        //task.sg_pause( *event );
-
-        task.pre_event.up();
-        rg.notify_event( scheduler::EventPtr{ scheduler::T_EVT_PRE, task_vertex } );
-    }
-    else
-        rg.notify_event( scheduler::EventPtr{ scheduler::T_EVT_POST, task_vertex } );
-
-    rg.current_task() = std::nullopt;
-}
+void execute_task( std::shared_ptr< Task > task );
 
 /*!
  * Creates a thread which repeatedly calls consume()
@@ -52,11 +31,9 @@ void execute_task( IManager & rg, TaskVertexPtr task_vertex )
  *
  * Sleeps when no jobs are available.
  */
-template < typename Task >
 struct WorkerThread
 {
 private:
-    IManager & mgr;
     std::shared_ptr< scheduler::IScheduler > scheduler;
 
     /*! if true, the thread shall stop
@@ -78,9 +55,8 @@ public:
      * @param consume function that executes a task if possible and returns
      *                if any work is left
      */
-    WorkerThread( IManager & mgr, std::shared_ptr< scheduler::IScheduler > scheduler ) :
+    WorkerThread( std::shared_ptr< scheduler::IScheduler > scheduler ) :
         m_stop( false ),
-        mgr( mgr ),
         scheduler( scheduler ),
         thread(
             [this]
@@ -90,7 +66,7 @@ public:
                  * and therefore yield() guarantees to do
                  * a context-switch instead of idling
                  */
-                redGrapes::dispatch::thread::idle =
+                redGrapes::idle =
                     [this]
                     {
                         throw std::runtime_error("idle in worker thread!");
@@ -102,9 +78,8 @@ public:
                     std::unique_lock< std::mutex > l( m );
                     cv.wait( l, [this]{ return !wait.test_and_set(); } );
                     l.unlock();
-
                     while( auto task = this->scheduler->get_job() )
-                        dispatch::thread::execute_task<Task>( this->mgr, *task );
+                        dispatch::thread::execute_task( task );
                 }
 
                 SPDLOG_TRACE("Worker Finished!");

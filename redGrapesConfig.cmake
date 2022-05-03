@@ -9,10 +9,19 @@ find_package(Boost 1.62.0 REQUIRED COMPONENTS context)
 find_package(fmt REQUIRED)
 find_package(spdlog REQUIRED)
 
-add_library(redGrapes INTERFACE)
+add_library(redGrapes STATIC
+  ${CMAKE_CURRENT_LIST_DIR}/redGrapes/resource/resource.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/redGrapes/dispatch/thread/execute.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/redGrapes/scheduler/event.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/redGrapes/scheduler/event_ptr.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/redGrapes/task/property/graph.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/redGrapes/redGrapes.cpp
+)
+
 target_compile_features(redGrapes INTERFACE
     cxx_std_14
 )
+  
 target_include_directories(redGrapes INTERFACE
     $<BUILD_INTERFACE:${redGrapes_SOURCE_DIR}>
     $<INSTALL_INTERFACE:${redGrapes_INSTALL_PREFIX}>

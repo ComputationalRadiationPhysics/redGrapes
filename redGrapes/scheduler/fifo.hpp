@@ -16,8 +16,9 @@
 
 #include <redGrapes/scheduler/scheduler.hpp>
 #include <redGrapes/dispatch/thread/worker.hpp>
-#include <redGrapes/dispatch/thread/thread_local.hpp>
-#include <redGrapes/imanager.hpp>
+#include <redGrapes/task/task.hpp>
+
+#include <redGrapes/redGrapes.hpp>
 
 namespace redGrapes
 {
@@ -26,30 +27,24 @@ namespace scheduler
 
 struct FIFO : public IScheduler
 {
-    IManager & mgr;
+    moodycamel::ConcurrentQueue< std::shared_ptr<Task> > ready;
 
-    moodycamel::ConcurrentQueue< TaskVertexPtr > ready;
-    moodycamel::ConcurrentQueue< TaskVertexPtr > running;
-
-    FIFO(IManager & mgr) : mgr(mgr)
+    void activate_task( std::shared_ptr<Task> task )
     {
-    }
-
-    void activate_task( TaskVertexPtr task_vertex )
-    {
-        ready.enqueue(task_vertex);
+        SPDLOG_TRACE("FIFO: activate task {}", task->task_id);
+        ready.enqueue(task);
     }
 
     /*! take a job from the ready queue
      * if none available, update 
      */
-    std::optional<TaskVertexPtr> get_job()
+    std::shared_ptr<Task> get_job()
     {
         if( auto task_vertex = try_next_task() )
             return task_vertex;
         else
         {
-            mgr.update_active_task_spaces();
+            update_active_task_spaces();
             return try_next_task();
         }
     }
@@ -57,17 +52,13 @@ struct FIFO : public IScheduler
     /*! call the manager to activate tasks until we get at least
      * one in the ready queue
      */
-    std::optional<TaskVertexPtr> try_next_task()
+    std::shared_ptr<Task> try_next_task()
     {
-        //do
-        {
-            TaskVertexPtr task_vertex;
-            if(ready.try_dequeue(task_vertex))
-                return task_vertex;
-        }
-        //while( mgr.activate_next() );
+        std::shared_ptr<Task> task;
+        if(ready.try_dequeue(task))
+            return task;
 
-        return std::nullopt;
+        return std::shared_ptr<Task>();
     }
 };
 
