@@ -29,8 +29,10 @@ Event & EventPtr::get_event() const
         return task->pre_event;
     case T_EVT_POST:
         return task->post_event;
-    case T_EVT_RES:
-        return task->result_event;
+    case T_EVT_RES_SET:
+        return task->result_set_event;
+    case T_EVT_RES_GET:
+        return task->result_get_event;
     case T_EVT_EXT:
         return *external_event;
     default:

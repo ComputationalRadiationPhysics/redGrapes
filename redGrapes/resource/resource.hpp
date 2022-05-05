@@ -29,6 +29,8 @@ namespace redGrapes
 template <typename AccessPolicy>
 class Resource;
 
+struct Task;
+
 class ResourceBase
 {
 protected:
@@ -38,10 +40,14 @@ public:
     unsigned int id;
     unsigned int scope_level;
 
+    std::shared_ptr< std::pair<std::mutex, std::vector<Task*>> > tasks;
+
     /**
      * Create a new resource with an unused ID.
      */
     ResourceBase();
+
+    bool operator==( ResourceBase const & other );
 };
 
 template <typename AccessPolicy>
@@ -128,6 +134,11 @@ class ResourceAccess
         return this->obj->mode_format();
     }
 
+    ResourceBase get_resource()
+    {
+        return obj->resource;
+    }
+    
     /**
      * Check if the associated resource is the same
      *

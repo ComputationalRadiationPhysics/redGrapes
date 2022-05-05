@@ -5,6 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
+#include <optional>
 #include <spdlog/spdlog.h>
 
 #include <redGrapes/scheduler/event.hpp>
@@ -18,28 +19,28 @@ namespace dispatch
 namespace thread
 {
 
-void execute_task( std::shared_ptr< Task > task )
+void execute_task( Task & task )
 {
-    assert( task->is_ready() );
-    SPDLOG_TRACE("thread dispatch: execute task {}", task->task_id);
+    assert( task.is_ready() );
+    SPDLOG_TRACE("thread dispatch: execute task {}", task.task_id);
 
-    task->get_pre_event().notify();
-    current_task = task;
+    task.get_pre_event().notify();
+    current_task = &task;
 
-    if( auto event = (*task)() )
+    if( auto event = task() )
     {
-        task->sg_pause( *event );
+        task.sg_pause( *event );
 
-        task->pre_event.up();
-        task->get_pre_event().notify();
+        task.pre_event.up();
+        task.get_pre_event().notify();
     }
     else
     {
-        auto e = task->get_post_event();
+        auto e = task.get_post_event();
         e.notify();
     }
 
-    current_task = std::shared_ptr<Task>();
+    current_task = nullptr;
 }
 
 } // namespace thread

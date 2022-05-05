@@ -1,9 +1,13 @@
-/* Copyright 2019-2021 Michael Sippel
+/* Copyright 2019-2022 Michael Sippel
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
+
+#include <optional>
+#include <functional>
+#include <moodycamel/concurrentqueue.h>
 
 #include <redGrapes/redGrapes.hpp>
 #include <redGrapes/scheduler/default_scheduler.hpp>
@@ -11,7 +15,7 @@
 namespace redGrapes
 {
 
-thread_local std::shared_ptr<Task> current_task;
+thread_local Task * current_task;
 thread_local std::function<void()> idle;
 
 moodycamel::ConcurrentQueue< std::shared_ptr<TaskSpace> > active_task_spaces;
@@ -25,12 +29,8 @@ std::shared_ptr<TaskSpace> current_task_space()
     {
         if( ! current_task->children )
         {
-            auto task_space = std::make_shared<TaskSpace>(
-                std::make_shared<PrecedenceGraph<ResourceUser>>(),
-                current_task);
-
+            auto task_space = std::make_shared<TaskSpace>(*current_task);
             active_task_spaces.enqueue(task_space);
-
             current_task->children = task_space;
         }
 
@@ -42,10 +42,7 @@ std::shared_ptr<TaskSpace> current_task_space()
 
 unsigned scope_depth()
 {
-    if( current_task )
-        return current_task->scope_depth;
-    else
-        return 0;
+    return current_task_space()->depth;
 }
 
 /*! Create an event on which the termination of the current task depends.
@@ -63,15 +60,15 @@ std::optional< scheduler::EventPtr > create_event()
 }
 
 //! get backtrace from currently running task
-std::vector<std::shared_ptr<Task>> backtrace()
+std::vector<std::reference_wrapper<Task>> backtrace()
 {
-    std::vector<std::shared_ptr<Task>> bt;
-    std::shared_ptr<Task> task = current_task;
+    std::vector<std::reference_wrapper<Task>> bt;
+    Task * task = current_task;
 
     while( task )
     {
-        bt.push_back(task);
-        task = task->space->parent.lock();
+        bt.push_back(*task);
+        task = task->space->parent;
     }
 
     return bt;
@@ -79,7 +76,7 @@ std::vector<std::shared_ptr<Task>> backtrace()
 
 void init_default( size_t n_threads )
 {
-    top_space = std::make_shared<TaskSpace>(std::make_shared<PrecedenceGraph<ResourceUser>>());
+    top_space = std::make_shared<TaskSpace>();
     active_task_spaces.enqueue(top_space);
     top_scheduler = std::make_shared<scheduler::DefaultScheduler>(n_threads);
 }
@@ -94,8 +91,7 @@ void barrier()
 
 void finalize()
 {
-    barrier();
-
+    barrier();    
     top_scheduler = std::shared_ptr<scheduler::IScheduler>();
     top_space = std::shared_ptr<TaskSpace>();
 }
@@ -112,50 +108,44 @@ void yield( scheduler::EventPtr event )
     }
 }
 
-void remove_task(std::shared_ptr<Task> task)
-{
-    SPDLOG_TRACE("remove task {}", task->task_id);
-    if( auto task_space = task->space )
-    {
-        task_space->remove(task);
-        top_scheduler->notify();
-    }
-}
-
 void update_active_task_spaces()
 {
     SPDLOG_TRACE("update active task spaces");
     std::vector< std::shared_ptr< TaskSpace > > buf;
 
     std::shared_ptr< TaskSpace > space;
+
+    bool notify = false;
+    
     while(active_task_spaces.try_dequeue(space))
     {
-        while(auto new_task = space->next())
-        {
-            new_task->sg_init();
-            new_task->pre_event.up();
-            new_task->get_pre_event().notify();
-        }
+        if( space->init_until_ready() )
+            notify = true;
 
-        bool remove = false;
-        if( auto parent = space->parent.lock() )
+        bool remove_space = false;
+        if( auto parent = space->parent )
         {
             if(
-               space->empty()
-               && parent->is_finished()
-               )
+                space->empty() &&
+                parent->is_dead()
+            )
             {
-                remove_task(parent);
-                remove = true;
+                parent->space->try_remove( *parent );
+                remove_space = true;
+                notify = true;
             }
         }
 
-        if(! remove)
+        if(! remove_space)
             buf.push_back(space);
     }
 
     for( auto space : buf )
         active_task_spaces.enqueue(space);
+    /*
+    if( notify && top_scheduler )
+        top_scheduler->notify();
+    */
 }
 
 //! apply a patch to the properties of the currently running task
@@ -164,7 +154,7 @@ void update_properties(typename TaskProperties::Patch const& patch)
     if( current_task )
     {
         current_task->apply_patch(patch);
-        current_task_space()->precedence_graph->update_dependencies(current_task);
+        current_task->update_graph();
     }
     else
         throw std::runtime_error("update_properties: currently no task running");

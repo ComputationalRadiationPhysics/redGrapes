@@ -1,8 +1,9 @@
 
 #pragma once
 
-#include <thread>
 #include <pthread.h>
+#include <thread>
+#include <condition_variable>
 
 #include <redGrapes/task/task_space.hpp>
 #include <redGrapes/scheduler/scheduler.hpp>
@@ -56,9 +57,9 @@ struct DefaultScheduler : public IScheduler
             };
     }
 
-    void activate_task( std::shared_ptr<Task> task_vertex )
+    void activate_task( Task & task )
     {
-        fifo->activate_task( task_vertex );
+        fifo->activate_task( task );
     }
 
     //! wakeup sleeping worker threads

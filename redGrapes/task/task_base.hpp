@@ -72,7 +72,7 @@ struct TaskBase : virtual ITask
     }
 
     std::optional< scheduler::EventPtr > event;
-    
+
 private:
     std::mutex yield_cont_mutex;
 

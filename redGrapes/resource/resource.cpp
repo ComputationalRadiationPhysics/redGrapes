@@ -5,6 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
+#include <mutex>
 #include <redGrapes/context.hpp>
 #include <redGrapes/resource/resource.hpp>
 
@@ -20,7 +21,17 @@ int ResourceBase::getID()
 ResourceBase::ResourceBase()
     : id( getID() )
     , scope_level( scope_depth() )
+    , tasks(std::make_shared<
+            std::pair<
+                std::mutex,
+                std::vector<Task*>
+            >>())
 {}
+
+bool ResourceBase::operator==( ResourceBase const & other )
+{
+    return this->id == other.id;
+}
 
 } // namespace redGrapes
 

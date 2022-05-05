@@ -66,20 +66,19 @@ struct Event
     void add_follower( EventPtr follower );
 };
 
-
-
 enum EventPtrTag {
     T_UNINITIALIZED = 0,
     T_EVT_PRE,
     T_EVT_POST,
-    T_EVT_RES,
+    T_EVT_RES_SET,
+    T_EVT_RES_GET,
     T_EVT_EXT,
 };
 
 struct EventPtr
 {
     enum EventPtrTag tag;
-    std::shared_ptr< Task > task;
+    Task * task;
     std::shared_ptr< Event > external_event;
 
     bool operator==( EventPtr const & other ) const;
@@ -91,8 +90,9 @@ struct EventPtr
     /*! A preceding event was reached and thus an incoming edge got removed.
      * This events state is decremented and recursively notifies its followers
      * in case it is now also reached.
+     * @return true if event was ready
      */
-    void notify();
+    bool notify( );
 };
 
 } // namespace scheduler

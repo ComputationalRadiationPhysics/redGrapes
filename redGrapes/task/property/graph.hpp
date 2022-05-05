@@ -14,6 +14,9 @@
 #include <optional>
 #include <spdlog/spdlog.h>
 
+#include <memory>
+
+#include <redGrapes/task/itask.hpp>
 #include <redGrapes/task/property/inherit.hpp>
 #include <redGrapes/scheduler/event.hpp>
 
@@ -42,14 +45,23 @@ struct TaskSpace;
  * With child-tasks, the post-event of the child task
  * precedes the parent tasks post-event.
  */
-struct GraphProperty// : virtual ITaskProperty
+struct GraphProperty
 {
-    std::weak_ptr< Task > xty_task; // TODO cleanup
-    std::shared_ptr< Task > get_task();
-
     GraphProperty();
     GraphProperty(GraphProperty const &);
 
+
+    Task & operator*()
+    {
+        return *task;
+    }
+    Task * operator->()
+    {
+        return task;
+    }
+
+    Task * task;
+    
     //! number of parents
     unsigned int scope_depth;
 
@@ -62,21 +74,22 @@ struct GraphProperty// : virtual ITaskProperty
     // in edges dont need a mutex because they are initialized
     // once by `init_dependencies()` and only read afterwards.
     // expired pointers must be ignored
-    std::vector<std::weak_ptr<Task>> in_edges;
+    std::vector<Task*> in_edges;
 
     scheduler::Event pre_event;
     scheduler::Event post_event;
-    scheduler::Event result_event;
-
-    void add_dependency( std::shared_ptr<Task> preceding_task );
+    scheduler::Event result_set_event;
+    scheduler::Event result_get_event;
 
     scheduler::EventPtr get_pre_event();
     scheduler::EventPtr get_post_event();
-    scheduler::EventPtr get_result_event();
+    scheduler::EventPtr get_result_set_event();
+    scheduler::EventPtr get_result_get_event();
 
     bool is_ready();
     bool is_running();
     bool is_finished();
+    bool is_dead();
 
     /*! create a new event which precedes the tasks post-event
      */
@@ -94,16 +107,10 @@ struct GraphProperty// : virtual ITaskProperty
      *
      * The precedence graph containing the task is assumed to be locked.
      */
-    void sg_init();
-
-    /*! remove revoked dependencies (e.g. after access demotion)
-     *
-     * @param revoked_followers set of tasks following this task
-     *                          whose dependency on it got removed
-     *
-     * The precedence graph containing task_vertex is assumed to be locked.
-     */
-    void sg_revoke_followers( std::vector<scheduler::EventPtr> revoked_events );
+    void init_graph();
+    void add_dependency( Task & preceding_task );
+    void update_graph();
+    void delete_from_resources();
 
     template < typename PropertiesBuilder >
     struct Builder

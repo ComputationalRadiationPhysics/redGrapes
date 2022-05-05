@@ -18,17 +18,17 @@
 int main( int, char*[] )
 {
     spdlog::set_level(spdlog::level::trace);
-    redGrapes::init_default(1);
+    redGrapes::init_default(4);
 
     redGrapes::emplace_task(
         []
         {
             std::cout << "f1" << "..." << std::endl;
-            
+
             int i = 0;
             for( auto t : redGrapes::backtrace() )
             {
-                fmt::print("refinement 1 backtrace [{}]: {}\n", i, (redGrapes::TaskProperties const&) *t);
+                fmt::print("refinement 1 backtrace [{}]: {}\n", i, (redGrapes::TaskProperties const&) t);
             }
 
             redGrapes::emplace_task(
@@ -47,7 +47,7 @@ int main( int, char*[] )
                     int i = 0;
                     for( auto t : redGrapes::backtrace() )
                     {
-                        fmt::print("refinement 2 backtrace [{}]: {}\n", i, (redGrapes::TaskProperties const&) *t);
+                        fmt::print("refinement 2 backtrace [{}]: {}\n", i, (redGrapes::TaskProperties const&) t);
                         i++;
                     }
                 },

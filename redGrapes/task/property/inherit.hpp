@@ -54,7 +54,7 @@ struct TaskPropertiesInherit
             {}
         };
     };
-
+    
     void apply_patch( Patch const & patch )
     {
         T_Head::apply_patch( patch );
@@ -143,7 +143,7 @@ struct TaskProperties1
             }
         };
     };
-
+    
     void apply_patch( Patch const & patch )
     {
         TaskPropertiesInherit< Policies..., PropEnd_t >::apply_patch( patch );

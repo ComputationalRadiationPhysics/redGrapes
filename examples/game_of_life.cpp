@@ -9,8 +9,6 @@
  * @file examples/game_of_life.cpp
  */
 
-//#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_OFF
-
 #include <array>
 #include <cstdlib>
 #include <iostream>
@@ -43,7 +41,7 @@ Cell next_state( Cell const neighbours [][size.x+2] )
 
 int main( int, char * [] )
 {
-    //spdlog::set_level( spdlog::level::trace );
+    spdlog::set_level( spdlog::level::info );
 
     redGrapes::init_default();
 
@@ -114,9 +112,7 @@ int main( int, char * [] )
                 std::cout << std::endl;
             },
             buffers[current].read()
-        );
-
-        redGrapes::barrier();
+        ).get();
 
         // calculate next step
         for ( size_t x = 1; x <= size.x; x += chunk_size.x )

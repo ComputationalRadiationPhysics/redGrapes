@@ -7,14 +7,26 @@
 
 #pragma once
 
+#include <memory>
+
 namespace redGrapes
 {
 
 struct ITask
 {
     virtual ~ITask() {}
-    virtual void run() = 0;
+    virtual void run() {};
 };
 
+struct Task;
+/*
+//! to access full task from a property
+struct TaskProperty
+{
+    virtual ~TaskProperty() {}
+
+
+};
+*/
 } // namespace redGrapes
 

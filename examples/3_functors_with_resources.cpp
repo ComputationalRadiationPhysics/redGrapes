@@ -14,7 +14,7 @@
 
 int main(void)
 {
-    spdlog::set_level( spdlog::level::debug );
+    spdlog::set_level( spdlog::level::trace );
 
     redGrapes::init_default(4);
     

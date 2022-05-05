@@ -11,6 +11,7 @@
 #include <atomic>
 #include <functional>
 #include <memory>
+#include <condition_variable>
 
 #include <redGrapes/scheduler/event.hpp>
 #include <redGrapes/task/task.hpp>
@@ -23,7 +24,7 @@ namespace dispatch
 namespace thread
 {
 
-void execute_task( std::shared_ptr< Task > task );
+void execute_task( Task & task );
 
 /*!
  * Creates a thread which repeatedly calls consume()
@@ -78,8 +79,9 @@ public:
                     std::unique_lock< std::mutex > l( m );
                     cv.wait( l, [this]{ return !wait.test_and_set(); } );
                     l.unlock();
+
                     while( auto task = this->scheduler->get_job() )
-                        dispatch::thread::execute_task( task );
+                        dispatch::thread::execute_task( *task );
                 }
 
                 SPDLOG_TRACE("Worker Finished!");

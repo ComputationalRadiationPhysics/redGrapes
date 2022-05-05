@@ -6,11 +6,13 @@
  */
 #pragma once
 
+#include <type_traits>
 #include <redGrapes/task/task_base.hpp>
 #include <redGrapes/task/property/inherit.hpp>
 #include <redGrapes/task/property/trait.hpp>
 #include <redGrapes/task/property/id.hpp>
 #include <redGrapes/task/property/resource.hpp>
+#include <redGrapes/task/property/queue.hpp>
 #include <redGrapes/task/property/graph.hpp>
 
 namespace redGrapes
@@ -19,6 +21,7 @@ namespace redGrapes
 using TaskProperties = TaskProperties1<
     IDProperty,
     ResourceProperty,
+    QueueProperty,
     GraphProperty
 #ifdef REDGRAPES_TASK_PROPERTIES
     , REDGRAPES_TASK_PROPERTIES
@@ -30,39 +33,77 @@ struct Task :
         TaskProperties,
         std::enable_shared_from_this<Task>
 {
+    std::atomic_flag dead = ATOMIC_FLAG_INIT;
+
     virtual ~Task() {}
-    
+
     Task(TaskProperties && prop)
         : TaskProperties(std::move(prop))
+    {}
+
+    virtual void * get_result_data() {}
+};
+
+template < typename Result >
+struct ResultTask : Task
+{
+    Result result_data;
+
+    virtual ~ResultTask() {}
+    ResultTask(TaskProperties&& prop)
+        : Task(std::move(prop))
     {
     }
 
+    virtual void * get_result_data()
+    {
+        return &result_data;
+    }
+
+    virtual Result run_result() {}
+
+    void run()
+    {
+        result_data = run_result();
+        get_result_set_event().notify(); // result event now ready
+    }   
 };
 
-template<typename F>
-struct FunTask : Task
+template<>
+struct ResultTask<void> : Task
+{
+    virtual ~ResultTask() {}
+    ResultTask(TaskProperties&& prop)
+        : Task(std::move(prop))
+    {
+    }
+
+    virtual void run_result() {}
+    void run()
+    {
+        run_result();
+        get_result_set_event().notify();
+    }
+};
+
+template< typename F >
+struct FunTask : ResultTask< typename std::result_of<F()>::type >
 {
     F impl;
 
-    virtual ~FunTask() {}
-
     FunTask(F&& f, TaskProperties&& prop)
-        : Task(std::move(prop))
+        : ResultTask<typename std::result_of<F()>::type>(std::move(prop))
         , impl(std::move(f))
     {
     }
 
-    void run()
+    virtual ~FunTask() {}
+
+    typename std::result_of<F()>::type run_result()
     {
-        impl( *this );
+        return impl();
     }
 };
-
-template<typename F>
-std::shared_ptr<FunTask<F>> make_fun_task(F&& f, TaskProperties && prop)
-{
-    return std::make_shared<FunTask<F>>(std::move(f), std::move(prop));
-}
 
 } // namespace redGrapes
 
