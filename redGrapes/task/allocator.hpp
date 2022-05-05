@@ -18,21 +18,19 @@ namespace memory
 struct Chunk
 {
     Chunk( size_t capacity);
-    Chunk( Chunk && other );
     Chunk( Chunk & ) = delete;
-
     ~Chunk();
-
+    
     bool empty() const;
     void reset();
 
-    void * alloc( size_t n_bytes );
-    void free( void * );
+    void * m_alloc( size_t n_bytes );
+    void m_free( void * );
 
 private:
     size_t capacity;
 
-    void * base;
+    uintptr_t base;
     std::atomic_ptrdiff_t offset;
 
     std::atomic<unsigned> count;

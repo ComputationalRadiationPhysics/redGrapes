@@ -24,9 +24,10 @@ class ResourceUser
 {
   public:
     ResourceUser()
-        : scope_level( scope_depth() ) {}
-
-    ResourceUser( std::list<ResourceAccess> const & access_list_ )
+        : scope_level( scope_depth() )
+        , access_list() {}
+    
+    ResourceUser( std::vector<ResourceAccess> const & access_list_ )
         : access_list( access_list_ )
         , scope_level( scope_depth() )
     {}
@@ -65,7 +66,7 @@ class ResourceUser
     }
 
     unsigned int scope_level;
-    std::list<ResourceAccess> access_list;
+    std::vector<ResourceAccess> access_list;
 }; // class ResourceUser
 
 } // namespace redGrapes

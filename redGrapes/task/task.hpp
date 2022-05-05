@@ -33,12 +33,14 @@ struct Task :
         TaskProperties,
         std::enable_shared_from_this<Task>
 {
-    std::atomic_flag dead = ATOMIC_FLAG_INIT;
+    bool alive;
 
-    virtual ~Task() {}
+    virtual ~Task()
+    {}
 
     Task(TaskProperties && prop)
         : TaskProperties(std::move(prop))
+        , alive(true)
     {}
 
     virtual void * get_result_data() {}

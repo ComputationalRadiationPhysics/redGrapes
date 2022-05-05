@@ -112,7 +112,7 @@ int main( int, char * [] )
                 std::cout << std::endl;
             },
             buffers[current].read()
-        ).get();
+         ).get();
 
         // calculate next step
         for ( size_t x = 1; x <= size.x; x += chunk_size.x )

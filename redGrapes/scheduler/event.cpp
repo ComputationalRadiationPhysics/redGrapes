@@ -78,23 +78,25 @@ bool EventPtr::notify( )
 
     assert( old_state > 0 );
 
+    bool remove_task = false;
+    
     if( task )
     {
         // pre event ready
-        if( tag == scheduler::T_EVT_PRE && (old_state-1) == 1 )
+        if( tag == scheduler::T_EVT_PRE && old_state == 2 )
             top_scheduler->activate_task(*task);
 
         // post event or result-get event reached
         if(
-           (old_state-1) == 0 &&
+           old_state == 1 &&
            (tag == scheduler::T_EVT_POST ||
             tag == scheduler::T_EVT_RES_GET)
         )
         {
             if(auto children = task->children)
                 children->init_until_ready();
-            
-            task->space->try_remove(*task);
+
+            remove_task = true;
         }
     }
 
@@ -104,10 +106,12 @@ bool EventPtr::notify( )
         std::shared_lock< std::shared_mutex > lock( this->get_event().followers_mutex );
         for( auto & follower : this->get_event().followers )
             follower.notify( );
+
+        top_scheduler->notify();
     }
 
-    if( top_scheduler )
-        top_scheduler->notify();
+    if( remove_task )
+        task->space->try_remove(*task);
 
     return old_state == 1;
 }

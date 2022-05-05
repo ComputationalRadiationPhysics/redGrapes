@@ -46,6 +46,10 @@ struct TaskSpace : std::enable_shared_from_this<TaskSpace>
     unsigned depth;
     Task * parent;
 
+    int next_id;
+
+    virtual ~TaskSpace();
+    
     // top space
     TaskSpace();
 
@@ -59,9 +63,10 @@ struct TaskSpace : std::enable_shared_from_this<TaskSpace>
     Task & emplace_task( F&& f, TaskProperties&& prop )
     {
         // allocate memory
-        FunTask<F> * item = (FunTask<F>*) active_chunk.alloc( sizeof(FunTask<F>) );
+        FunTask<F> * item = (FunTask<F>*) active_chunk.m_alloc( sizeof(FunTask<F>) );
         if( ! item )
         {
+            throw std::runtime_error("out of memory");
             // create new chunk
             /*
             blocked_chunks.push_back( std::move(active_chunk) );
@@ -85,9 +90,10 @@ struct TaskSpace : std::enable_shared_from_this<TaskSpace>
         if( parent )
             assert( is_superset(*parent, *item) );
 
-        // emplacement queue links
         queue.push(item);
 
+        top_scheduler->notify();
+        
         return *item;
     }    
     

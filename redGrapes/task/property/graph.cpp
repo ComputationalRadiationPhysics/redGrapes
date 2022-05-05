@@ -78,11 +78,13 @@ void GraphProperty::init_graph()
 {
     SPDLOG_TRACE("sg init task {}", this->task->task_id);
 
+    std::vector< Task * > preceding_tasks;
     std::vector< ResourceBase > resources;
-    for( auto resource_access : this->task->access_list )
+    resources.reserve(this->task->access_list.size());
+    for( auto & resource_access : this->task->access_list )
     {
         ResourceBase r = resource_access.get_resource();
-        if( std::find(std::begin(resources), std::end(resources), r) == std::end(resources) )
+        if( std::find(resources.begin(), resources.end(), r) == resources.end() )
             resources.push_back(r);
     }
 
@@ -92,15 +94,21 @@ void GraphProperty::init_graph()
 
         for( Task * preceding_task : r.tasks->second )
         {
-            if( preceding_task->space != this->space )
+            if( preceding_task == this->space->parent )
                 break;
 
-            if( space->is_serial( *preceding_task, *this->task ) )
-                add_dependency( *preceding_task );
+            if(
+               preceding_task->space == this->space &&
+               space->is_serial( *preceding_task, *this->task )
+            )
+                preceding_tasks.push_back( preceding_task );
         }
 
         r.tasks->second.push_back(this->task);
     }
+
+    for( Task * preceding_task : preceding_tasks )
+        add_dependency( *preceding_task );
     
     // add dependency to parent
     if( auto parent = this->space->parent )
@@ -110,17 +118,18 @@ void GraphProperty::init_graph()
 void GraphProperty::delete_from_resources()
 {
     std::vector< ResourceBase > resources;
-    for( auto resource_access : this->task->access_list )
+    resources.reserve(this->task->access_list.size());
+    for( auto & resource_access : this->task->access_list )
     {
         ResourceBase r = resource_access.get_resource();
-        if( std::find(std::begin(resources), std::end(resources), r) == std::end(resources) )
+        if( std::find(resources.begin(), resources.end(), r) == resources.end() )
             resources.push_back(r);
     }
 
     for( ResourceBase r : resources )
     {
         std::lock_guard< std::mutex > lock(r.tasks->first);
-        std::remove(std::begin(r.tasks->second), std::end(r.tasks->second), this->task);
+        r.tasks->second.erase(std::find(r.tasks->second.begin(), r.tasks->second.end(), this->task));
     }    
 }
 
@@ -150,10 +159,8 @@ void GraphProperty::update_graph( )
         {
             if( ! space->is_serial(*this->task, *follower.task) )
             {
-                spdlog::info("remove dependency");
                 // remove dependency
-
-                std::remove(std::begin(follower.task->in_edges), std::end(follower.task->in_edges), this);
+                follower.task->in_edges.erase(std::find(std::begin(follower.task->in_edges), std::end(follower.task->in_edges), this));
                 post_event.followers.erase(std::next(std::begin(post_event.followers), i--));
                 follower.notify();
             }

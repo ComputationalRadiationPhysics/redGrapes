@@ -92,8 +92,8 @@ void barrier()
 void finalize()
 {
     barrier();    
-    top_scheduler = std::shared_ptr<scheduler::IScheduler>();
-    top_space = std::shared_ptr<TaskSpace>();
+    top_scheduler.reset();
+    top_space.reset();
 }
 
 //! pause the currently running task at least until event is reached
@@ -114,7 +114,6 @@ void update_active_task_spaces()
     std::vector< std::shared_ptr< TaskSpace > > buf;
 
     std::shared_ptr< TaskSpace > space;
-
     bool notify = false;
     
     while(active_task_spaces.try_dequeue(space))
@@ -142,10 +141,9 @@ void update_active_task_spaces()
 
     for( auto space : buf )
         active_task_spaces.enqueue(space);
-    /*
-    if( notify && top_scheduler )
+
+    if( notify )
         top_scheduler->notify();
-    */
 }
 
 //! apply a patch to the properties of the currently running task

@@ -21,8 +21,8 @@ namespace thread
 
 void execute_task( Task & task )
 {
-    assert( task.is_ready() );
     SPDLOG_TRACE("thread dispatch: execute task {}", task.task_id);
+    assert( task.is_ready() );
 
     task.get_pre_event().notify();
     current_task = &task;
@@ -35,10 +35,7 @@ void execute_task( Task & task )
         task.get_pre_event().notify();
     }
     else
-    {
-        auto e = task.get_post_event();
-        e.notify();
-    }
+        task.get_post_event().notify();
 
     current_task = nullptr;
 }

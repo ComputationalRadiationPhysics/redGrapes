@@ -17,7 +17,7 @@ namespace memory
 {
 
 Chunk::Chunk( size_t capacity )
-    : base( malloc(capacity) )
+    : base( (uintptr_t) malloc(capacity) )
     , capacity( capacity )
 {
     reset();
@@ -25,7 +25,7 @@ Chunk::Chunk( size_t capacity )
 
 Chunk::~Chunk()
 {
-    free( base );
+    free( (void*)base );
 }
 
 bool Chunk::empty() const
@@ -37,21 +37,22 @@ void Chunk::reset()
 {
     offset = 0;
     count = 0;
+    memset((void*)base, 0, capacity);
 }
 
-void * Chunk::alloc( size_t n_bytes )
+void * Chunk::m_alloc( size_t n_bytes )
 {
     std::ptrdiff_t old_offset = offset.fetch_add(n_bytes);
     if( old_offset + n_bytes <= capacity )
     {
         count++;
-        return base + old_offset;
+        return (void*)(base + old_offset);
     }
     else
         return nullptr;
 }
 
-void Chunk::free( void * )
+void Chunk::m_free( void * )
 {
     count--;
 }

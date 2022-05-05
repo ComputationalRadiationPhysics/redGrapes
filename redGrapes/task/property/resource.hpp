@@ -95,7 +95,7 @@ struct ResourceProperty : ResourceUser
 
     void operator-= (ResourceAccess const & ra)
     {
-        this->access_list.remove(ra);
+        //this->access_list.remove(ra);
     }
 
     void apply_patch(Patch const & patch)

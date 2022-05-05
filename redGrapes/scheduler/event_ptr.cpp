@@ -22,7 +22,7 @@ bool EventPtr::operator==( EventPtr const & other ) const
 }
 
 Event & EventPtr::get_event() const
-{
+{    
     switch( tag )
     {
     case T_EVT_PRE:

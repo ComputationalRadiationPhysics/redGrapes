@@ -117,17 +117,16 @@ namespace redGrapes
 
         build_helper.foo();
 
-        //auto impl = std::bind(f, std::forward<Args>(args)...);
-        auto impl = [f=std::move(f), ... args=std::move(args)]() mutable {
+        auto impl = std::bind(f, std::forward<Args>(args)...);
+        /*
+        auto impl = [f=std::move(f), args...]() mutable {
             return f(std::forward<Args>(args)...);
         };
-
+*/
         builder.init_id();
 
         SPDLOG_DEBUG("redGrapes::emplace_task {}", (TaskProperties const&)builder);
         Task& task = current_task_space()->emplace_task(std::move(impl), (TaskProperties &&) builder);
-
-        top_scheduler->notify();
 
         return Future<typename std::result_of<Callable(Args...)>::type>(task);
     }

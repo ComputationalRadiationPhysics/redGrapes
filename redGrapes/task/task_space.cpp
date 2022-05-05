@@ -20,7 +20,7 @@ namespace redGrapes
         item->next = nullptr;
 
         if(tail)
-            while(!__sync_bool_compare_and_swap(&tail->next, nullptr, item))
+            while(!__sync_bool_compare_and_swap(&(tail->next), nullptr, item))
                 ;
 
         tail = item;
@@ -44,12 +44,16 @@ namespace redGrapes
         return nullptr;
     }
 
-TaskSpace::TaskSpace() : active_chunk(0x10000000), parent(nullptr), depth(0)
+    TaskSpace::~TaskSpace()
+    {
+    }
+
+    TaskSpace::TaskSpace() : active_chunk(0x10000000), parent(nullptr), depth(0), next_id(0)
     {
     }
 
     // sub space
-    TaskSpace::TaskSpace(Task& parent) : active_chunk(0x1000000), parent(&parent), depth(parent.space->depth + 1)
+    TaskSpace::TaskSpace(Task& parent) : active_chunk(0x10000), parent(&parent), depth(parent.space->depth + 1)
     {
     }
 
@@ -75,17 +79,18 @@ TaskSpace::TaskSpace() : active_chunk(0x10000000), parent(nullptr), depth(0)
 
         while(auto task = queue.pop())
         {
-            SPDLOG_TRACE("redGrapes::TaskSpace:: init task {}", (void*) task);
-            task->init_graph();
+            //spdlog::info("redGrapes::TaskSpace:: init task {}", task->task_id);
 
-            task->dead.clear();
+            if( task->task_id != next_id )
+                throw std::runtime_error("invalid next id!");
 
+            next_id++;
+
+            task->alive = 1;
             task->pre_event.up();
+            task->init_graph();
             if(task->get_pre_event().notify())
-            {
-                top_scheduler->notify();
                 return true;
-            }
         }
 
         return false;
@@ -93,12 +98,14 @@ TaskSpace::TaskSpace() : active_chunk(0x10000000), parent(nullptr), depth(0)
 
     void TaskSpace::try_remove(Task& task)
     {
-        if(task.is_finished() && task.result_get_event.is_reached() && (!task.children || task.children->empty()))
+        if(task.post_event.is_reached() && task.result_get_event.is_reached() && (!task.children || task.children->empty()))
         {
-            if(!task.dead.test_and_set())
+            if( __sync_bool_compare_and_swap(&task.alive, 1, 0) )
             {
-                task->delete_from_resources();
-                active_chunk.free((void*) &task);
+                task.delete_from_resources();
+                task.~Task();
+                active_chunk.m_free((void*) &task);
+
                 top_scheduler->notify();
             }
         }
