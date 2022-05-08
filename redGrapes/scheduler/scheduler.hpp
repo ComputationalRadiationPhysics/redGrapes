@@ -31,7 +31,7 @@ struct IScheduler
     /*! whats the task dependency type for the edge a -> b (task a precedes task b)
      * @return true if task b depends on the pre event of task a, false if task b depends on the post event of task b.
      */
-    virtual bool task_dependency_type( Task & a, Task & b )
+    virtual bool task_dependency_type( Task const & a, Task const & b )
     {
         return false;
     }
@@ -39,7 +39,6 @@ struct IScheduler
     //! add task to ready set
     virtual void activate_task( Task & task ) {}
 
-    //! wakeup to call activate_next()
     virtual void notify() {}
 };
 

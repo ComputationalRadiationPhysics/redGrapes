@@ -10,8 +10,7 @@
 #include <bitset>
 #include <memory>
 #include <optional>
-
-#include <redGrapes/scheduler/scheduler.hpp>
+#include <spdlog/spdlog.h>
 
 namespace redGrapes
 {
@@ -46,6 +45,52 @@ namespace redGrapes
                 }
             };
         };
+    }
+}
+
+
+template<typename Tag, std::size_t T_tag_count>
+struct fmt::formatter<redGrapes::scheduler::SchedulingTagProperties<Tag, T_tag_count>>
+{
+    constexpr auto parse(format_parse_context& ctx)
+    {
+        return ctx.begin();
+    }
+
+    template<typename FormatContext>
+    auto format(redGrapes::scheduler::SchedulingTagProperties<Tag, T_tag_count> const& prop, FormatContext& ctx)
+    {
+        auto out = ctx.out();
+
+        out = fmt::format_to(out, "\"schedulingTags\" : [");
+
+        bool first = true;
+        for(size_t i = 0; i < T_tag_count; ++i)
+        {
+            if(prop.required_scheduler_tags.test(i))
+            {
+                if(!first)
+                    out = format_to(out, ", ");
+
+                first = false;
+                out = format_to(out, "{}", (Tag) i);
+            }
+        }
+
+        out = fmt::format_to(out, "]");
+        return out;
+    }
+};
+
+
+
+#include <vector>
+#include <redGrapes/scheduler/scheduler.hpp>
+
+namespace redGrapes
+{
+namespace scheduler
+{
 
         template<std::size_t T_tag_count = 64>
         struct TagMatch : IScheduler
@@ -87,18 +132,18 @@ namespace redGrapes
                 return std::nullopt;
             }
 
-            bool task_dependency_type(std::shared_ptr<Task> a, std::shared_ptr<Task> b)
+            bool task_dependency_type(Task const & a, Task const & b)
             {
                 /// fixme: b or a ?
-                if(auto sub_scheduler = get_matching_scheduler(b->template get_task<Task>().required_scheduler_tags))
+                if(auto sub_scheduler = get_matching_scheduler(b.required_scheduler_tags))
                     return (*sub_scheduler)->task_dependency_type(a, b);
                 else
                     throw std::runtime_error("no scheduler found for task");
             }
 
-            void activate_task(std::shared_ptr<Task> task)
+            void activate_task(Task & task)
             {
-                if(auto sub_scheduler = get_matching_scheduler(task->required_scheduler_tags))
+                if(auto sub_scheduler = get_matching_scheduler(task.required_scheduler_tags))
                     return (*sub_scheduler)->activate_task(task);
                 else
                     throw std::runtime_error("no scheduler found for task");
@@ -107,9 +152,10 @@ namespace redGrapes
 
         /*! Factory function to easily create a tag-match-scheduler object
          */
+        template< std::size_t T_tag_count = 64 >
         struct TagMatchBuilder
         {
-            std::shared_ptr<TagMatch> tag_match;
+            std::shared_ptr<TagMatch<T_tag_count>> tag_match;
 
             operator std::shared_ptr<IScheduler>() const
             {
@@ -124,9 +170,9 @@ namespace redGrapes
         };
 
         template<size_t T_tag_count = 64>
-        auto make_tag_match_scheduler(IManager& m)
+        auto make_tag_match_scheduler()
         {
-            return TagMatchBuilder{std::make_shared<TagMatch<T_tag_count>>()};
+            return TagMatchBuilder<T_tag_count>{std::make_shared<TagMatch<T_tag_count>>()};
         }
 
 
@@ -134,35 +180,3 @@ namespace redGrapes
 
 } // namespace redGrapes
 
-template<typename Tag, std::size_t T_tag_count>
-struct fmt::formatter<redGrapes::scheduler::SchedulingTagProperties<Tag, T_tag_count>>
-{
-    constexpr auto parse(format_parse_context& ctx)
-    {
-        return ctx.begin();
-    }
-
-    template<typename FormatContext>
-    auto format(redGrapes::scheduler::SchedulingTagProperties<Tag, T_tag_count> const& prop, FormatContext& ctx)
-    {
-        auto out = ctx.out();
-
-        out = fmt::format_to(out, "\"schedulingTags\" : [");
-
-        bool first = true;
-        for(size_t i = 0; i < T_tag_count; ++i)
-        {
-            if(prop.required_scheduler_tags.test(i))
-            {
-                if(!first)
-                    out = format_to(out, ", ");
-
-                first = false;
-                out = format_to(out, "{}", (Tag) i);
-            }
-        }
-
-        out = fmt::format_to(out, "]");
-        return out;
-    }
-};

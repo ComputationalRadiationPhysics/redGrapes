@@ -43,7 +43,7 @@ int main( int, char * [] )
 {
     spdlog::set_level( spdlog::level::info );
 
-    redGrapes::init_default();
+    redGrapes::init();
 
     using Buffer =
         std::array<

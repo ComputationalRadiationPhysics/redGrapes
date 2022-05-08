@@ -18,7 +18,7 @@
 int main( int, char*[] )
 {
     spdlog::set_level(spdlog::level::trace);
-    redGrapes::init_default(4);
+    redGrapes::init(4);
 
     redGrapes::emplace_task(
         []

@@ -74,11 +74,16 @@ std::vector<std::reference_wrapper<Task>> backtrace()
     return bt;
 }
 
-void init_default( size_t n_threads )
+void init( std::shared_ptr<scheduler::IScheduler> scheduler )
 {
     top_space = std::make_shared<TaskSpace>();
     active_task_spaces.enqueue(top_space);
-    top_scheduler = std::make_shared<scheduler::DefaultScheduler>(n_threads);
+    top_scheduler = scheduler;
+}
+
+void init( size_t n_threads )
+{
+    init(std::make_shared<scheduler::DefaultScheduler>(n_threads));
 }
 
 /*! wait until all tasks in the current task space finished

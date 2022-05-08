@@ -20,7 +20,7 @@ int main()
 {
     //spdlog::set_level( spdlog::level::trace );
 
-    redGrapes::init_default(1);
+    redGrapes::init(1);
 
     redGrapes::Resource< redGrapes::access::IOAccess > r1;
 

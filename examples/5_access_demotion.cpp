@@ -17,7 +17,7 @@ namespace rg = redGrapes;
 
 int main( int, char*[] )
 {
-    rg::init_default();
+    rg::init();
     rg::IOResource< int > a;
 
     rg::emplace_task(

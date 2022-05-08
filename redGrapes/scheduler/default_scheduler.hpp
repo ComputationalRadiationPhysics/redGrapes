@@ -59,6 +59,7 @@ struct DefaultScheduler : public IScheduler
 
     void activate_task( Task & task )
     {
+        SPDLOG_TRACE("DefaultScheduler::activate_task({})", task.task_id);
         fifo->activate_task( task );
     }
 

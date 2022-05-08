@@ -33,7 +33,7 @@ int main(int argc, char* argv[])
     if(argc >= 4)
         n_threads = atoi(argv[3]);
 
-    rg::init(n_threads);
+    rg::init_default(n_threads);
 
     size_t N = nblks * blksz;
 
@@ -110,7 +110,7 @@ int main(int argc, char* argv[])
             [j, blksz, nblks](auto a)
             {
                 spdlog::info("dpotrf");
-                LAPACKE_dpotrf(LAPACK_COL_MAJOR, 'L', blksz, *a, blksz);
+                aLAPACKE_dpotrf(LAPACK_COL_MAJOR, 'L', blksz, *a, blksz);
             },
             A[j * nblks + j].write());
 

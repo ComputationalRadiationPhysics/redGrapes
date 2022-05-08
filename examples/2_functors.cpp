@@ -28,13 +28,11 @@ auto square (int x)
 int main()
 {
     spdlog::set_level(spdlog::level::trace);
-
-    redGrapes::init_default(1);
+    redGrapes::init();
     
     fmt::print( "square(2) = {}\n", square(2).get() );
 
-    redGrapes::finalize();
-    
+    redGrapes::finalize();    
     return 0;
 }
 

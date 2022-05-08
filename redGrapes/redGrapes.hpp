@@ -9,6 +9,7 @@
 
 #include <redGrapes/context.hpp>
 #include <redGrapes/dispatch/dispatcher.hpp>
+#include <redGrapes/scheduler/scheduler.hpp>
 #include <redGrapes/scheduler/event.hpp>
 #include <redGrapes/task/future.hpp>
 #include <redGrapes/task/task.hpp>
@@ -47,8 +48,9 @@ namespace redGrapes
 
 
     /* USER INTERFACE */
+    void init(std::shared_ptr<scheduler::IScheduler> scheduler);
+    void init(size_t n_threads = std::thread::hardware_concurrency());
 
-    void init_default(size_t n_threads = std::thread::hardware_concurrency());
     void finalize();
 
     //! wait until all tasks in the current task space finished
