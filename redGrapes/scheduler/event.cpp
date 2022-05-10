@@ -113,7 +113,7 @@ bool EventPtr::notify( )
     if( remove_task )
         task->space->try_remove(*task);
 
-    return old_state == 1;
+    return old_state == 2;
 }
 
 } // namespace scheduler
