@@ -28,7 +28,7 @@ ResourceBase::ResourceBase()
             >>())
 {}
 
-bool ResourceBase::operator==( ResourceBase const & other )
+bool ResourceBase::operator==( ResourceBase const & other ) const
 {
     return this->id == other.id;
 }

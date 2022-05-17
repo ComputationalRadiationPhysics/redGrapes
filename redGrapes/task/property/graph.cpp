@@ -13,6 +13,7 @@
 #include <redGrapes/task/task_space.hpp>
 #include <redGrapes/task/task.hpp>
 #include <redGrapes/context.hpp>
+#include <redGrapes/resource/resource_user.hpp>
 
 namespace redGrapes
 {
@@ -79,21 +80,14 @@ void GraphProperty::init_graph()
     SPDLOG_TRACE("sg init task {}", this->task->task_id);
 
     std::vector< Task * > preceding_tasks;
-    std::vector< ResourceBase > resources;
-    resources.reserve(this->task->access_list.size());
-    for( auto & resource_access : this->task->access_list )
+    for( ResourceEntry & r : this->task->unique_resources )
     {
-        ResourceBase r = resource_access.get_resource();
-        if( std::find(resources.begin(), resources.end(), r) == resources.end() )
-            resources.push_back(r);
-    }
+        std::lock_guard< std::mutex > lock(r.resource.tasks->first);
 
-    for( ResourceBase r : resources )
-    {
-        std::lock_guard< std::mutex > lock(r.tasks->first);
-
-        for( Task * preceding_task : r.tasks->second )
+        for( Task * preceding_task : r.resource.tasks->second )
         {
+            if( preceding_task != nullptr )
+            {
             if( preceding_task == this->space->parent )
                 break;
 
@@ -102,9 +96,11 @@ void GraphProperty::init_graph()
                space->is_serial( *preceding_task, *this->task )
             )
                 preceding_tasks.push_back( preceding_task );
+            }
         }
 
-        r.tasks->second.push_back(this->task);
+        r.task_idx = r.resource.tasks->second.size();
+        r.resource.tasks->second.push_back(this->task);
     }
 
     for( Task * preceding_task : preceding_tasks )
@@ -117,20 +113,12 @@ void GraphProperty::init_graph()
 
 void GraphProperty::delete_from_resources()
 {
-    std::vector< ResourceBase > resources;
-    resources.reserve(this->task->access_list.size());
-    for( auto & resource_access : this->task->access_list )
+    for( ResourceEntry r : this->task->unique_resources )
     {
-        ResourceBase r = resource_access.get_resource();
-        if( std::find(resources.begin(), resources.end(), r) == resources.end() )
-            resources.push_back(r);
+        std::lock_guard< std::mutex > lock(r.resource.tasks->first);
+        if( r.task_idx != -1 )
+            r.resource.tasks->second[ r.task_idx ] = nullptr;
     }
-
-    for( ResourceBase r : resources )
-    {
-        std::lock_guard< std::mutex > lock(r.tasks->first);
-        r.tasks->second.erase(std::find(r.tasks->second.begin(), r.tasks->second.end(), this->task));
-    }    
 }
 
 void GraphProperty::add_dependency( Task & preceding_task )

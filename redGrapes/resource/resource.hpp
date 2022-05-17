@@ -47,7 +47,7 @@ public:
      */
     ResourceBase();
 
-    bool operator==( ResourceBase const & other );
+    bool operator==( ResourceBase const & other ) const;
 };
 
 template <typename AccessPolicy>

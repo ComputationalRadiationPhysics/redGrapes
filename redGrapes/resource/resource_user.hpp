@@ -20,9 +20,15 @@
 namespace redGrapes
 {
 
+struct ResourceEntry
+{
+    ResourceBase resource;
+    int task_idx; // index in task list of resource
+};
+
 class ResourceUser
 {
-  public:
+  public:    
     ResourceUser()
         : scope_level( scope_depth() )
         , access_list() {}
@@ -30,7 +36,29 @@ class ResourceUser
     ResourceUser( std::vector<ResourceAccess> const & access_list_ )
         : access_list( access_list_ )
         , scope_level( scope_depth() )
-    {}
+    {
+        build_unique_resource_list();
+    }
+
+    void add_resource_access( ResourceAccess ra )
+    {
+        this->access_list.push_back(ra);
+        ResourceBase r = ra.get_resource();
+        if( std::find_if(unique_resources.begin(), unique_resources.end(), [r](ResourceEntry const & e){ return e.resource == r; }) == unique_resources.end() )
+            unique_resources.push_back(ResourceEntry{ r, -1 });
+    }
+
+    void build_unique_resource_list()
+    {
+        unique_resources.clear();
+        unique_resources.reserve(access_list.size());
+        for( auto & ra : access_list )
+        {
+            ResourceBase r = ra.get_resource();
+            if( std::find_if(unique_resources.begin(), unique_resources.end(), [r](ResourceEntry const & e){ return e.resource == r; }) == unique_resources.end() )
+            unique_resources.push_back(ResourceEntry{ r, -1 });            
+        }
+    }
 
     static bool
     is_serial( ResourceUser const & a, ResourceUser const & b )
@@ -67,6 +95,8 @@ class ResourceUser
 
     unsigned int scope_level;
     std::vector<ResourceAccess> access_list;
+
+    std::vector<ResourceEntry> unique_resources;
 }; // class ResourceUser
 
 } // namespace redGrapes
