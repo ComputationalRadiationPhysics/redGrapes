@@ -61,6 +61,9 @@ struct DefaultScheduler : public IScheduler
     {
         SPDLOG_TRACE("DefaultScheduler::activate_task({})", task.task_id);
         fifo->activate_task( task );
+
+        for( auto & thread : threads )
+            thread->notify();
     }
 
     //! wakeup sleeping worker threads

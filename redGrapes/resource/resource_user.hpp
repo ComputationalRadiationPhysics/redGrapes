@@ -48,6 +48,12 @@ class ResourceUser
             unique_resources.push_back(ResourceEntry{ r, -1 });
     }
 
+    void rm_resource_access( ResourceAccess ra )
+    {
+        auto it = std::find(this->access_list.begin(), this->access_list.end(), ra);
+        this->access_list.erase(it);
+    }
+
     void build_unique_resource_list()
     {
         unique_resources.clear();
