@@ -35,9 +35,8 @@ struct EmplacementQueue
 struct TaskSpace : std::enable_shared_from_this<TaskSpace>
 {
     /* task storage */
-    //std::vector< Chunk > free_chunks;
-    //std::vector< Chunk > blocked_chunks;
-    memory::Chunk active_chunk;
+    memory::Allocator task_storage;
+    std::atomic< unsigned long > task_count;
 
     /* queue */
     std::mutex emplacement_mutex;
@@ -46,6 +45,7 @@ struct TaskSpace : std::enable_shared_from_this<TaskSpace>
     unsigned depth;
     Task * parent;
 
+    // debug
     int next_id;
 
     virtual ~TaskSpace();
@@ -63,22 +63,11 @@ struct TaskSpace : std::enable_shared_from_this<TaskSpace>
     Task & emplace_task( F&& f, TaskProperties&& prop )
     {
         // allocate memory
-        FunTask<F> * item = (FunTask<F>*) active_chunk.m_alloc( sizeof(FunTask<F>) );
+        FunTask<F> * item = task_storage.m_alloc<FunTask<F>>();
         if( ! item )
-        {
             throw std::runtime_error("out of memory");
-            // create new chunk
-            /*
-            blocked_chunks.push_back( std::move(active_chunk) );
 
-            if( ! free_chunks.empty() )
-                active_chunk = Chunk( 0x10000 );
-            else
-                active_chunk = free_chunks.pop_back();
-
-            item = active_chunk.alloc( sizeof(T) );
-            */
-        }
+        ++ task_count;
 
         // construct task in-place
         new (item) FunTask<F> ( std::move(f), std::move(prop) );

@@ -48,12 +48,12 @@ namespace redGrapes
     {
     }
 
-    TaskSpace::TaskSpace() : active_chunk(0x10000000), parent(nullptr), depth(0), next_id(0)
+    TaskSpace::TaskSpace() : parent(nullptr), depth(0), next_id(0)
     {
     }
 
     // sub space
-    TaskSpace::TaskSpace(Task& parent) : active_chunk(0x10000), parent(&parent), depth(parent.space->depth + 1)
+    TaskSpace::TaskSpace(Task& parent) : parent(&parent), depth(parent.space->depth + 1)
     {
     }
 
@@ -80,12 +80,12 @@ namespace redGrapes
         while(auto task = queue.pop())
         {
             //spdlog::info("redGrapes::TaskSpace:: init task {}", task->task_id);
-
+            /*
             if( task->task_id != next_id )
                 throw std::runtime_error("invalid next id!");
 
             next_id++;
-
+            */
             task->alive = 1;
             task->pre_event.up();
             task->init_graph();
@@ -104,8 +104,10 @@ namespace redGrapes
             {
                 task.delete_from_resources();
                 task.~Task();
-                active_chunk.m_free((void*) &task);
+                task_storage.m_free(&task);
 
+                --task_count;
+                
                 top_scheduler->notify();
             }
         }
@@ -115,8 +117,7 @@ namespace redGrapes
 
     bool TaskSpace::empty() const
     {
-        // todo multiple chunks!
-        return active_chunk.empty();
+        return task_count == 0;
     }
 
 } // namespace redGrapes

@@ -57,6 +57,11 @@ void Chunk::m_free( void * )
     count--;
 }
 
+bool Chunk::contains( void * ptr )
+{
+    return (uintptr_t)ptr >= (uintptr_t)base && (uintptr_t)ptr < (uintptr_t)(base + capacity);
+}
+
 } // namespace memory
 } // namespace redGrapes
 
