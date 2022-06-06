@@ -96,7 +96,7 @@ void barrier()
 
 void finalize()
 {
-    barrier();    
+    barrier();
     top_scheduler.reset();
     top_space.reset();
 }
