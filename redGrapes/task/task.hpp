@@ -43,7 +43,10 @@ struct Task :
         , alive(true)
     {}
 
-    virtual void * get_result_data() {}
+    virtual void * get_result_data()
+    {
+        return nullptr;
+    }
 };
 
 template < typename Result >

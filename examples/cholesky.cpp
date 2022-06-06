@@ -14,9 +14,9 @@ void print_matrix(std::vector<redGrapes::IOResource<double*>> A, int n_blocks, i
 
 int main(int argc, char* argv[])
 {
-    int nblks;
-    int blksz;
-    int n_threads = 1;
+    size_t nblks;
+    size_t blksz;
+    unsigned n_threads = 1;
 
     if(argc >= 3)
     {
@@ -41,7 +41,7 @@ int main(int argc, char* argv[])
     double* Alin = (double*) malloc(N * N * sizeof(double));
 
     // fill the matrix with random values
-    for(int i = 0; i < N * N; i++)
+    for(size_t i = 0; i < N * N; i++)
         Alin[i] = ((double) rand()) / ((double) RAND_MAX);
 
     // make it positive definite
@@ -53,18 +53,18 @@ int main(int argc, char* argv[])
     std::vector<rg::IOResource<double*>> A(nblks * nblks);
 
     // allocate each tile (also in column-major layout)
-    for(int j = 0; j < nblks; ++j)
-        for(int i = 0; i < nblks; ++i)
+    for(size_t j = 0; j < nblks; ++j)
+        for(size_t i = 0; i < nblks; ++i)
             A[j * nblks + i] = new double[blksz * blksz];
 
     /* ia: row of outer matrix
        ib: row of inner matrix
        ja: col of outer matrix
        jb: col of inner matrix */
-    for(int ia = 0; ia < nblks; ++ia)
-        for(int ib = 0; ib < blksz; ++ib)
-            for(int ja = 0; ja < nblks; ++ja)
-                for(int jb = 0; jb < blksz; ++jb)
+    for(size_t ia = 0; ia < nblks; ++ia)
+        for(size_t ib = 0; ib < blksz; ++ib)
+            for(size_t ja = 0; ja < nblks; ++ja)
+                for(size_t jb = 0; jb < blksz; ++jb)
                     (*A[ja * nblks + ia])[jb * blksz + ib] = Alin[(ia * blksz + ib) + (ja * blksz + jb) * N];
 
     print_matrix(A, nblks, blksz);

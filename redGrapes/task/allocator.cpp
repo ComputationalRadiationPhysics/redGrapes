@@ -17,8 +17,8 @@ namespace memory
 {
 
 Chunk::Chunk( size_t capacity )
-    : base( (uintptr_t) malloc(capacity) )
-    , capacity( capacity )
+    : capacity( capacity )
+    , base( (uintptr_t) malloc(capacity) )
 {
     reset();
 }

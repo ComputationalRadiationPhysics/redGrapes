@@ -20,8 +20,8 @@ namespace redGrapes
 
 GraphProperty::GraphProperty() {}
 GraphProperty::GraphProperty(GraphProperty const & other)
-    : space(other.space)
-    , scope_depth(other.scope_depth)
+    : scope_depth(other.scope_depth)
+    , space(other.space)
 {}
 
 bool GraphProperty::is_ready() { return pre_event.is_ready(); }

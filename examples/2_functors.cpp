@@ -7,7 +7,6 @@
 
 #include <iostream>
 
-#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
 //#define REDGRAPES_TASK_PROPERTIES redGrapes::LabelProperty
 
 #include <redGrapes/redGrapes.hpp>

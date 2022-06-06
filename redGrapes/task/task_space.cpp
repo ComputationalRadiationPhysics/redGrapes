@@ -48,12 +48,17 @@ namespace redGrapes
     {
     }
 
-    TaskSpace::TaskSpace() : parent(nullptr), depth(0), next_id(0)
+    TaskSpace::TaskSpace()
+        : depth(0)
+        , parent(nullptr)
+        , next_id(0)
     {
     }
 
     // sub space
-    TaskSpace::TaskSpace(Task& parent) : parent(&parent), depth(parent.space->depth + 1)
+    TaskSpace::TaskSpace(Task& parent)
+        : depth(parent.space->depth + 1)
+        , parent(&parent)
     {
     }
 
