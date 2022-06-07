@@ -14,16 +14,15 @@
 
 int main(void)
 {
-    spdlog::set_level( spdlog::level::debug );
+    spdlog::set_level( spdlog::level::trace );
 
-    redGrapes::RedGrapes<> rg;
-    using TaskProperties = decltype( rg )::TaskProps;
-
+    redGrapes::init();
+    
     redGrapes::IOResource< int > a, b;
 
     for(int i = 0; i < 1; ++i)
     {
-        rg.emplace_task(
+        redGrapes::emplace_task(
             []( auto a )
             {
                 std::cout << "Write to A" << std::endl;
@@ -34,7 +33,7 @@ int main(void)
             a.write()
         );
 
-        rg.emplace_task(
+        redGrapes::emplace_task(
             []( auto a )
             {
                 std::cout << "Read A: " << *a << std::endl;
@@ -43,7 +42,7 @@ int main(void)
             a.read()
         );
 
-        rg.emplace_task(
+        redGrapes::emplace_task(
             []( auto b )
             {
                 std::cout << "Write to B" << std::endl;
@@ -54,7 +53,7 @@ int main(void)
             b.write()
         );
 
-        rg.emplace_task(
+        redGrapes::emplace_task(
             []( auto a, auto b )
             {
                 std::cout << "Read A & B: " << *a << ", " << *b << std::endl;
@@ -65,6 +64,8 @@ int main(void)
         );
     }
 
+    redGrapes::finalize();
+    
     return 0;
 }
 

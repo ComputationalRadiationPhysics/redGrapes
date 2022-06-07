@@ -12,27 +12,24 @@
 #include <map>
 #include <memory>
 
-#include <redGrapes/graph/scheduling_graph.hpp>
+#include <redGrapes/scheduler/event.hpp>
 
 namespace redGrapes
 {
-namespace helpers
+namespace dispatch
 {
 namespace mpi
 {
 
-template < typename Task >
 struct RequestPool
 {
-    IManager< Task > & mgr;
     std::mutex mutex;
 
     std::vector< MPI_Request > requests;
-    std::vector< EventID > events;
+    std::vector< scheduler::EventPtr > events;
     std::vector< std::shared_ptr< MPI_Status > > statuses;
 
-    RequestPool( IManager< Task > & mgr )
-        : mgr(mgr)
+    RequestPool( )
     {}
 
     /*!
@@ -64,7 +61,7 @@ struct RequestPool
                 *(this->statuses[ idx ]) = out_statuses[ i ];
 
                 // finish task waiting for request
-                mgr.reach_event( events[ idx ] );
+                events[ idx ].notify();
 
                 requests.erase( requests.begin() + idx );
                 statuses.erase( statuses.begin() + idx );
@@ -88,26 +85,24 @@ struct RequestPool
     MPI_Status get_status( MPI_Request request )
     {
         auto status = std::make_shared< MPI_Status >();
-        auto event_id = *mgr.create_event();
+        auto event = *create_event();
 
-        SPDLOG_TRACE("MPI RequestPool: status event = {}", event_id);
+        //SPDLOG_TRACE("MPI RequestPool: status event = {}", (void*)event.get());
 
         {
             std::lock_guard<std::mutex> lock( mutex );
             requests.push_back( request );
-            events.push_back( event_id );
+            events.push_back( event );
             statuses.push_back( status );
         }
 
-        mgr.yield( event_id );
+        yield( event );
 
         return *status;
     }
 };
 
 } // namespace mpi
-
-} // namespace helpers
-
+} // namespace dispatch
 } // namespace redGrapes
 

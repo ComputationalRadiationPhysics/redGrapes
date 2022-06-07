@@ -7,21 +7,18 @@
 
 #include <iostream>
 
+//#define REDGRAPES_TASK_PROPERTIES redGrapes::LabelProperty
+
 #include <redGrapes/redGrapes.hpp>
 #include <redGrapes/task/property/id.hpp>
 #include <redGrapes/task/property/resource.hpp>
 
-static auto & rg()
-{
-    static redGrapes::RedGrapes<> rg;
-    return rg;
-}
-
 auto square (int x)
 {
-    return rg().emplace_task(
+    return redGrapes::emplace_task(
         [x]
         {
+            fmt::print("hello\n");
             return x*x;
         }
     );
@@ -29,10 +26,12 @@ auto square (int x)
 
 int main()
 {
-    spdlog::set_level(spdlog::level::debug);
-
+    spdlog::set_level(spdlog::level::trace);
+    redGrapes::init();
+    
     fmt::print( "square(2) = {}\n", square(2).get() );
 
+    redGrapes::finalize();    
     return 0;
 }
 

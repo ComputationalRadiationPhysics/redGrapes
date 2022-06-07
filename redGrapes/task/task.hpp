@@ -1,109 +1,114 @@
-/* Copyright 2019-2020 Michael Sippel
+/* Copyright 2022 Michael Sippel
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
-
 #pragma once
 
-#include <mutex>
-#include <functional>
-#include <vector>
-#include <optional>
-
-#include <boost/context/continuation.hpp>
-
-#include <redGrapes/thread_local.hpp>
+#include <type_traits>
+#include <redGrapes/task/task_base.hpp>
+#include <redGrapes/task/property/inherit.hpp>
+#include <redGrapes/task/property/trait.hpp>
+#include <redGrapes/task/property/id.hpp>
+#include <redGrapes/task/property/resource.hpp>
+#include <redGrapes/task/property/queue.hpp>
+#include <redGrapes/task/property/graph.hpp>
 
 namespace redGrapes
 {
 
-struct TaskImplBase
+using TaskProperties = TaskProperties1<
+    IDProperty,
+    ResourceProperty,
+    QueueProperty,
+    GraphProperty
+#ifdef REDGRAPES_TASK_PROPERTIES
+    , REDGRAPES_TASK_PROPERTIES
+#endif
+>;
+
+struct Task :
+        TaskBase,
+        TaskProperties,
+        std::enable_shared_from_this<Task>
 {
-    virtual ~TaskImplBase() {};
-    virtual void run() = 0;
+    bool alive;
 
-    bool finished;
-
-    TaskImplBase()
-        : finished( false )
-    {
-    }
-
-    bool operator() ()
-    {
-        thread::scope_level = scope_level;
-
-        if(!resume_cont)
-            resume_cont = boost::context::callcc(
-                [this](boost::context::continuation&& c)
-                {
-                    {
-                        std::lock_guard< std::mutex > lock( yield_cont_mutex );
-                        this->yield_cont = std::move(c);
-                    }
-
-                    this->run();
-                    this->finished = true;
-
-                    std::optional< boost::context::continuation > yield_cont;
-
-                    {
-                        std::lock_guard< std::mutex > lock( yield_cont_mutex );
-                        this->yield_cont.swap(yield_cont);
-                    }
-
-                    return std::move(*yield_cont);
-                });
-        else
-            resume_cont = resume_cont->resume();
-
-        return finished;
-    }
-
-    void yield( EventID event_id )
-    {
-        this->event_id = event_id;
-
-        std::optional< boost::context::continuation > old_yield;
-        this->yield_cont.swap( old_yield );
-
-        boost::context::continuation new_yield = old_yield->resume();
-
-        std::lock_guard< std::mutex > lock( yield_cont_mutex );
-        if( ! yield_cont )
-            yield_cont = std::move(new_yield);
-        // else: yield_cont already been set by another thread running this task
-    }
-
-    unsigned int scope_level;
-    std::optional< EventID > event_id;
-
-private:
-    std::mutex yield_cont_mutex;
-
-    std::optional< boost::context::continuation > yield_cont;
-    std::optional< boost::context::continuation > resume_cont;
-};
-
-// TODO: just use std::function
-template< typename NullaryCallable >
-struct FunctorTask : TaskImplBase
-{
-    FunctorTask( NullaryCallable && impl )
-        : impl( std::move(impl) )
+    virtual ~Task()
     {}
 
-    ~FunctorTask(){}
+    Task(TaskProperties && prop)
+        : TaskProperties(std::move(prop))
+        , alive(true)
+    {}
+
+    virtual void * get_result_data()
+    {
+        return nullptr;
+    }
+};
+
+template < typename Result >
+struct ResultTask : Task
+{
+    Result result_data;
+
+    virtual ~ResultTask() {}
+    ResultTask(TaskProperties&& prop)
+        : Task(std::move(prop))
+    {
+    }
+
+    virtual void * get_result_data()
+    {
+        return &result_data;
+    }
+
+    virtual Result run_result() {}
 
     void run()
     {
-        this->impl();
+        result_data = run_result();
+        get_result_set_event().notify(); // result event now ready
+    }   
+};
+
+template<>
+struct ResultTask<void> : Task
+{
+    virtual ~ResultTask() {}
+    ResultTask(TaskProperties&& prop)
+        : Task(std::move(prop))
+    {
     }
 
-private:
-    NullaryCallable impl;
+    virtual void run_result() {}
+    void run()
+    {
+        run_result();
+        get_result_set_event().notify();
+    }
+};
+
+template< typename F >
+struct FunTask : ResultTask< typename std::result_of<F()>::type >
+{
+    F impl;
+
+    FunTask(F&& f, TaskProperties&& prop)
+        : ResultTask<typename std::result_of<F()>::type>(std::move(prop))
+        , impl(std::move(f))
+    {
+    }
+
+    virtual ~FunTask() {}
+
+    typename std::result_of<F()>::type run_result()
+    {
+        return impl();
+    }
 };
 
 } // namespace redGrapes
+

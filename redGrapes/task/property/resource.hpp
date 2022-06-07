@@ -33,6 +33,8 @@ struct ResourceProperty : ResourceUser
         PropertiesBuilder & resources( std::initializer_list<ResourceAccess> list )
         {
 	    builder.prop.access_list = list;
+            builder.prop.build_unique_resource_list();
+
             return builder;
         }
 
@@ -90,12 +92,12 @@ struct ResourceProperty : ResourceUser
 
     void operator+= (ResourceAccess const & ra)
     {
-        this->access_list.push_back(ra);
+        this->add_resource_access(ra);
     }
 
     void operator-= (ResourceAccess const & ra)
     {
-        this->access_list.remove(ra);
+        this->rm_resource_access(ra);
     }
 
     void apply_patch(Patch const & patch)

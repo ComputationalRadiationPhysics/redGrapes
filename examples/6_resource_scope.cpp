@@ -11,29 +11,32 @@
 #include <redGrapes/task/property/resource.hpp>
 #include <redGrapes/task/property/inherit.hpp>
 
+namespace rg = redGrapes;
+
 int main()
 {
-    redGrapes::RedGrapes<> rg;
+    rg::init(1);
+    rg::IOResource< int > a; // scope-level=0
 
-    redGrapes::IOResource< int > a; // scope-level=0
-
-    rg.emplace_task(
-        [&rg]( auto a )
+    rg::emplace_task(
+        []( auto a )
         {
-            std::cout << "scope = " << redGrapes::thread::scope_level << std::endl;
-            redGrapes::IOResource<int> b; // scope-level=1
+            std::cout << "scope = " << rg::scope_depth() << std::endl;
+            rg::IOResource<int> b; // scope-level=1
 
-            rg.emplace_task(
+            rg::emplace_task(
                 []( auto b )
                 {
                     *b = 1;
-                    std::cout << "scope = " << redGrapes::thread::scope_level << std::endl;
+                    std::cout << "scope = " << rg::scope_depth() << std::endl;
                 },
                 b.write()
             ).get();
 
-            std::cout << "scope = " << redGrapes::thread::scope_level << std::endl;
+            std::cout << "scope = " << rg::scope_depth() << std::endl;
         },
         a.read()
     );
+
+    rg::barrier();
 }

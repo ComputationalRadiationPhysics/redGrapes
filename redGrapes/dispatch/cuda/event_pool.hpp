@@ -10,12 +10,9 @@
 #include <vector>
 #include <mutex>
 
-#include <cuda.h>
-#include <cuda_runtime.h>
-
 namespace redGrapes
 {
-namespace helpers
+namespace dispatch
 {
 namespace cuda
 {
@@ -24,7 +21,12 @@ namespace cuda
 struct EventPool
 {
 public:
-    static auto & get()
+    EventPool(EventPool const &) = delete;
+    void operator=(EventPool const &) = delete;
+
+    EventPool() {}
+
+    static EventPool & get()
     {
         static EventPool singleton;
         return singleton;
@@ -68,7 +70,7 @@ private:
 
 } // namespace cuda
 
-} // namespace helpers
+} // namespace dispatch
     
 } // namespace redGrapes
 

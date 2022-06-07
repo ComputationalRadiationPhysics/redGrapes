@@ -18,6 +18,8 @@
 namespace redGrapes
 {
 
+struct Task;
+
 template <
     typename T_Head,
     typename... T_Tail
@@ -52,7 +54,7 @@ struct TaskPropertiesInherit
             {}
         };
     };
-
+    
     void apply_patch( Patch const & patch )
     {
         T_Head::apply_patch( patch );
@@ -84,19 +86,19 @@ struct TaskPropertiesInherit< PropEnd_t >
 };
 
 template < typename... Policies >
-struct TaskProperties
+struct TaskProperties1
     : public TaskPropertiesInherit< Policies..., PropEnd_t >
 {
     struct Builder
         : TaskPropertiesInherit< Policies..., PropEnd_t >::template Builder< Builder >
     {
-        TaskProperties prop;
+        TaskProperties1 prop;
 
         Builder()
             : TaskPropertiesInherit< Policies..., PropEnd_t >::template Builder< Builder >( *this )
         {}
 
-        Builder( TaskProperties const & prop )
+        Builder( TaskProperties1 const & prop )
             : TaskPropertiesInherit< Policies..., PropEnd_t >::template Builder< Builder >( *this )
             , prop(prop)
         {}
@@ -112,7 +114,7 @@ struct TaskProperties
             trait::BuildProperties<T>::build( *this, obj );
         }
 
-        operator TaskProperties () const
+        operator TaskProperties1 () const
         {
             return prop;
         }
@@ -141,7 +143,7 @@ struct TaskProperties
             }
         };
     };
-
+    
     void apply_patch( Patch const & patch )
     {
         TaskPropertiesInherit< Policies..., PropEnd_t >::apply_patch( patch );
@@ -229,7 +231,7 @@ template <
     typename... Policies
 >
 struct fmt::formatter<
-    redGrapes::TaskProperties< Policies... >
+    redGrapes::TaskProperties1< Policies... >
 >
 {
     constexpr auto parse( format_parse_context& ctx )
@@ -239,7 +241,7 @@ struct fmt::formatter<
 
     template < typename FormatContext >
     auto format(
-        redGrapes::TaskProperties< Policies... > const & prop,
+        redGrapes::TaskProperties1< Policies... > const & prop,
         FormatContext & ctx
     )
     {

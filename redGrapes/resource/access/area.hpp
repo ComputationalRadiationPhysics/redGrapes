@@ -38,8 +38,8 @@ struct AreaAccess : std::array<size_t, 2>
     )
     {
         return !(
-            (a[1] < b[0]) ||
-            (a[0] > b[1])
+            (a[1] <= b[0]) ||
+            (a[0] >= b[1])
         );
     }
 

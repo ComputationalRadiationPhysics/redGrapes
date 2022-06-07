@@ -1,11 +1,17 @@
 
+enum SchedulerTags { SCHED_MPI };
+
+#define REDGRAPES_TASK_PROPERTIES scheduler::SchedulingTagProperties< SchedulerTags >
+
+#include  <redGrapes/scheduler/tag_match.hpp>
+#include  <redGrapes/scheduler/default_scheduler.hpp>
+
 #include <redGrapes/redGrapes.hpp>
+
 #include <redGrapes/resource/ioresource.hpp>
 #include <redGrapes/resource/fieldresource.hpp>
-#include <redGrapes/helpers/mpi/scheduler.hpp>
+#include <redGrapes/dispatch/mpi/request_pool.hpp>
 
-#include  <redGrapes/scheduler/default_scheduler.hpp>
-#include  <redGrapes/scheduler/tag_match.hpp>
 
 namespace rg = redGrapes;
 
@@ -35,8 +41,6 @@ struct MPIConfig
     int world_size;
 };
 
-enum SchedulerTags { SCHED_MPI };
-
 template <>
 struct fmt::formatter< SchedulerTags >
 {
@@ -61,44 +65,42 @@ struct fmt::formatter< SchedulerTags >
 
 int main()
 {
+    //spdlog::set_pattern("[thread %t] %^[%l]%$ %v");
+    //spdlog::set_level( spdlog::level::trace );
     /*
     int prov;
     MPI_Init_thread( nullptr, nullptr, MPI_THREAD_MULTIPLE, &prov );
     assert( prov == MPI_THREAD_MULTIPLE );
-    */
+*/
     MPI_Init( nullptr, nullptr );
+
+    auto default_scheduler = std::make_shared<rg::scheduler::DefaultScheduler>( 2 );
+    auto mpi_request_pool = std::make_shared<rg::dispatch::mpi::RequestPool>();
+    auto mpi_fifo = std::make_shared<rg::scheduler::FIFO>();
+
     
-    rg::RedGrapes<
-        rg::scheduler::SchedulingTagProperties< SchedulerTags >
-    > rg;
-    using TaskProperties = decltype(rg)::TaskProps;
-
-    spdlog::set_level(spdlog::level::info);
-
-    auto default_scheduler = rg::scheduler::make_default_scheduler( rg );
-    auto mpi_scheduler = rg::helpers::mpi::make_mpi_scheduler( rg, TaskProperties::Builder().scheduling_tags({ SCHED_MPI }) );
-
     // initialize main thread to execute tasks from the mpi-queue and poll
-    rg::thread::idle =
-        [mpi_scheduler]
+    rg::idle =
+        [mpi_fifo, mpi_request_pool]
         {
-            mpi_scheduler.fifo->consume();
-            mpi_scheduler.request_pool->poll();
+            mpi_request_pool->poll();
+            if( auto task = mpi_fifo->get_job() )
+                rg::dispatch::thread::execute_task( *task );
         };
 
-    rg.set_scheduler(
-        rg::scheduler::make_tag_match_scheduler( rg )
+    rg::init(
+        rg::scheduler::make_tag_match_scheduler( )
             .add({}, default_scheduler)
-            .add({ SCHED_MPI }, mpi_scheduler.fifo));
+            .add({ SCHED_MPI }, mpi_fifo));
 
     // initialize MPI config
     rg::IOResource< MPIConfig > mpi_config;
-    rg.emplace_task(
+    rg::emplace_task(
         []( auto config ) {
             MPI_Comm_rank(MPI_COMM_WORLD, &config->world_rank);
             MPI_Comm_size(MPI_COMM_WORLD, &config->world_size);
         },
-        TaskProperties::Builder().scheduling_tags( std::bitset<64>().set(SCHED_MPI) ),
+        rg::TaskProperties::Builder().scheduling_tags( std::bitset<64>().set(SCHED_MPI) ),
         mpi_config.write()
     );
 
@@ -111,7 +113,7 @@ int main()
     int current = 0;
 
     // initialize
-    rg.emplace_task(
+    rg::emplace_task(
         []( auto buf, auto mpi_config )
         {
             int offset = 3 * mpi_config->world_rank;
@@ -122,48 +124,45 @@ int main()
         mpi_config.read()
     );
 
-    for(size_t i = 0; i < 10; ++i)
+    for(size_t i = 0; i < 100; ++i)
     {
         int next = (current + 1) % 2;
 
         /*
          * Communication
          */
+
         // Send
-        rg.emplace_task(
-            [i, current, mpi_scheduler]( auto field, auto mpi_config )
+        rg::emplace_task(
+            [i, current, mpi_request_pool]( auto field, auto mpi_config )
             {
                 int dst = ( mpi_config->world_rank + 1 ) % mpi_config->world_size;
 
-                mpi_scheduler.emplace_task(
-                    [field, dst, current]( MPI_Request & request ) {
-                        MPI_Isend( &field[{3}], sizeof(int), MPI_CHAR, dst, current, MPI_COMM_WORLD, &request );
-                    }
-                );
+                MPI_Request request;
+                MPI_Isend( &field[{3}], sizeof(int), MPI_CHAR, dst, current, MPI_COMM_WORLD, &request );
+
+                mpi_request_pool->get_status( request );
             },
-            TaskProperties::Builder().scheduling_tags({ SCHED_MPI }),
+            rg::TaskProperties::Builder().scheduling_tags({ SCHED_MPI }),
             field[current].at({3}).read(),
             mpi_config.read()
         );
 
         // Receive
-        rg.emplace_task(
-            [i, current, mpi_scheduler]( auto field, auto mpi_config )
+        rg::emplace_task(
+            [i, current, mpi_request_pool]( auto field, auto mpi_config )
             {
                 int src = ( mpi_config->world_rank - 1 ) % mpi_config->world_size;
 
-                MPI_Status status =
-                    mpi_scheduler.emplace_task(
-                        [field, src, current]( MPI_Request & request )
-                        {
-                            MPI_Irecv( &field[{0}], sizeof(int), MPI_CHAR, src, current, MPI_COMM_WORLD, &request );
-                        }
-                    ).get();
+                MPI_Request request;
+                MPI_Irecv( &field[{0}], sizeof(int), MPI_CHAR, src, current, MPI_COMM_WORLD, &request );
+
+                MPI_Status status = mpi_request_pool->get_status( request );
 
                 int recv_data_count;
                 MPI_Get_count( &status, MPI_CHAR, &recv_data_count );
             },
-            TaskProperties::Builder().scheduling_tags({ SCHED_MPI }),
+            rg::TaskProperties::Builder().scheduling_tags({ SCHED_MPI }),
             field[current].at({0}).write(),
             mpi_config.read()
         );
@@ -172,7 +171,7 @@ int main()
          * Compute iteration
          */
         for( size_t i = 1; i < field[current]->size(); ++i )
-            rg.emplace_task(
+            rg::emplace_task(
                 [i]( auto dst, auto src )
                 {
                     dst[{i}] = src[{i - 1}];
@@ -184,7 +183,7 @@ int main()
         /*
          * Write Output
          */
-        rg.emplace_task(
+        rg::emplace_task(
             [i]( auto buf, auto mpi_config )
             {                
                 std::cout << "Step[" << i << "], rank[" << mpi_config->world_rank << "] :: ";
@@ -199,13 +198,15 @@ int main()
         current = next;
     }
 
-    rg.emplace_task(
+    rg::emplace_task(
         []( auto m )
         {
             MPI_Finalize();
         },
-        TaskProperties::Builder().scheduling_tags({ SCHED_MPI }),
+        rg::TaskProperties::Builder().scheduling_tags({ SCHED_MPI }),
         mpi_config.write()
     );
+
+    rg::finalize();
 }
 

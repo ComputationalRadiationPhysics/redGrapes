@@ -41,7 +41,9 @@ Cell next_state( Cell const neighbours [][size.x+2] )
 
 int main( int, char * [] )
 {
-    redGrapes::RedGrapes<> rg;
+    spdlog::set_level( spdlog::level::info );
+
+    redGrapes::init();
 
     using Buffer =
         std::array<
@@ -60,7 +62,7 @@ int main( int, char * [] )
     int current = 0;
 
     // initialization
-    rg.emplace_task(
+    redGrapes::emplace_task(
         []( auto buf )
         {
             std::default_random_engine generator;
@@ -78,7 +80,7 @@ int main( int, char * [] )
         int next = ( current + 1 ) % buffers.size();
 
         // copy borders
-        rg.emplace_task(
+        redGrapes::emplace_task(
             []( auto buf )
             {
                 for ( size_t x = 0; x < size.x+2; ++x )
@@ -96,7 +98,7 @@ int main( int, char * [] )
         );
 
         // print buffer
-        rg.emplace_task(
+        redGrapes::emplace_task(
             []( auto buf )
             {
                 for ( size_t x = 1; x < size.x; ++x )
@@ -110,12 +112,12 @@ int main( int, char * [] )
                 std::cout << std::endl;
             },
             buffers[current].read()
-        ).get();
+         ).get();
 
         // calculate next step
         for ( size_t x = 1; x <= size.x; x += chunk_size.x )
             for ( size_t y = 1; y <= size.y; y += chunk_size.y )
-                rg.emplace_task(
+                redGrapes::emplace_task(
                     [x, y]( auto dst, auto src )
                     {
                         for ( int xi = 0; xi < chunk_size.x; ++xi )
@@ -129,6 +131,10 @@ int main( int, char * [] )
         current = next;
     }
 
+    redGrapes::finalize();
+
+    SPDLOG_DEBUG("END!!!!");
+    
     return 0;
 }
 

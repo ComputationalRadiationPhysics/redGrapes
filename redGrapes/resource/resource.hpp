@@ -18,7 +18,7 @@
 #include <iostream>
 #include <functional>
 
-#include <redGrapes/thread_local.hpp>
+#include <redGrapes/context.hpp>
 #include <redGrapes/task/property/trait.hpp>
 
 #include <fmt/format.h>
@@ -29,36 +29,25 @@ namespace redGrapes
 template <typename AccessPolicy>
 class Resource;
 
+struct Task;
+
 class ResourceBase
 {
 protected:
-    static int getID()
-    {
-        static std::mutex m;
-        static int id_counter;
-        std::lock_guard<std::mutex> lock(m);
-        return id_counter ++;
-    }
+    static int getID();
 
 public:
     unsigned int id;
     unsigned int scope_level;
 
+    std::shared_ptr< std::pair<std::mutex, std::vector<Task*>> > tasks;
+
     /**
      * Create a new resource with an unused ID.
      */
-    ResourceBase()
-        : id( getID() )
-        , scope_level( thread::scope_level )
-    {}
-    /*
-    template < typename AccessPolicy >
-    ResourceAccess make_access( AccessPolicy access ) const
-    {
-        Resource<AccessPolicy> res( *this );
-        return res.make_access( access );
-    }
-    */
+    ResourceBase();
+
+    bool operator==( ResourceBase const & other ) const;
 };
 
 template <typename AccessPolicy>
@@ -145,6 +134,11 @@ class ResourceAccess
         return this->obj->mode_format();
     }
 
+    ResourceBase get_resource()
+    {
+        return obj->resource;
+    }
+    
     /**
      * Check if the associated resource is the same
      *
