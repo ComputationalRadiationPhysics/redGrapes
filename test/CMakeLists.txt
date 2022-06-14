@@ -106,7 +106,8 @@ set(TEST_SOURCES
     access.cpp
     resource.cpp
     resource_user.cpp
-    task_space.cpp)
+    task_space.cpp
+    random_graph.cpp)
 
 set(TEST_TARGET redGrapes_test)
 

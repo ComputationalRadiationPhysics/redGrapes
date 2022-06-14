@@ -8,8 +8,8 @@ struct TestTask
     unsigned id;
     unsigned task_id;
 
-    using VertexPtr = std::shared_ptr<redGrapes::PrecedenceGraphVertex<TestTask>>;
-    using WeakVertexPtr = std::weak_ptr<redGrapes::PrecedenceGraphVertex<TestTask>>;
+    //using VertexPtr = std::shared_ptr<redGrapes::PrecedenceGraphVertex<TestTask>>;
+    //using WeakVertexPtr = std::weak_ptr<redGrapes::PrecedenceGraphVertex<TestTask>>;
     
     /*
      * Create the following graph:
