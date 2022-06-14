@@ -79,7 +79,6 @@ void GraphProperty::init_graph()
 {
     SPDLOG_TRACE("sg init task {}", this->task->task_id);
 
-    std::vector< Task * > preceding_tasks;
     for( ResourceEntry & r : this->task->unique_resources )
     {
         std::lock_guard< std::mutex > lock(r.resource.tasks->first);
@@ -88,23 +87,20 @@ void GraphProperty::init_graph()
         {
             if( preceding_task != nullptr )
             {
-            if( preceding_task == this->space->parent )
-                break;
+                if( preceding_task == this->space->parent )
+                    break;
 
-            if(
-               preceding_task->space == this->space &&
-               space->is_serial( *preceding_task, *this->task )
-            )
-                preceding_tasks.push_back( preceding_task );
+                if(
+                   preceding_task->space == this->space &&
+                   space->is_serial( *preceding_task, *this->task )
+                )
+                    add_dependency( *preceding_task );
             }
         }
 
         r.task_idx = r.resource.tasks->second.size();
         r.resource.tasks->second.push_back(this->task);
     }
-
-    for( Task * preceding_task : preceding_tasks )
-        add_dependency( *preceding_task );
     
     // add dependency to parent
     if( auto parent = this->space->parent )

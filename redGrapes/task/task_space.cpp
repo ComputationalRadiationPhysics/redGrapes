@@ -53,6 +53,7 @@ namespace redGrapes
         , parent(nullptr)
         , next_id(0)
     {
+        task_count = 0;
     }
 
     // sub space
@@ -60,6 +61,7 @@ namespace redGrapes
         : depth(parent.space->depth + 1)
         , parent(&parent)
     {
+        task_count = 0;
     }
 
     bool TaskSpace::is_serial(Task& a, Task& b)
@@ -84,7 +86,6 @@ namespace redGrapes
 
         while(auto task = queue.pop())
         {
-            //spdlog::info("redGrapes::TaskSpace:: init task {}", task->task_id);
             /*
             if( task->task_id != next_id )
                 throw std::runtime_error("invalid next id!");
@@ -111,9 +112,11 @@ namespace redGrapes
                 task.~Task();
                 task_storage.m_free(&task);
 
+                auto ts = top_scheduler;
+
                 --task_count;
-                
-                top_scheduler->notify();
+
+                ts->notify();
             }
         }
 

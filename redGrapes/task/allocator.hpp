@@ -27,7 +27,7 @@ struct Chunk
     void reset();
 
     void * m_alloc( size_t n_bytes );
-    void m_free( void * );
+    unsigned m_free( void * );
 
     bool contains( void * );
 
@@ -42,15 +42,15 @@ private:
 
 struct Allocator
 {
-    //std::vector< Chunk > free_chunks;
+    size_t chunk_size;
+
     std::mutex m;
     std::vector< std::unique_ptr<Chunk> > blocked_chunks;
     std::unique_ptr<Chunk> active_chunk;
 
-    size_t chunk_size = 0x10000;
-
     Allocator()
-        : active_chunk( std::make_unique<Chunk>(chunk_size) )
+        : chunk_size(0x1000)
+        , active_chunk( std::make_unique<Chunk>(chunk_size) )
     {}
 
     template <typename T>
@@ -66,7 +66,6 @@ struct Allocator
                 blocked_chunks.emplace_back(std::make_unique<Chunk>( chunk_size ));
                 std::swap(active_chunk, blocked_chunks[blocked_chunks.size()-1]);
             }
-
             item = (T*) active_chunk->m_alloc( sizeof(T) );
         }
 
@@ -75,23 +74,22 @@ struct Allocator
 
     template < typename T >
     void m_free( T * ptr )
-    {        
+    {
         if( active_chunk->contains((void*)ptr) )
             active_chunk->m_free((void*)ptr);
+
         else
         {
-            // find correct chunk
             std::lock_guard<std::mutex> lock(m);
 
+            // find chunk containing ptr
             for( unsigned i = 0; i < blocked_chunks.size(); ++i )
             {
                 Chunk & c = *blocked_chunks[i];
 
                 if( c.contains((void*)ptr) )
                 {
-                    c.m_free( (void*) ptr );
-
-                    if( c.empty() )
+                    if( c.m_free( (void*) ptr ) == 0 )
                         blocked_chunks.erase(std::begin(blocked_chunks)+i);
 
                     break;

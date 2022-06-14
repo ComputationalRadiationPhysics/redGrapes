@@ -7,8 +7,6 @@
 
 #include <cstdlib>
 #include <atomic>
-#include <spdlog/spdlog.h>
-
 #include <redGrapes/task/allocator.hpp>
 
 namespace redGrapes
@@ -45,16 +43,16 @@ void * Chunk::m_alloc( size_t n_bytes )
     std::ptrdiff_t old_offset = offset.fetch_add(n_bytes);
     if( old_offset + n_bytes <= capacity )
     {
-        count++;
+        count.fetch_add(1);
         return (void*)(base + old_offset);
     }
     else
         return nullptr;
 }
 
-void Chunk::m_free( void * )
+unsigned Chunk::m_free( void * )
 {
-    count--;
+    return count.fetch_sub(1) - 1;
 }
 
 bool Chunk::contains( void * ptr )
