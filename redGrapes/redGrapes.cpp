@@ -42,7 +42,10 @@ std::shared_ptr<TaskSpace> current_task_space()
 
 unsigned scope_depth()
 {
-    return current_task_space()->depth;
+    if( auto ts = current_task_space() )
+        return ts->depth;
+    else
+        return 0;
 }
 
 /*! Create an event on which the termination of the current task depends.
