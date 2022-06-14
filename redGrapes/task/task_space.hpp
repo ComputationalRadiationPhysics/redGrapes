@@ -26,7 +26,7 @@ struct EmplacementQueue
     
     EmplacementQueue();
     
-    void push(Task * item);
+    void push(Task * task);
     Task * pop();
 };
 
@@ -63,27 +63,27 @@ struct TaskSpace : std::enable_shared_from_this<TaskSpace>
     Task & emplace_task( F&& f, TaskProperties&& prop )
     {
         // allocate memory
-        FunTask<F> * item = task_storage.m_alloc<FunTask<F>>();
-        if( ! item )
+        FunTask<F> * task = task_storage.m_alloc<FunTask<F>>();
+        if( ! task )
             throw std::runtime_error("out of memory");
+
+        // construct task in-place
+        new (task) FunTask<F> ( std::move(f), std::move(prop) );
+
+        task->space = shared_from_this();
+        task->task = task;
+        task->next = nullptr;
 
         ++ task_count;
 
-        // construct task in-place
-        new (item) FunTask<F> ( std::move(f), std::move(prop) );
-
-        item->space = shared_from_this();
-        item->task = item;
-        item->next = nullptr;
-
         if( parent )
-            assert( is_superset(*parent, *item) );
+            assert( is_superset(*parent, *task) );
 
-        queue.push(item);
+        queue.push(task);
 
         top_scheduler->notify();
         
-        return *item;
+        return *task;
     }    
     
     /*! take tasks from the emplacement queue and initialize them,
