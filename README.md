@@ -53,13 +53,15 @@ See [examples](examples) for examples covering more features.
 #include <redGrapes/redGrapes.hpp>
 #include <redGrapes/resource/ioresource.hpp>
 
+namespace rg = redGrapes;
+
 int main()
 {
-    rg::RedGrapes<> rg;
+    rg::init();
 
-    redGrapes::IOResource< int > a;
+    rg::IOResource< int > a;
 
-    rg.emplace_task(
+    rg::emplace_task(
         [] ( auto a ) { *a = 123; },
         a.write()
     );
@@ -67,11 +69,11 @@ int main()
     /* the following tasks may run in parallel,
      * but will only start once the first is done.
      */
-    rg.emplace_task(
+    rg::emplace_task(
         [] ( auto a ) { assert( *a == 123 ); },
         a.read()
     );
-    rg.emplace_task(
+    rg::emplace_task(
         [] ( auto a ) { std::cout << a << std::endl; },
         a.read()
     );
