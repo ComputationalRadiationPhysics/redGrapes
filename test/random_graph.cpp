@@ -25,7 +25,7 @@ void sleep(std::chrono::microseconds d)
 }
 
 void hash(unsigned task_id,
-          std::array<uint32_t, 8> & val)
+          std::array<uint64_t, 8> & val)
 {
     val[0] += task_id;
 
@@ -34,7 +34,7 @@ void hash(unsigned task_id,
         0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19
     };
 
-    sha256_process((uint32_t*)&state, (uint8_t*) (uint8_t*)&val[0], 32);
+    sha256_process(state, (uint8_t*)&val[0], sizeof(val));
 
     for(int i=0; i<8; ++i)
         val[i] = state[i];
@@ -49,14 +49,14 @@ unsigned max_dependencies = 5;
 std::mt19937 gen;
 
 std::vector<std::vector<unsigned>> access_pattern;
-std::vector<std::array<uint32_t, 8>> expected_hash;
+std::vector<std::array<uint64_t, 8>> expected_hash;
 
 void generate_access_pattern()
 {
     std::uniform_int_distribution<unsigned> distrib_n_deps(min_dependencies, max_dependencies);
     std::uniform_int_distribution<unsigned> distrib_resource(0, n_resources - 1);
 
-    expected_hash = std::vector<std::array<uint32_t, 8>>(n_resources);
+    expected_hash = std::vector<std::array<uint64_t, 8>>(n_resources);
     std::vector<unsigned> path_length(n_resources);
 
     for(int i = 0; i < n_tasks; ++i)
@@ -102,7 +102,7 @@ TEST_CASE("RandomGraph")
     rg::init(4);
     spdlog::set_pattern("[thread %t] %^[%l]%$ %v");
     
-    std::vector<rg::IOResource<std::array<uint32_t, 8>>> resources(n_resources);
+    std::vector<rg::IOResource<std::array<uint64_t, 8>>> resources(n_resources);
 
     for(int i = 0; i < n_tasks; ++i)
         switch(access_pattern[i].size())
@@ -182,7 +182,7 @@ TEST_CASE("RandomGraph")
             break;
         }
 
-    rg::finalize();
+    rg::barrier();
  
     for(int i = 0; i < n_resources; ++i)
         REQUIRE( *resources[i] == expected_hash[i] );
