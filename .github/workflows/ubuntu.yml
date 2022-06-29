@@ -39,10 +39,11 @@ jobs:
           -DCMAKE_BUILD_TYPE=Debug             \
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DCMAKE_VERBOSE_MAKEFILE=ON          \
+          -DBUILD_TESTING=ON                   \
           -DredGrapes_BUILD_EXAMPLES=ON
 
         cmake --build build -j 2
 
     - name: test RedGrapes
       run: |
-        ctest --test-dir build --output-on-failure
+        ctest --test-dir build/test --output-on-failure

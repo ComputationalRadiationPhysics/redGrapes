@@ -9,6 +9,7 @@ find_package(Boost 1.62.0 REQUIRED COMPONENTS context)
 find_package(fmt REQUIRED)
 find_package(spdlog REQUIRED)
 
+if( NOT TARGET redGrapes )
 add_library(redGrapes
   ${CMAKE_CURRENT_LIST_DIR}/redGrapes/resource/resource.cpp
   ${CMAKE_CURRENT_LIST_DIR}/redGrapes/dispatch/thread/execute.cpp
@@ -19,6 +20,7 @@ add_library(redGrapes
   ${CMAKE_CURRENT_LIST_DIR}/redGrapes/task/task_space.cpp
   ${CMAKE_CURRENT_LIST_DIR}/redGrapes/redGrapes.cpp
 )
+endif()
 
 target_compile_features(redGrapes PUBLIC
     cxx_std_14
