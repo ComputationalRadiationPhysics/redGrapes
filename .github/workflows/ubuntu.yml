@@ -38,7 +38,8 @@ jobs:
           -G Ninja                             \
           -DCMAKE_BUILD_TYPE=Debug             \
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-          -DCMAKE_VERBOSE_MAKEFILE=ON
+          -DCMAKE_VERBOSE_MAKEFILE=ON          \
+          -DredGrapes_BUILD_EXAMPLES=OFF
 
         cmake --build build -j 2
 
