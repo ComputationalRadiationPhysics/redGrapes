@@ -34,14 +34,14 @@ Data dependencies are described via **resources**, which are accessed and potent
 
 Each task has an annotation how the resources are accessed.
 Therein allowed **access modes** depend on the type of the resource.
-A simple example would be read/write, but also more complex operations are possible, e.g. accessing sub-regions of a sequence-container or other atomic, commutative operations besides read.
-A *resource* can be associated with a specific *access mode* forming a **resource access**. These instances of a *resource access* can then be pairwise tested wheter they are conflicting and thereby creating a data-dependency (e.g. two writes to the same resource).
+A simple example would be read/write, but also more complex operations are possible, e.g., accessing sub-regions of a sequence-container or other atomic, commutative operations besides read.
+A *resource* can be associated with a specific *access mode* forming a **resource access**. These instances of a *resource access* can then be pairwise tested wheter they are conflicting and thereby creating a data-dependency (e.g., two writes to the same resource).
 So each task carries a list of these resource-accesses in its so-called **task-properties**.
 If two tasks have conflicting resource-accesses, the first created task is executed first.
-This is exactly the behaviour that one would also achieve when programming serially, without hints given via resources.
+This is exactly the behavior that one would also achieve when programming serially, without hints given via resources.
 
 When tasks are created, their resource-access list is compared against the previous enqueued tasks and corresponding dependencies are created in the task-graph.
-The resulting task-graph is read by a scheduling algorithm that executes individual tasks, e.g. across parallel threads.
+The resulting task-graph is read by a scheduling algorithm that executes individual tasks, e.g., across parallel threads.
 
 ### Example
 
@@ -125,7 +125,7 @@ However since we want to achieve **declarative task dependencies**, for which th
 | [TaskFlow](https://taskflow.github.io/)                                   | :heavy_check_mark:    | :heavy_check_mark:  | -                              | -                                             | :heavy_check_mark:              | :x:                             | :x:                            | :x:                                 |
 
 1. user controllable, decoupled helper code, but included with RedGrapes
-2. events can be triggered externally, e.g. from a polling loop
+2. events can be triggered externally, e.g., from a polling loop
 3. only implicitly managed, not user controlled
 4. see [hipSYCL#181](https://github.com/illuhad/hipSYCL/issues/181)
 
