@@ -39,7 +39,7 @@ jobs:
           -DCMAKE_BUILD_TYPE=Debug             \
           -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           -DCMAKE_VERBOSE_MAKEFILE=ON          \
-          -DredGrapes_BUILD_EXAMPLES=OFF
+          -DredGrapes_BUILD_EXAMPLES=ON
 
         cmake --build build -j 2
 
