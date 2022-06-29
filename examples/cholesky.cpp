@@ -1,5 +1,13 @@
 #include <iostream>
 #include <cblas.h>
+// work-around, see
+//   https://github.com/xianyi/OpenBLAS/issues/1992#issuecomment-459474791
+//   https://github.com/xianyi/OpenBLAS/pull/1998
+#include <complex>
+#define lapack_complex_float std::complex<float>
+#define lapack_complex_double std::complex<double>
+// end work-around
+
 #include <lapacke.h>
 #include <redGrapes/task/property/inherit.hpp>
 #include <redGrapes/task/property/label.hpp>
