@@ -1,5 +1,5 @@
 
-cmake_minimum_required(VERSION 3.10.0)
+cmake_minimum_required(VERSION 3.18.0)
 
 project(redGrapesExamples LANGUAGES CXX)
 
@@ -10,6 +10,9 @@ find_package(Threads REQUIRED)
 find_package(MPI)
 find_package(PNGwriter)
 find_package(LAPACK)
+if(LAPACK_FOUND)
+    find_library(LAPACKE_LIB lapacke)
+endif()
 
 set(EXAMPLE_NAMES
     1_resources
@@ -37,13 +40,12 @@ if(MPI_FOUND)
     target_link_libraries(mpi PRIVATE MPI::MPI_CXX)
 endif()
 
-if(LAPACK_FOUND)
+if(LAPACK_FOUND AND LAPACKE_LIB)
     add_executable(cholesky cholesky.cpp)
     target_compile_features(cholesky PUBLIC cxx_std_14)
     target_link_libraries(cholesky PRIVATE redGrapes)
     target_link_libraries(cholesky PRIVATE Threads::Threads)
-    target_compile_options(cholesky PRIVATE ${LAPACK_LINKER_FLAGS})
-    target_link_libraries(cholesky PRIVATE ${LAPACK_LIBRARIES})
+    target_link_libraries(cholesky PRIVATE LAPACK::LAPACK ${LAPACKE_LIB})
 endif()
 
 include(CheckLanguage)
