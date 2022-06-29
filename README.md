@@ -143,7 +143,7 @@ Its conceptual design is based on a [whitepaper by A. Huebl, R. Widera, and A. M
 
 * [Michael Sippel](https://github.com/michaelsippel): library design & implementation
 * [Dr. Sergei Bastrakov](https://github.com/sbastrakov): supervision
-* [Dr. Axel Huebl](https://github.com/ax3l): whitepaper, supervision
+* [Dr. Axel Huebl](https://github.com/ax3l): whitepaper, supervision, CI
 * [René Widera](https://github.com/psychocoderHPC): whitepaper, supervision
 * [Alexander Matthes](https://github.com/theZiz): whitepaper
 
