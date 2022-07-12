@@ -17,6 +17,8 @@
 #include <redGrapes/task/task.hpp>
 #include <redGrapes/context.hpp>
 
+#include <redGrapes/cv.hpp>
+
 namespace redGrapes
 {
 namespace dispatch
@@ -41,12 +43,7 @@ private:
      * instead of waiting when consume() is out of jobs
      */
     std::atomic_bool m_stop;
-
-    //! is set when the worker thread is currently waiting
-    std::atomic_flag wait = ATOMIC_FLAG_INIT;
-
-    std::mutex m;
-    std::condition_variable cv;
+    CondVar cv;
 
 public:
     std::thread thread;
@@ -75,13 +72,10 @@ public:
 
                 while( ! m_stop )
                 {
-                    SPDLOG_TRACE("Worker Thread: sleep");
-                    std::unique_lock< std::mutex > l( m );
-                    cv.wait( l, [this]{ return !wait.test_and_set(); } );
-                    l.unlock();
-
                     while( auto task = this->scheduler->get_job() )
                         dispatch::thread::execute_task( *task );
+
+                    cv.wait();
                 }
 
                 SPDLOG_TRACE("Worker Finished!");
@@ -94,14 +88,10 @@ public:
         stop();
         thread.join();
     }
-    
+
     void notify()
     {
-        std::unique_lock< std::mutex > l( m );
-        wait.clear();
-        l.unlock();
-
-        cv.notify_one();
+        cv.notify();
     }
 
     void stop()

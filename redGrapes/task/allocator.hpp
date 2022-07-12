@@ -51,7 +51,7 @@ struct Allocator
     std::unique_ptr<Chunk> active_chunk;
 
     Allocator()
-        : chunk_size(0x1000)
+        : chunk_size(0x800000)
         , active_chunk( std::make_unique<Chunk>(chunk_size) )
     {}
 

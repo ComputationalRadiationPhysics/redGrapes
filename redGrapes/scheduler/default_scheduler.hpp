@@ -20,9 +20,7 @@ namespace scheduler
  */
 struct DefaultScheduler : public IScheduler
 {
-    std::mutex m;
-    std::condition_variable cv;
-    std::atomic_flag wait = ATOMIC_FLAG_INIT;
+    CondVar cv;
 
     std::shared_ptr< scheduler::FIFO > fifo;
     std::vector<std::shared_ptr< dispatch::thread::WorkerThread >> threads;
@@ -52,8 +50,7 @@ struct DefaultScheduler : public IScheduler
             [this]
             {
                 SPDLOG_TRACE("DefaultScheduler::idle()");
-                std::unique_lock< std::mutex > l( m );
-                cv.wait( l, [this]{ return !wait.test_and_set(); } );
+                cv.wait();
             };
     }
 
@@ -70,11 +67,7 @@ struct DefaultScheduler : public IScheduler
     void notify()
     {
         SPDLOG_TRACE("DefaultScheduler::notify()");
-        {
-            std::unique_lock< std::mutex > l( m );
-            wait.clear();
-        }
-        cv.notify_one();
+        cv.notify();
 
         for( auto & thread : threads )
             thread->notify();
