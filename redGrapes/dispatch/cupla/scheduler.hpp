@@ -16,6 +16,7 @@
 #include <redGrapes/scheduler/scheduler.hpp>
 #include <redGrapes/task/property/graph.hpp>
 #include <redGrapes/dispatch/cupla/event_pool.hpp>
+#include <redGrapes/dispatch/cupla/task_properties.hpp>
 
 #include <spdlog/spdlog.h>
 #include <fmt/format.h>
@@ -28,7 +29,6 @@ namespace cupla
 {
 
 thread_local cuplaStream_t current_stream;
-
 
 // this class is not thread safe
 template <
@@ -114,34 +114,6 @@ struct CuplaStreamDispatcher
         SPDLOG_TRACE( "CuplaStreamDispatcher {}: recorded event {}", cupla_stream, cupla_event );
         events.push( std::make_pair( cupla_event, task->get_post_event() ) );
     }
-};
-
-struct CuplaTaskProperties
-{
-    std::optional< cuplaEvent_t > cupla_event;
-
-    CuplaTaskProperties() {}
-
-    template < typename PropertiesBuilder >
-    struct Builder
-    {
-        PropertiesBuilder & builder;
-
-        Builder( PropertiesBuilder & b )
-            : builder(b)
-        {}
-    };
-
-    struct Patch
-    {
-        template <typename PatchBuilder>
-        struct Builder
-        {
-            Builder( PatchBuilder & ) {}
-        };
-    };
-
-    void apply_patch( Patch const & ) {};
 };
 
 struct CuplaScheduler : redGrapes::scheduler::IScheduler

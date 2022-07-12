@@ -16,6 +16,7 @@
 #include <redGrapes/scheduler/scheduler.hpp>
 #include <redGrapes/task/property/graph.hpp>
 #include <redGrapes/dispatch/cuda/event_pool.hpp>
+#include <redGrapes/dispatch/cuda/task_properties.hpp>
 
 #include <spdlog/spdlog.h>
 #include <fmt/format.h>
@@ -28,7 +29,6 @@ namespace cuda
 {
 
 thread_local cudaStream_t current_stream;
-
 
 // this class is not thread safe
 template <
@@ -114,34 +114,6 @@ struct CudaStreamDispatcher
         SPDLOG_TRACE( "CudaStreamDispatcher {}: recorded event {}", cuda_stream, cuda_event );
         events.push( std::make_pair( cuda_event, task->get_post_event() ) );
     }
-};
-
-struct CudaTaskProperties
-{
-    std::optional< cudaEvent_t > cuda_event;
-
-    CudaTaskProperties() {}
-
-    template < typename PropertiesBuilder >
-    struct Builder
-    {
-        PropertiesBuilder & builder;
-
-        Builder( PropertiesBuilder & b )
-            : builder(b)
-        {}
-    };
-
-    struct Patch
-    {
-        template <typename PatchBuilder>
-        struct Builder
-        {
-            Builder( PatchBuilder & ) {}
-        };
-    };
-
-    void apply_patch( Patch const & ) {};
 };
 
 struct CudaScheduler : redGrapes::scheduler::IScheduler
