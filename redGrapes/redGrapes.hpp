@@ -88,7 +88,7 @@ namespace redGrapes
      * @return future from f's result
      */
     template<typename Callable, typename... Args>
-    Future<typename std::result_of<Callable(Args...)>::type> emplace_task(Callable&& f, Args&&... args)
+    auto emplace_task(Callable&& f, Args&&... args)
     {
         typename TaskProperties::Builder builder;
         return emplace_task(f, std::move(builder), std::forward<Args>(args)...);
@@ -110,7 +110,7 @@ namespace redGrapes
      * @return future from f's result
      */
     template<typename Callable, typename... Args>
-    Future<typename std::result_of<Callable(Args...)>::type> emplace_task(
+    auto emplace_task(
         Callable&& f,
         typename TaskProperties::Builder builder,
         Args&&... args)
@@ -131,7 +131,7 @@ namespace redGrapes
         SPDLOG_DEBUG("redGrapes::emplace_task {}", (TaskProperties const&)builder);
         Task& task = current_task_space()->emplace_task(std::move(impl), (TaskProperties &&) builder);
 
-        return Future<typename std::result_of<Callable(Args...)>::type>(task);
+        return Future<decltype(impl())>(task);
     }
 
 } // namespace redGrapes
