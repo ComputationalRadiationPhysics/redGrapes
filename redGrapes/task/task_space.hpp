@@ -81,7 +81,7 @@ struct TaskSpace : std::enable_shared_from_this<TaskSpace>
 
         queue.push(task);
 
-        top_scheduler->notify();
+        top_scheduler->notify_one_worker();
         
         return *task;
     }    

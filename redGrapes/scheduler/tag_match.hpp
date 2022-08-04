@@ -116,10 +116,13 @@ namespace scheduler
                 this->add_scheduler(supported_tags, s);
             }
 
-            void notify()
+            bool notify()
             {
                 for(auto& s : sub_schedulers)
-                    s.s->notify();
+		  if(s.s->notify())
+		    return true;
+
+		return false;
             }
 
             std::optional<std::shared_ptr<IScheduler>> get_matching_scheduler(

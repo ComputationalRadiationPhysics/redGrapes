@@ -18,7 +18,7 @@ namespace scheduler
 /*
  * Combines a FIFO with worker threads
  */
-struct DefaultScheduler : public IScheduler
+struct DefaultScheduler : public IScheduler, public IWaker
 {
     CondVar cv;
 
@@ -59,18 +59,27 @@ struct DefaultScheduler : public IScheduler
         SPDLOG_TRACE("DefaultScheduler::activate_task({})", task.task_id);
         fifo->activate_task( task );
 
-        for( auto & thread : threads )
-            thread->notify();
+	notify_one_worker();
     }
 
-    //! wakeup sleeping worker threads
-    void notify()
+  void notify_one_worker() {
+    SPDLOG_TRACE("DefaultScheduler: notify_one_worker()");
+    for( auto & thread : threads )
+      {
+	if( thread->notify() )
+	  break;
+      }    
+  }
+  void notify_all() {
+    cv.notify();
+    for( auto & thread : threads )
+	thread->notify();
+  }
+    //! wakeup sleeping main threads
+    bool notify()
     {
-        SPDLOG_TRACE("DefaultScheduler::notify()");
-        cv.notify();
-
-        for( auto & thread : threads )
-            thread->notify();
+          SPDLOG_TRACE("DefaultScheduler: notify_main()");
+	  return cv.notify();
     }
 };
 

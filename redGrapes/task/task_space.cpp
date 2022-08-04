@@ -114,9 +114,8 @@ namespace redGrapes
 
                 auto ts = top_scheduler;
 
-                --task_count;
-
-                ts->notify();
+                if( task_count.fetch_sub(1) == 1 )
+		  ts->notify();
             }
         }
 

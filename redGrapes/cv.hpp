@@ -13,6 +13,8 @@ struct CondVar
     std::atomic_flag wait_flag = ATOMIC_FLAG_INIT;
     std::atomic_flag busy = ATOMIC_FLAG_INIT;
 
+  bool waiting;
+
     volatile unsigned count;
     unsigned limit;
 
@@ -20,10 +22,12 @@ struct CondVar
         : count(0)
         , limit(100000)
     {
+      wait_flag.test_and_set();
     }
     
     void wait()
     {
+      waiting = true;
         while( wait_flag.test_and_set(std::memory_order_acquire) )
             if( ++count > limit )
             {
@@ -36,9 +40,11 @@ struct CondVar
                 count = 0;
                 return;
             }
+
+	waiting=false;
     }
 
-    void notify()
+    bool notify()
     {
         if( ! busy.test_and_set() )
         {
@@ -46,10 +52,14 @@ struct CondVar
             wait_flag.clear(std::memory_order_release);
             l.unlock();
             cv.notify_one();
+
+	    return true;
         }
         else
         {
-            wait_flag.clear(std::memory_order_release);
+	  bool w = waiting;
+	  wait_flag.clear(std::memory_order_release);
+	  return w;
         }
     }
 };

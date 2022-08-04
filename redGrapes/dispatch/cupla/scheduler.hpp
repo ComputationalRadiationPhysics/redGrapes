@@ -97,7 +97,7 @@ struct CuplaStreamDispatcher
 
         SPDLOG_TRACE(
             "CuplaScheduler: start {}",
-            task_id
+            task.task_id
         );
 
         current_stream = cupla_stream;

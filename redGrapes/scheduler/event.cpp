@@ -16,6 +16,7 @@
 #include <redGrapes/task/property/id.hpp>
 #include <redGrapes/task/task_space.hpp>
 
+#include <redGrapes/scheduler/scheduler.hpp>
 #include <redGrapes/scheduler/event.hpp>
 #include <redGrapes/context.hpp>
 #include <redGrapes/redGrapes.hpp>
@@ -26,17 +27,17 @@ namespace scheduler
 {
 
 Event::Event()
-    : state(1)
+  : state(1)
 {
 }
 
 Event::Event(Event & other)
-    : state((int)other.state)
+  : state((int)other.state), waker(other.waker)
 {
 }
 
 Event::Event(Event && other)
-    : state((int)other.state)
+  : state((int)other.state), waker(other.waker)
 {    
 }
 
@@ -105,9 +106,17 @@ bool EventPtr::notify( )
         // notify followers
         std::shared_lock< std::shared_mutex > lock( this->get_event().followers_mutex );
         for( auto & follower : this->get_event().followers )
+	  {
             follower.notify( );
+	    top_scheduler->notify_one_worker();
+	  }
 
-        top_scheduler->notify();
+	if(auto w = this->get_event().waker.lock())
+	  {
+	    this->get_event().waker.reset();
+	  w->notify();
+	  }
+
     }
 
     if( remove_task )

@@ -16,10 +16,16 @@ struct Task;
 
 namespace scheduler
 {
-
+  struct IWaker {
+    virtual ~IWaker() {}
+    virtual bool notify() {
+      return false;
+    }
+  };
+  
 /*! Scheduler Interface
  */
-struct IScheduler
+  struct IScheduler : virtual IWaker
 {
     virtual ~IScheduler() {}
 
@@ -39,7 +45,8 @@ struct IScheduler
     //! add task to ready set
     virtual void activate_task( Task & task ) {}
 
-    virtual void notify() {}
+  virtual void notify_all() {}
+    virtual void notify_one_worker() {}
 };
 
 } // namespace scheduler

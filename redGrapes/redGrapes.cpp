@@ -100,6 +100,7 @@ void barrier()
 void finalize()
 {
     barrier();
+    top_scheduler->notify_all();
     top_scheduler.reset();
     top_space.reset();
 }
@@ -112,7 +113,10 @@ void yield( scheduler::EventPtr event )
         if( current_task )
             current_task->yield(event);
         else
+	{
+            event->waker = top_scheduler;
             idle();
+	}
     }
 }
 
@@ -149,9 +153,10 @@ void update_active_task_spaces()
 
     for( auto space : buf )
         active_task_spaces.enqueue(space);
-
+    /*
     if( notify )
         top_scheduler->notify();
+    */
 }
 
 //! apply a patch to the properties of the currently running task

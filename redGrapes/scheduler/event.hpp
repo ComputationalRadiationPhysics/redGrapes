@@ -13,6 +13,7 @@
 #include <cassert>
 #include <memory>
 #include <spdlog/spdlog.h>
+#include <redGrapes/scheduler/scheduler.hpp>
 
 namespace std
 {
@@ -51,6 +52,7 @@ struct Event
     //! the set of subsequent events
     std::vector< EventPtr > followers;
     std::shared_mutex followers_mutex;
+    std::weak_ptr<IWaker> waker;
 
     Event();
     Event(Event &);

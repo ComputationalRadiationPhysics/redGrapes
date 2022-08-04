@@ -13,6 +13,7 @@
 #include <memory>
 #include <condition_variable>
 
+#include <redGrapes/scheduler/scheduler.hpp>
 #include <redGrapes/scheduler/event.hpp>
 #include <redGrapes/task/task.hpp>
 #include <redGrapes/context.hpp>
@@ -26,7 +27,7 @@ namespace dispatch
 namespace thread
 {
 
-void execute_task( Task & task );
+  void execute_task( Task & task, std::weak_ptr<scheduler::IWaker> waker = std::weak_ptr<scheduler::IWaker>() );
 
 /*!
  * Creates a thread which repeatedly calls consume()
@@ -34,7 +35,7 @@ void execute_task( Task & task );
  *
  * Sleeps when no jobs are available.
  */
-struct WorkerThread
+  struct WorkerThread : virtual scheduler::IWaker, std::enable_shared_from_this<WorkerThread>
 {
 private:
     std::shared_ptr< scheduler::IScheduler > scheduler;
@@ -73,7 +74,9 @@ public:
                 while( ! m_stop )
                 {
                     while( auto task = this->scheduler->get_job() )
-                        dispatch::thread::execute_task( *task );
+		    {
+		      dispatch::thread::execute_task( *task , this->shared_from_this() );
+		    }
 
                     cv.wait();
                 }
@@ -89,9 +92,10 @@ public:
         thread.join();
     }
 
-    void notify()
+    bool notify()
     {
-        cv.notify();
+      SPDLOG_TRACE("worker notify");
+        return cv.notify();
     }
 
     void stop()

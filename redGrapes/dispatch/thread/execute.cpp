@@ -8,6 +8,7 @@
 #include <optional>
 #include <spdlog/spdlog.h>
 
+#include <redGrapes/scheduler/scheduler.hpp>
 #include <redGrapes/scheduler/event.hpp>
 #include <redGrapes/task/task.hpp>
 #include <redGrapes/context.hpp>
@@ -19,7 +20,7 @@ namespace dispatch
 namespace thread
 {
 
-void execute_task( Task & task )
+void execute_task( Task & task, std::weak_ptr<scheduler::IWaker> waker = std::weak_ptr<scheduler::IWaker>() )
 {
     SPDLOG_TRACE("thread dispatch: execute task {}", task.task_id);
     assert( task.is_ready() );
@@ -29,6 +30,8 @@ void execute_task( Task & task )
 
     if( auto event = task() )
     {
+      event->get_event().waker = waker;
+      
         task.sg_pause( *event );
 
         task.pre_event.up();
