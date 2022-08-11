@@ -30,8 +30,7 @@ void execute_task( Task & task, std::weak_ptr<scheduler::IWaker> waker = std::we
 
     if( auto event = task() )
     {
-      event->get_event().waker = waker;
-      
+        //event->get_event().waker = waker;
         task.sg_pause( *event );
 
         task.pre_event.up();

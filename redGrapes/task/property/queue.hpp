@@ -14,7 +14,7 @@ struct Task;
 
 struct QueueProperty
 {
-    Task * next;
+    Task volatile * volatile next;
 
     template < typename PropertiesBuilder >
     struct Builder

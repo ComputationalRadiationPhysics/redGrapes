@@ -41,9 +41,10 @@ Cell next_state( Cell const neighbours [][size.x+2] )
 
 int main( int, char * [] )
 {
-    spdlog::set_level( spdlog::level::info );
+    spdlog::set_level( spdlog::level::trace );
+    spdlog::set_pattern("[thread %t] %^[%l]%$ %v");
 
-    redGrapes::init();
+    redGrapes::init(1);
 
     using Buffer =
         std::array<

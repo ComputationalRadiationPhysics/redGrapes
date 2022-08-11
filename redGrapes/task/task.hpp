@@ -33,7 +33,7 @@ struct Task :
         TaskProperties,
         std::enable_shared_from_this<Task>
 {
-    bool alive;
+    bool volatile alive;
 
     virtual ~Task()
     {}

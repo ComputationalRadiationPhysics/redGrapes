@@ -15,9 +15,8 @@
 int main(void)
 {
     spdlog::set_level( spdlog::level::trace );
-
     redGrapes::init();
-    
+
     redGrapes::IOResource< int > a, b;
 
     for(int i = 0; i < 1; ++i)

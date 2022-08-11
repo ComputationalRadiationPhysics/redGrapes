@@ -8,7 +8,7 @@
 #pragma once
 
 #include <optional>
-
+#include <spdlog/spdlog.h>
 namespace redGrapes
 {
 
@@ -16,22 +16,23 @@ struct Task;
 
 namespace scheduler
 {
-  struct IWaker {
+
+struct IWaker
+{
     virtual ~IWaker() {}
-    virtual bool notify() {
-      return false;
+
+    virtual bool wake()
+    {
+        return false;
     }
-  };
+};
   
 /*! Scheduler Interface
  */
-  struct IScheduler : virtual IWaker
+struct IScheduler : virtual IWaker
 {
-    virtual ~IScheduler() {}
-
-    virtual Task * get_job()
+    virtual ~IScheduler()
     {
-        return nullptr;
     }
 
     /*! whats the task dependency type for the edge a -> b (task a precedes task b)
@@ -44,9 +45,10 @@ namespace scheduler
 
     //! add task to ready set
     virtual void activate_task( Task & task ) {}
+    virtual void schedule() {}
 
-  virtual void notify_all() {}
-    virtual void notify_one_worker() {}
+    virtual void wake_all_workers() {}
+    virtual void wake_one_worker() {}
 };
 
 } // namespace scheduler

@@ -27,7 +27,8 @@ auto square (int x)
 int main()
 {
     spdlog::set_level(spdlog::level::trace);
-    redGrapes::init();
+    spdlog::set_pattern("[thread %t] %^[%l]%$ %v");
+    redGrapes::init(1);
     
     fmt::print( "square(2) = {}\n", square(2).get() );
 

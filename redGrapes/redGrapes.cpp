@@ -100,7 +100,6 @@ void barrier()
 void finalize()
 {
     barrier();
-    top_scheduler->notify_all();
     top_scheduler.reset();
     top_space.reset();
 }
@@ -108,7 +107,7 @@ void finalize()
 //! pause the currently running task at least until event is reached
 void yield( scheduler::EventPtr event )
 {
-    while(! event->is_reached() )
+    while( ! event->is_reached() )
     {
         if( current_task )
             current_task->yield(event);
@@ -124,14 +123,11 @@ void update_active_task_spaces()
 {
     SPDLOG_TRACE("update active task spaces");
     std::vector< std::shared_ptr< TaskSpace > > buf;
-
     std::shared_ptr< TaskSpace > space;
-    bool notify = false;
-    
+
     while(active_task_spaces.try_dequeue(space))
     {
-        if( space->init_until_ready() )
-            notify = true;
+        space->init_until_ready();
 
         bool remove_space = false;
         if( auto parent = space->parent )
@@ -143,7 +139,6 @@ void update_active_task_spaces()
             {
                 parent->space->try_remove( *parent );
                 remove_space = true;
-                notify = true;
             }
         }
 
@@ -153,10 +148,16 @@ void update_active_task_spaces()
 
     for( auto space : buf )
         active_task_spaces.enqueue(space);
-    /*
-    if( notify )
-        top_scheduler->notify();
-    */
+}
+
+void schedule()
+{
+    auto ts = top_scheduler;
+    if(ts)
+    {
+        update_active_task_spaces();
+        ts->schedule();
+    }
 }
 
 //! apply a patch to the properties of the currently running task

@@ -11,7 +11,7 @@
 #include <atomic>
 #include <functional>
 #include <memory>
-#include <condition_variable>
+#include <moodycamel/concurrentqueue.h>
 
 #include <redGrapes/scheduler/scheduler.hpp>
 #include <redGrapes/scheduler/event.hpp>
@@ -27,7 +27,7 @@ namespace dispatch
 namespace thread
 {
 
-  void execute_task( Task & task, std::weak_ptr<scheduler::IWaker> waker = std::weak_ptr<scheduler::IWaker>() );
+void execute_task( Task & task, std::weak_ptr<scheduler::IWaker> waker = std::weak_ptr<scheduler::IWaker>() );
 
 /*!
  * Creates a thread which repeatedly calls consume()
@@ -35,28 +35,24 @@ namespace thread
  *
  * Sleeps when no jobs are available.
  */
-  struct WorkerThread : virtual scheduler::IWaker, std::enable_shared_from_this<WorkerThread>
+struct WorkerThread : virtual scheduler::IWaker, std::enable_shared_from_this<WorkerThread>
 {
 private:
-    std::shared_ptr< scheduler::IScheduler > scheduler;
 
     /*! if true, the thread shall stop
-     * instead of waiting when consume() is out of jobs
+     * instead of waiting when it is out of jobs
      */
     std::atomic_bool m_stop;
     CondVar cv;
 
 public:
+    task::Queue queue;
     std::thread thread;
 
 public:
-    /*!
-     * @param consume function that executes a task if possible and returns
-     *                if any work is left
-     */
-    WorkerThread( std::shared_ptr< scheduler::IScheduler > scheduler ) :
+
+    WorkerThread() :
         m_stop( false ),
-        scheduler( scheduler ),
         thread(
             [this]
             {
@@ -73,18 +69,30 @@ public:
 
                 while( ! m_stop )
                 {
-                    while( auto task = this->scheduler->get_job() )
-		    {
-		      dispatch::thread::execute_task( *task , this->shared_from_this() );
+                    SPDLOG_TRACE("Worker: take jobs");
+
+                    while( 1)
+                    {
+                        Task * task = queue.pop();
+
+                        if(task)
+                        dispatch::thread::execute_task( *task , this->shared_from_this() );
+                        else
+                            break;
 		    }
 
+                    SPDLOG_TRACE("Worker: empty");
+                    redGrapes::schedule();
+
+                    SPDLOG_TRACE("Worker wait!");
                     cv.wait();
                 }
 
                 SPDLOG_TRACE("Worker Finished!");
             }
         )
-    {}
+    {
+    }
 
     ~WorkerThread()
     {
@@ -92,9 +100,9 @@ public:
         thread.join();
     }
 
-    bool notify()
+    bool wake()
     {
-      SPDLOG_TRACE("worker notify");
+        SPDLOG_TRACE("Worker::wake()");
         return cv.notify();
     }
 
@@ -102,7 +110,7 @@ public:
     {
         SPDLOG_TRACE("Worker::stop()");
         m_stop = true;
-        notify();
+        wake();
     }
 };
 

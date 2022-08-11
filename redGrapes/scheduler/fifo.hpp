@@ -19,14 +19,30 @@ namespace redGrapes
 namespace scheduler
 {
 
+struct WorkerQueue
+{
+    Task volatile * volatile ready;
+    //    Task volatile * volatile pending;    
+};
+
 struct FIFO : public IScheduler
 {
-    moodycamel::ConcurrentQueue< Task* > ready;
+    FIFO(std::vector<>workers)
+    {
 
+        
+    }
+    
     void activate_task( Task & task )
     {
         SPDLOG_TRACE("FIFO: activate task {}", task.task_id);
         ready.enqueue(&task);
+    }
+
+    void schedule()
+    {
+        SPDLOG_TRACE("balance workers");
+        update_active_task_spaces();
     }
 
     /*! take a job from the ready queue

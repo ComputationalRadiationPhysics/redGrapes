@@ -17,6 +17,7 @@ namespace rg = redGrapes;
 
 int main( int, char*[] )
 {
+    spdlog::set_level(spdlog::level::trace);
     rg::init();
     rg::IOResource< int > a;
 
@@ -48,7 +49,7 @@ int main( int, char*[] )
         a.read()
     );
 
-    rg::barrier();
+    rg::finalize();
     
     return 0;
 }

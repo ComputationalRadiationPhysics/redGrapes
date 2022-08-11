@@ -38,5 +38,5 @@ int main()
         a.read()
     );
 
-    rg::barrier();
+    rg::finalize();
 }

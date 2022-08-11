@@ -18,7 +18,8 @@
 
 int main()
 {
-    //spdlog::set_level( spdlog::level::trace );
+    spdlog::set_level( spdlog::level::trace );
+    spdlog::set_pattern("[thread %t] %^[%l]%$ %v");
 
     redGrapes::init(1);
 
@@ -47,6 +48,8 @@ int main()
     std::cout << "notify event" << std::endl;
     event->notify();
 
+    redGrapes::finalize();
+    
     return 0;
 }
 

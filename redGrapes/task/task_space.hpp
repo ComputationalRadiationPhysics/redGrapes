@@ -13,22 +13,10 @@
 
 #include <redGrapes/task/allocator.hpp>
 #include <redGrapes/task/task.hpp>
+#include <redGrapes/task/queue.hpp>
 
 namespace redGrapes
 {
-
-struct EmplacementQueue
-{    
-    Task * head;
-    Task * tail;
-
-    std::mutex m;
-    
-    EmplacementQueue();
-    
-    void push(Task * task);
-    Task * pop();
-};
 
 /*!
  */
@@ -40,7 +28,7 @@ struct TaskSpace : std::enable_shared_from_this<TaskSpace>
 
     /* queue */
     std::mutex emplacement_mutex;
-    EmplacementQueue queue;
+    task::Queue emplacement_queue;
 
     unsigned depth;
     Task * parent;
@@ -79,12 +67,12 @@ struct TaskSpace : std::enable_shared_from_this<TaskSpace>
         if( parent )
             assert( is_superset(*parent, *task) );
 
-        queue.push(task);
+        emplacement_queue.push(task);
 
-        top_scheduler->notify_one_worker();
-        
+        top_scheduler->wake_one_worker();
+
         return *task;
-    }    
+    }
     
     /*! take tasks from the emplacement queue and initialize them,
      *  until a task is initialized whose execution could start immediately

@@ -7,7 +7,6 @@
 
 #include <redGrapes/task/task_space.hpp>
 #include <redGrapes/scheduler/scheduler.hpp>
-#include <redGrapes/scheduler/fifo.hpp>
 #include <redGrapes/dispatch/thread/worker.hpp>
 
 namespace redGrapes
@@ -18,29 +17,23 @@ namespace scheduler
 /*
  * Combines a FIFO with worker threads
  */
-struct DefaultScheduler : public IScheduler, public IWaker
+struct DefaultScheduler : public IScheduler
 {
     CondVar cv;
 
-    std::shared_ptr< scheduler::FIFO > fifo;
+    std::mutex m;
+    task::Queue ready;
     std::vector<std::shared_ptr< dispatch::thread::WorkerThread >> threads;
 
-    DefaultScheduler( size_t n_threads = std::thread::hardware_concurrency() ) :
-        fifo( std::make_shared< scheduler::FIFO >() )
+    DefaultScheduler( size_t n_threads = std::thread::hardware_concurrency() )
     {
-        cpu_set_t cpuset;
-        CPU_ZERO(&cpuset);
-        CPU_SET(0, &cpuset);
-
-        int rc = pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
-
         for( size_t i = 0; i < n_threads; ++i )
         {
-            threads.emplace_back(std::make_shared< dispatch::thread::WorkerThread >(this->fifo));
+            threads.emplace_back(std::make_shared< dispatch::thread::WorkerThread >());
 
             cpu_set_t cpuset;
             CPU_ZERO(&cpuset);
-            CPU_SET(i+1, &cpuset);
+            CPU_SET(i, &cpuset);
             int rc = pthread_setaffinity_np(threads[i]->thread.native_handle(), sizeof(cpu_set_t), &cpuset);
         }
         
@@ -57,29 +50,54 @@ struct DefaultScheduler : public IScheduler, public IWaker
     void activate_task( Task & task )
     {
         SPDLOG_TRACE("DefaultScheduler::activate_task({})", task.task_id);
-        fifo->activate_task( task );
-
-	notify_one_worker();
+        ready.push(&task);
     }
 
-  void notify_one_worker() {
-    SPDLOG_TRACE("DefaultScheduler: notify_one_worker()");
-    for( auto & thread : threads )
-      {
-	if( thread->notify() )
-	  break;
-      }    
-  }
-  void notify_all() {
-    cv.notify();
-    for( auto & thread : threads )
-	thread->notify();
-  }
-    //! wakeup sleeping main threads
-    bool notify()
+    void schedule()
     {
-          SPDLOG_TRACE("DefaultScheduler: notify_main()");
-	  return cv.notify();
+        SPDLOG_INFO("schedule");
+        // give every empty worker a ready task
+
+        std::lock_guard<std::mutex> l(m);
+
+        for( auto worker : threads )
+        {
+            if( worker->queue.empty() )
+            {
+                Task * t = ready.pop();
+                if(t)
+                {
+                    worker->queue.push(t);
+                    worker->wake();
+                }
+            }
+        }
+    }
+
+    void wake_one_worker()
+    {
+        SPDLOG_TRACE("DefaultScheduler: wake_one_worker()");
+
+        for( auto worker : threads )
+        {
+            if( worker->wake() )
+                break;
+        }
+    }
+
+    void wake_all_workers()
+    {
+        for( auto worker : threads )
+            worker->wake();
+
+        this->wake();
+    }
+
+    //! wakeup sleeping main thread
+    bool wake()
+    {
+        SPDLOG_TRACE("DefaultScheduler: wake main thread");
+        return cv.notify();
     }
 };
 

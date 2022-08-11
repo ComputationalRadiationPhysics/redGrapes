@@ -7,43 +7,10 @@
 
 #include <redGrapes/task/task.hpp>
 #include <redGrapes/task/task_space.hpp>
+#include <redGrapes/task/queue.hpp>
 
 namespace redGrapes
 {
-    EmplacementQueue::EmplacementQueue() : head(nullptr), tail(nullptr)
-    {
-    }
-
-    void EmplacementQueue::push(Task* item)
-    {
-        std::lock_guard<std::mutex> lock(m);
-        item->next = nullptr;
-
-        if(tail)
-            while(!__sync_bool_compare_and_swap(&(tail->next), nullptr, item))
-                ;
-
-        tail = item;
-
-        __sync_bool_compare_and_swap(&head, 0, item);
-
-        SPDLOG_TRACE("push: head = {}, tail = {}", (void*) head, (void*) tail);
-    }
-
-    Task* EmplacementQueue::pop()
-    {
-        std::lock_guard<std::mutex> lock(m);
-        while(Task* t = head)
-            if(__sync_bool_compare_and_swap(&head, t, t->next))
-            {
-                SPDLOG_TRACE("queue pop: item={}, new head = {}", (void*) t, (void*) t->next);
-                return t;
-            }
-
-        SPDLOG_TRACE("pop: head = {}, tail = {}", (void*) head, (void*) tail);
-        return nullptr;
-    }
-
     TaskSpace::~TaskSpace()
     {
     }
@@ -84,7 +51,7 @@ namespace redGrapes
     {
         std::lock_guard<std::mutex> lock(emplacement_mutex);
 
-        while(auto task = queue.pop())
+        while(auto task = emplacement_queue.pop())
         {
             /*
             if( task->task_id != next_id )
@@ -98,7 +65,7 @@ namespace redGrapes
             if(task->get_pre_event().notify())
                 return true;
         }
-
+       
         return false;
     }
 
@@ -115,7 +82,7 @@ namespace redGrapes
                 auto ts = top_scheduler;
 
                 if( task_count.fetch_sub(1) == 1 )
-		  ts->notify();
+                    ts->wake_all_workers();
             }
         }
 

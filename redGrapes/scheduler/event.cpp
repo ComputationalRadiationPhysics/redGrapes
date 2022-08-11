@@ -69,8 +69,7 @@ void Event::remove_follower( EventPtr follower )
  * This events state is decremented and recursively notifies its followers
  * in case it is now also reached.
  *
- * @param hook 
- * @return previous state of event
+ * @return true if event is ready
  */
 bool EventPtr::notify( )
 {
@@ -80,12 +79,15 @@ bool EventPtr::notify( )
     assert( old_state > 0 );
 
     bool remove_task = false;
-    
+
     if( task )
     {
         // pre event ready
         if( tag == scheduler::T_EVT_PRE && old_state == 2 )
+        {
             top_scheduler->activate_task(*task);
+            schedule();
+        }
 
         // post event or result-get event reached
         if(
@@ -106,17 +108,18 @@ bool EventPtr::notify( )
         // notify followers
         std::shared_lock< std::shared_mutex > lock( this->get_event().followers_mutex );
         for( auto & follower : this->get_event().followers )
-	  {
+        {
             follower.notify( );
-	    top_scheduler->notify_one_worker();
-	  }
+        }
+    }
 
+    if( old_state <= 2 )
+    {
 	if(auto w = this->get_event().waker.lock())
-	  {
+        {
 	    this->get_event().waker.reset();
-	  w->notify();
-	  }
-
+            w->wake();
+        }
     }
 
     if( remove_task )
