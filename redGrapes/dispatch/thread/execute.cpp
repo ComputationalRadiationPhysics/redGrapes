@@ -22,7 +22,7 @@ namespace thread
 
 void execute_task( Task & task, std::weak_ptr<scheduler::IWaker> waker = std::weak_ptr<scheduler::IWaker>() )
 {
-    SPDLOG_TRACE("thread dispatch: execute task {}", task.task_id);
+    SPDLOG_DEBUG("thread dispatch: execute task {}", task.task_id);
     assert( task.is_ready() );
 
     task.get_pre_event().notify();

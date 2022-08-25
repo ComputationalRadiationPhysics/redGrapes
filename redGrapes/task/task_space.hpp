@@ -25,11 +25,12 @@ struct TaskSpace : std::enable_shared_from_this<TaskSpace>
     /* task storage */
     memory::Allocator task_storage;
     std::atomic< unsigned long > task_count;
+    std::atomic< unsigned long > task_capacity;
 
     /* queue */
     std::mutex emplacement_mutex;
     task::Queue emplacement_queue;
-
+    
     unsigned depth;
     Task * parent;
 

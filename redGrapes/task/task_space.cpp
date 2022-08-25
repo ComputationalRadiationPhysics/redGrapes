@@ -21,6 +21,7 @@ namespace redGrapes
         , next_id(0)
     {
         task_count = 0;
+        task_capacity = 512;
     }
 
     // sub space
@@ -29,6 +30,7 @@ namespace redGrapes
         , parent(&parent)
     {
         task_count = 0;
+        task_capacity = 512;
     }
 
     bool TaskSpace::is_serial(Task& a, Task& b)
@@ -51,21 +53,21 @@ namespace redGrapes
     {
         std::lock_guard<std::mutex> lock(emplacement_mutex);
 
-        while(auto task = emplacement_queue.pop())
+        while( task_capacity.fetch_sub(1) > 0 )
+            //while(true)
         {
-            /*
-            if( task->task_id != next_id )
-                throw std::runtime_error("invalid next id!");
-
-            next_id++;
-            */
-            task->alive = 1;
-            task->pre_event.up();
-            task->init_graph();
-            if(task->get_pre_event().notify())
-                return true;
+            if(auto task = emplacement_queue.pop())
+            {
+                task->alive = 1;
+                task->pre_event.up();
+                task->init_graph();
+                if(task->get_pre_event().notify())
+                    return true;
+            } else {
+                return false;
+            }
         }
-       
+
         return false;
     }
 
@@ -75,6 +77,8 @@ namespace redGrapes
         {
             if( __sync_bool_compare_and_swap(&task.alive, 1, 0) )
             {
+                task_capacity++;
+
                 task.delete_from_resources();
                 task.~Task();
                 task_storage.m_free(&task);
@@ -82,7 +86,11 @@ namespace redGrapes
                 auto ts = top_scheduler;
 
                 if( task_count.fetch_sub(1) == 1 )
-                    ts->wake_all_workers();
+                {
+                    SPDLOG_DEBUG("task space empty");
+                    if( ts )
+                        ts->wake_all_workers();
+                }
             }
         }
 

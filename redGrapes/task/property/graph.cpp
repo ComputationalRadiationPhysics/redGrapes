@@ -101,7 +101,7 @@ void GraphProperty::init_graph()
         r.task_idx = r.resource.tasks->second.size();
         r.resource.tasks->second.push_back(this->task);
     }
-    
+
     // add dependency to parent
     if( auto parent = this->space->parent )
         parent->post_event.add_follower( this->get_post_event() );

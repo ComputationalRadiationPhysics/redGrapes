@@ -17,7 +17,7 @@
 #include <redGrapes/scheduler/event.hpp>
 #include <redGrapes/task/task.hpp>
 #include <redGrapes/context.hpp>
-
+#include <redGrapes/redGrapes.hpp>
 #include <redGrapes/cv.hpp>
 
 namespace redGrapes
@@ -46,8 +46,11 @@ private:
     CondVar cv;
 
 public:
-    task::Queue queue;
+    //task::Queue queue;
+    moodycamel::ConcurrentQueue< Task * > queue;
     std::thread thread;
+
+    std::atomic_bool has_work;
 
 public:
 
@@ -69,23 +72,22 @@ public:
 
                 while( ! m_stop )
                 {
-                    SPDLOG_TRACE("Worker: take jobs");
+                    SPDLOG_DEBUG("Worker: work on queue");
 
-                    while( 1)
-                    {
-                        Task * task = queue.pop();
-
-                        if(task)
+                    Task * task;
+                    //                    while( Task * task = queue.pop() )
+                    while( queue.try_dequeue(task) )
                         dispatch::thread::execute_task( *task , this->shared_from_this() );
-                        else
-                            break;
-		    }
 
-                    SPDLOG_TRACE("Worker: empty");
-                    redGrapes::schedule();
+                    has_work.exchange(false);
+                    redGrapes::schedule( *this );
 
-                    SPDLOG_TRACE("Worker wait!");
-                    cv.wait();
+                    if( !m_stop && !has_work )
+                    {
+                        SPDLOG_DEBUG("Worker: queue empty -> wait");
+                        cv.wait();
+                        SPDLOG_DEBUG("Wake!");
+                    }
                 }
 
                 SPDLOG_TRACE("Worker Finished!");
@@ -96,8 +98,6 @@ public:
 
     ~WorkerThread()
     {
-        stop();
-        thread.join();
     }
 
     bool wake()
@@ -111,6 +111,7 @@ public:
         SPDLOG_TRACE("Worker::stop()");
         m_stop = true;
         wake();
+        thread.join();
     }
 };
 

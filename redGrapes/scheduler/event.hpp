@@ -52,7 +52,9 @@ struct Event
     //! the set of subsequent events
     std::vector< EventPtr > followers;
     std::shared_mutex followers_mutex;
+
     std::weak_ptr<IWaker> waker;
+    std::mutex waker_mutex;
 
     Event();
     Event(Event &);

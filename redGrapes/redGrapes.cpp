@@ -100,6 +100,7 @@ void barrier()
 void finalize()
 {
     barrier();
+    top_scheduler->stop();
     top_scheduler.reset();
     top_space.reset();
 }
@@ -113,20 +114,29 @@ void yield( scheduler::EventPtr event )
             current_task->yield(event);
         else
 	{
-            event->waker = top_scheduler;
-            idle();
+            {
+                std::lock_guard<std::mutex> lock( event->waker_mutex );
+                event->waker = top_scheduler;
+            }
+
+            if( ! event->is_reached() )
+                idle();
 	}
     }
 }
-
+/*
 void update_active_task_spaces()
 {
     SPDLOG_TRACE("update active task spaces");
     std::vector< std::shared_ptr< TaskSpace > > buf;
     std::shared_ptr< TaskSpace > space;
 
+    static std::mutex m;
+    std::lock_guard<std::mutex> l(m);
+
     while(active_task_spaces.try_dequeue(space))
     {
+        SPDLOG_TRACE("update task space {}", (void*)space.get());
         space->init_until_ready();
 
         bool remove_space = false;
@@ -149,16 +159,29 @@ void update_active_task_spaces()
     for( auto space : buf )
         active_task_spaces.enqueue(space);
 }
-
+*/
 void schedule()
 {
     auto ts = top_scheduler;
     if(ts)
     {
-        update_active_task_spaces();
+        //update_active_task_spaces();
+        top_space->init_until_ready();
         ts->schedule();
     }
 }
+
+void schedule( dispatch::thread::WorkerThread & worker )
+{
+    auto ts = top_scheduler;
+    if(ts)
+    {
+        //update_active_task_spaces();
+        top_space->init_until_ready();
+        ts->schedule( worker );
+    }    
+}
+
 
 //! apply a patch to the properties of the currently running task
 void update_properties(typename TaskProperties::Patch const& patch)

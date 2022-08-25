@@ -86,7 +86,6 @@ bool EventPtr::notify( )
         if( tag == scheduler::T_EVT_PRE && old_state == 2 )
         {
             top_scheduler->activate_task(*task);
-            schedule();
         }
 
         // post event or result-get event reached
@@ -103,6 +102,16 @@ bool EventPtr::notify( )
         }
     }
 
+    if( old_state <= 2 )
+    {
+        std::lock_guard<std::mutex> lock( this->get_event().waker_mutex );
+	if(auto w = this->get_event().waker.lock())
+        {
+	    this->get_event().waker.reset();
+            w->wake();
+        }
+    }
+
     if( old_state == 1 )
     {
         // notify followers
@@ -110,15 +119,6 @@ bool EventPtr::notify( )
         for( auto & follower : this->get_event().followers )
         {
             follower.notify( );
-        }
-    }
-
-    if( old_state <= 2 )
-    {
-	if(auto w = this->get_event().waker.lock())
-        {
-	    this->get_event().waker.reset();
-            w->wake();
         }
     }
 

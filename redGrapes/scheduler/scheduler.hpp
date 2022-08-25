@@ -9,13 +9,23 @@
 
 #include <optional>
 #include <spdlog/spdlog.h>
+
 namespace redGrapes
 {
 
 struct Task;
 
+namespace dispatch
+{
+namespace thread
+{
+struct WorkerThread;
+}
+}
+
 namespace scheduler
 {
+
 
 struct IWaker
 {
@@ -35,6 +45,10 @@ struct IScheduler : virtual IWaker
     {
     }
 
+    virtual void stop()
+    {
+    }
+
     /*! whats the task dependency type for the edge a -> b (task a precedes task b)
      * @return true if task b depends on the pre event of task a, false if task b depends on the post event of task b.
      */
@@ -46,6 +60,7 @@ struct IScheduler : virtual IWaker
     //! add task to ready set
     virtual void activate_task( Task & task ) {}
     virtual void schedule() {}
+    virtual void schedule( dispatch::thread::WorkerThread & worker ) {}
 
     virtual void wake_all_workers() {}
     virtual void wake_one_worker() {}

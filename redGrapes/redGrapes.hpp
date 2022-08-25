@@ -26,6 +26,7 @@ namespace redGrapes
     std::shared_ptr<TaskSpace> current_task_space();
     void update_active_task_spaces();
     void schedule();
+void schedule( dispatch::thread::WorkerThread & worker );
 
     template<typename... Args>
     static inline void pass(Args&&...)

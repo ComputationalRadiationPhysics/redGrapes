@@ -19,6 +19,7 @@ namespace task
     void Queue::push(Task* item)
     {
         std::lock_guard<std::mutex> lock(m);
+
         item->next = nullptr;
 
         if(tail)
@@ -35,12 +36,16 @@ namespace task
     Task * Queue::pop()
     {
         std::lock_guard<std::mutex> lock(m);
+
         while(Task * volatile t = head)
             if(__sync_bool_compare_and_swap(&head, t, t->next))
             {
                 SPDLOG_TRACE("queue pop: item={}, new head = {}", (void*) t, (void*) t->next);
 
-                t->next = nullptr;
+                if(t->next == nullptr)
+                    tail = nullptr;
+                else
+                    t->next = nullptr;
                 return t;
             }
 
