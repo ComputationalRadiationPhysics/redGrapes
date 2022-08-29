@@ -22,11 +22,7 @@ struct DefaultScheduler : public IScheduler
     CondVar cv;
 
     std::mutex m;
-
-    
-
-    //task::Queue ready;
-    moodycamel::ConcurrentQueue< Task* > ready;
+    task::Queue ready;
 
     std::vector<std::shared_ptr< dispatch::thread::WorkerThread >> threads;
 
@@ -68,16 +64,14 @@ struct DefaultScheduler : public IScheduler
         {
             if( ! worker->has_work.exchange(true) )
             {
-                //worker->queue.push(&task);
-                worker->queue.enqueue(&task);
+                worker->queue.push(&task);
                 worker->wake();
                 return;
             }
         }
 
         /* else add it to the ready queue */
-        //ready.push(&task);
-        ready.enqueue(&task);
+        ready.push(&task);
     }
 
     // give worker a ready task if available
@@ -85,11 +79,9 @@ struct DefaultScheduler : public IScheduler
     {
         if( ! worker.has_work.exchange(true) )
         {
-            Task * t;
-            if( ready.try_dequeue(t) )
+            if( Task * t = ready.pop() )
             {
-                //worker.queue.push(t);
-                worker.queue.enqueue(t);
+                worker.queue.push(t);
                 worker.wake();
             }
             else

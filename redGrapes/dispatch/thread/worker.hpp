@@ -46,8 +46,7 @@ private:
     CondVar cv;
 
 public:
-    //task::Queue queue;
-    moodycamel::ConcurrentQueue< Task * > queue;
+    task::Queue queue;
     std::thread thread;
 
     std::atomic_bool has_work;
@@ -73,10 +72,8 @@ public:
                 while( ! m_stop )
                 {
                     SPDLOG_DEBUG("Worker: work on queue");
-
-                    Task * task;
-                    //                    while( Task * task = queue.pop() )
-                    while( queue.try_dequeue(task) )
+                  
+                    while( Task * task = queue.pop() )
                         dispatch::thread::execute_task( *task , this->shared_from_this() );
 
                     has_work.exchange(false);

@@ -22,13 +22,12 @@ struct Queue
 
     std::mutex m;
 
+    moodycamel::ConcurrentQueue< Task* > cq;
+
     Queue();
 
     void push(Task * task);
     Task * pop();
-
-    Task * peek();
-    bool empty();
 };
 
 }

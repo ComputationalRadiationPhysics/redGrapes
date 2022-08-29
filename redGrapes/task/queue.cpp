@@ -18,6 +18,8 @@ namespace task
 
     void Queue::push(Task* item)
     {
+        cq.enqueue(item);
+        /*
         std::lock_guard<std::mutex> lock(m);
 
         item->next = nullptr;
@@ -31,10 +33,17 @@ namespace task
         __sync_bool_compare_and_swap(&head, 0, item);
 
         SPDLOG_TRACE("push: head = {}, tail = {}", (void*) head, (void*) tail);
+        */
     }
 
     Task * Queue::pop()
     {
+        Task * t = nullptr;
+        if( cq.try_dequeue( t ) )
+            return t;
+        else
+            return nullptr;
+        /*
         std::lock_guard<std::mutex> lock(m);
 
         while(Task * volatile t = head)
@@ -51,15 +60,8 @@ namespace task
 
         SPDLOG_TRACE("pop: head = {}, tail = {}", (void*) head, (void*) tail);
         return nullptr;
+        */
     }
-
-Task * Queue::peek() {
-    return this->head;
-}
-
-bool Queue::empty() {
-    return peek() == nullptr;
-}
 
 }
 }

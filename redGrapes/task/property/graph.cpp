@@ -95,6 +95,8 @@ void GraphProperty::init_graph()
                    space->is_serial( *preceding_task, *this->task )
                 )
                     add_dependency( *preceding_task );
+
+                // if preceding_task.has_sync_access: break
             }
         }
 
