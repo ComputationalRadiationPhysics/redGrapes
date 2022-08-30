@@ -42,7 +42,7 @@ private:
     std::atomic<unsigned> count;
 };
 
-template < typename T, size_t chunk_size = 0x800000 >
+template < size_t chunk_size = 0x800000 >
 struct Allocator
 {
     std::mutex m;
@@ -53,6 +53,7 @@ struct Allocator
         : active_chunk( std::make_unique<Chunk>(chunk_size) )
     {}
 
+    template <typename T>
     T * m_alloc()
     {
         T * item = (T*) active_chunk->m_alloc( sizeof(T) );
@@ -71,6 +72,7 @@ struct Allocator
         return item;
     }
 
+    template <typename T>
     void m_free( T * ptr )
     {
         if( active_chunk->contains((void*)ptr) )

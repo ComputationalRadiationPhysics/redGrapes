@@ -22,7 +22,7 @@ namespace redGrapes
 
 struct ResourceEntry
 {
-    ResourceBase resource;
+    std::shared_ptr< ResourceBase > resource;
     int task_idx; // index in task list of resource
 };
 
@@ -31,8 +31,11 @@ class ResourceUser
   public:    
     ResourceUser()
         : scope_level( scope_depth() )
-        , access_list() {}
-    
+        , access_list()
+    {
+        access_list.reserve(1024);
+    }
+
     ResourceUser( std::vector<ResourceAccess> const & access_list_ )
         : access_list( access_list_ )
         , scope_level( scope_depth() )
@@ -43,7 +46,7 @@ class ResourceUser
     void add_resource_access( ResourceAccess ra )
     {
         this->access_list.push_back(ra);
-        ResourceBase r = ra.get_resource();
+        std::shared_ptr<ResourceBase> r = ra.get_resource();
         if( std::find_if(unique_resources.begin(), unique_resources.end(), [r](ResourceEntry const & e){ return e.resource == r; }) == unique_resources.end() )
             unique_resources.push_back(ResourceEntry{ r, -1 });
     }
@@ -60,10 +63,24 @@ class ResourceUser
         unique_resources.reserve(access_list.size());
         for( auto & ra : access_list )
         {
-            ResourceBase r = ra.get_resource();
+            std::shared_ptr<ResourceBase> r = ra.get_resource();
             if( std::find_if(unique_resources.begin(), unique_resources.end(), [r](ResourceEntry const & e){ return e.resource == r; }) == unique_resources.end() )
             unique_resources.push_back(ResourceEntry{ r, -1 });            
         }
+    }
+
+    bool has_sync_access( std::shared_ptr< ResourceBase > res )
+    {
+        for( auto & ra : access_list )
+        {
+            if(
+               ra.get_resource() == res &&
+               ra.is_synchronizing()
+            )
+                return true;
+        }
+
+        return false;
     }
 
     static bool
@@ -100,8 +117,8 @@ class ResourceUser
     }
 
     unsigned int scope_level;
-    std::vector<ResourceAccess> access_list;
 
+    std::vector<ResourceAccess> access_list;
     std::vector<ResourceEntry> unique_resources;
 }; // class ResourceUser
 

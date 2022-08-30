@@ -35,9 +35,6 @@ void hash(unsigned task_id,
     };
 
     sha256_process(state, (uint8_t*)&val[0], sizeof(val));
-
-    for(int i=0; i<8; ++i)
-        val[i] = state[i];
 }
 
 std::chrono::microseconds task_duration(5);

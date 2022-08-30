@@ -31,6 +31,12 @@ struct AreaAccess : std::array<size_t, 2>
     AreaAccess(std::array<size_t, 2> a)
       : std::array<size_t, 2>(a) {}
 
+    bool is_synchronizing() const
+    {
+       return ( *this )[ 0 ] == std::numeric_limits< size_t >::min() &&
+           ( *this )[ 1 ] == std::numeric_limits< size_t >::max();
+    }
+    
     static bool
     is_serial(
         AreaAccess const & a,

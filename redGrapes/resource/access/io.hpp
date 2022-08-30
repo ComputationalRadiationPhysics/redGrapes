@@ -39,6 +39,11 @@ namespace redGrapes
             {
             }
 
+            bool is_synchronizing() const
+            {
+                return mode == write;
+            }
+
             bool operator==(IOAccess const& other) const
             {
                 return this->mode == other.mode;

@@ -8,7 +8,7 @@
 /**
  * @file redGrapes/property/resource.hpp
  */
-
+ 
 #pragma once
 
 #include <stdexcept>

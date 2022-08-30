@@ -11,9 +11,13 @@
 #include <vector>
 #include <mutex>
 
-#include <redGrapes/task/allocator.hpp>
+#include <redGrapes/util/allocator.hpp>
 #include <redGrapes/task/task.hpp>
 #include <redGrapes/task/queue.hpp>
+
+#ifndef TASK_ALLOCATOR_CHUNKSIZE
+#define TASK_ALLOCATOR_CHUNKSIZE 0x800000
+#endif
 
 namespace redGrapes
 {
@@ -23,19 +27,19 @@ namespace redGrapes
 struct TaskSpace : std::enable_shared_from_this<TaskSpace>
 {
     /* task storage */
-    memory::Allocator task_storage;
+    memory::Allocator< TASK_ALLOCATOR_CHUNKSIZE > task_storage;
     std::atomic< unsigned long > task_count;
     std::atomic< unsigned long > task_capacity;
 
     /* queue */
     std::mutex emplacement_mutex;
     task::Queue emplacement_queue;
-    
+
+    // ticket (id) of currently initialized task
+    std::atomic< unsigned > serving_task_id;
+
     unsigned depth;
     Task * parent;
-
-    // debug
-    int next_id;
 
     virtual ~TaskSpace();
     

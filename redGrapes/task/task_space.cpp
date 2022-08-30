@@ -18,7 +18,6 @@ namespace redGrapes
     TaskSpace::TaskSpace()
         : depth(0)
         , parent(nullptr)
-        , next_id(0)
     {
         task_count = 0;
         task_capacity = 512;
@@ -61,11 +60,12 @@ namespace redGrapes
                 task->alive = 1;
                 task->pre_event.up();
                 task->init_graph();
+
                 if(task->get_pre_event().notify())
                     return true;
-            } else {
-                return false;
             }
+            else
+                return false;
         }
 
         return false;

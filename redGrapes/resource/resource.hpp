@@ -21,6 +21,7 @@
 #include <redGrapes/context.hpp>
 #include <redGrapes/task/property/trait.hpp>
 
+
 #include <fmt/format.h>
 
 namespace redGrapes
@@ -38,16 +39,16 @@ protected:
 
 public:
     unsigned int id;
+
     unsigned int scope_level;
 
-    std::shared_ptr< std::pair<std::mutex, std::vector<Task*>> > tasks;
+    std::mutex users_mutex;
+    std::vector<Task*> users;
 
     /**
      * Create a new resource with an unused ID.
      */
     ResourceBase();
-
-    bool operator==( ResourceBase const & other ) const;
 };
 
 template <typename AccessPolicy>
@@ -61,8 +62,8 @@ class ResourceAccess
   private:
     struct AccessBase
     {
-        AccessBase( boost::typeindex::type_index access_type_, ResourceBase resource )
-            : access_type( access_type_ )
+        AccessBase( boost::typeindex::type_index access_type, std::shared_ptr<ResourceBase> resource )
+            : access_type( access_type )
             , resource( resource )
         {
         }
@@ -73,32 +74,32 @@ class ResourceAccess
         bool
         is_same_resource( ResourceAccess::AccessBase const & a ) const
         {
-            return this->resource.id == a.resource.id;
+            return this->resource == a.resource;
         }
 
+        virtual bool is_synchronizing() const = 0;
         virtual bool is_serial( AccessBase const & r ) const = 0;
         virtual bool is_superset_of( AccessBase const & r ) const = 0;
-        virtual AccessBase * clone( void ) const = 0;
         virtual std::string mode_format() const = 0;
 
         boost::typeindex::type_index access_type;
-        ResourceBase resource;
+        std::shared_ptr< ResourceBase > resource;
     }; // AccessBase
 
-    std::unique_ptr<AccessBase> obj;
+    // todo use allocator!!
+    std::shared_ptr< AccessBase > obj;
 
   public:
-    ResourceAccess( AccessBase * obj_ ) : obj( obj_ ) {}
-    ResourceAccess( ResourceAccess const & r ) : obj( r.obj->clone() ) {}
-    ResourceAccess( ResourceAccess && r ) : obj( std::move( r.obj ) ) {}
+    ResourceAccess( std::shared_ptr< AccessBase > obj ) : obj( obj ) {}
+    ResourceAccess( ResourceAccess const & other ) : obj( other.obj ) {}
+    ResourceAccess( ResourceAccess && other ) : obj( other.obj ) {}
 
-    ResourceAccess &
-    operator=( ResourceAccess const & r )
+    ResourceAccess& operator= (ResourceAccess const & other )
     {
-        this->obj.reset( r.obj->clone() );
+        this->obj = other.obj;
         return *this;
     }
-
+    
     static bool
     is_serial( ResourceAccess const & a, ResourceAccess const & b )
     {
@@ -119,14 +120,19 @@ class ResourceAccess
             return false;
     }
 
+    bool is_synchronizing() const
+    {
+        return this->obj->is_synchronizing();
+    }
+    
     unsigned int scope_level() const
     {
-        return this->obj->resource.scope_level;
+        return this->obj->resource->scope_level;
     }
 
     unsigned int resource_id() const
     {
-        return this->obj->resource.id;
+        return this->obj->resource->id;
     }
 
     std::string mode_format() const
@@ -134,7 +140,7 @@ class ResourceAccess
         return this->obj->mode_format();
     }
 
-    ResourceBase get_resource()
+    std::shared_ptr< ResourceBase > get_resource()
     {
         return obj->resource;
     }
@@ -221,21 +227,26 @@ struct DefaultAccessPolicy
  * Copied objects represent the same resource.
  */
 template <typename AccessPolicy = DefaultAccessPolicy>
-class Resource : public ResourceBase
+class Resource
 {
 protected:
     struct Access : public ResourceAccess::AccessBase
     {
-        Access( ResourceBase resource_, AccessPolicy policy_ )
+        Access( std::shared_ptr< ResourceBase > resource, AccessPolicy policy )
             : ResourceAccess::AccessBase(
                   boost::typeindex::type_id<AccessPolicy>(),
-                  resource_
+                  resource
               )
-            , policy( policy_ )
+            , policy( policy )
         {}
 
         ~Access() {}
 
+        bool is_synchronizing() const
+        {
+            return policy.is_synchronizing();
+        }
+        
         bool
         is_serial( ResourceAccess::AccessBase const & a_ ) const
         {
@@ -263,12 +274,6 @@ protected:
             return ( this->is_same_resource(a_) && this->policy == a.policy );
         }
 
-        AccessBase *
-        clone( void ) const
-        {
-            return new Access( this->resource, this->policy );
-        }
-
         std::string mode_format() const
         {
             return fmt::format("{}", policy);
@@ -279,12 +284,15 @@ protected:
 
     friend class ResourceBase;
 
-    Resource( ResourceBase const & base )
+    std::shared_ptr< ResourceBase > base;
+
+    Resource( std::shared_ptr<ResourceBase> base )
         : ResourceBase( base )
     {}
 
   public:
     Resource()
+        : base( std::make_shared<ResourceBase>() )
     {}
 
     /**
@@ -297,7 +305,7 @@ protected:
     ResourceAccess
     make_access( AccessPolicy pol ) const
     {
-        return ResourceAccess( new Access( *this, pol ) );
+        return ResourceAccess( std::make_shared<Access>( base, pol ) );
     }
 }; // class Resource
 

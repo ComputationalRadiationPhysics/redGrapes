@@ -42,6 +42,15 @@ struct ArrayAccess : std::array<Access, N>
     ArrayAccess(std::array<Access, N> const & a)
       : std::array<Access, N>(a) {}
 
+    bool is_synchronizing() const
+    {
+        for(std::size_t i = 0; i < N; ++i)
+            if( !(*this)[i].is_synchronizing() )
+                return false;
+
+        return true;
+    }
+    
     //! both array accesses are only serial if all element pairs are serial
     static bool
     is_serial(
@@ -119,6 +128,11 @@ struct CombineAccess : std::pair<Acc1, Acc2>
         );
     }
 
+    bool is_synchronizing() const
+    {
+        return this->first.is_synchronizing() && this->second.is_synchronizing();
+    }
+    
     static bool
     is_serial(
         CombineAccess<Acc1, Acc2, Or_t> const & a,

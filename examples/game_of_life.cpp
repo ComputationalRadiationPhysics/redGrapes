@@ -44,7 +44,7 @@ int main( int, char * [] )
     spdlog::set_level( spdlog::level::trace );
     spdlog::set_pattern("[thread %t] %^[%l]%$ %v");
 
-    redGrapes::init(1);
+    redGrapes::init();
 
     using Buffer =
         std::array<

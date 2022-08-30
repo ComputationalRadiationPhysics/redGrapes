@@ -78,30 +78,37 @@ void GraphProperty::sg_pause( scheduler::EventPtr event )
 void GraphProperty::init_graph()
 {
     SPDLOG_TRACE("sg init task {}", this->task->task_id);
-
+    
     for( ResourceEntry & r : this->task->unique_resources )
     {
-        std::lock_guard< std::mutex > lock(r.resource.tasks->first);
+        std::lock_guard< std::mutex > lock( r.resource->users_mutex );
 
-        for( Task * preceding_task : r.resource.tasks->second )
+        for( auto it = r.resource->users.rbegin(); it != r.resource->users.rend(); ++it )
         {
-            if( preceding_task != nullptr )
+            Task * preceding_task = *it;
+
+            if( preceding_task == nullptr )
+                continue;
+
+            if( preceding_task == this->space->parent )
+                break;
+
+            if(
+               preceding_task->space == this->space &&
+               space->is_serial( *preceding_task, *this->task )
+            )
             {
-                if( preceding_task == this->space->parent )
+                add_dependency( *preceding_task );
+
+                if( preceding_task->has_sync_access( r.resource ) )
                     break;
-
-                if(
-                   preceding_task->space == this->space &&
-                   space->is_serial( *preceding_task, *this->task )
-                )
-                    add_dependency( *preceding_task );
-
-                // if preceding_task.has_sync_access: break
             }
         }
 
-        r.task_idx = r.resource.tasks->second.size();
-        r.resource.tasks->second.push_back(this->task);
+        //r.resource.users.push(this->task);
+
+        r.task_idx = r.resource->users.size();
+        r.resource->users.push_back(this->task);
     }
 
     // add dependency to parent
@@ -113,9 +120,9 @@ void GraphProperty::delete_from_resources()
 {
     for( ResourceEntry r : this->task->unique_resources )
     {
-        std::lock_guard< std::mutex > lock(r.resource.tasks->first);
+        std::lock_guard< std::mutex > lock(r.resource->users_mutex);
         if( r.task_idx != -1 )
-            r.resource.tasks->second[ r.task_idx ] = nullptr;
+            r.resource->users[ r.task_idx ] = nullptr;
     }
 }
 

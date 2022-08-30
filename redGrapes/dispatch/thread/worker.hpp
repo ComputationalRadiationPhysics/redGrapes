@@ -18,7 +18,7 @@
 #include <redGrapes/task/task.hpp>
 #include <redGrapes/context.hpp>
 #include <redGrapes/redGrapes.hpp>
-#include <redGrapes/cv.hpp>
+#include <redGrapes/util/cv.hpp>
 
 namespace redGrapes
 {
