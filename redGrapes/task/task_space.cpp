@@ -21,6 +21,7 @@ namespace redGrapes
     {
         task_count = 0;
         task_capacity = 512;
+        serving_task_id = 0;
     }
 
     // sub space
@@ -30,6 +31,7 @@ namespace redGrapes
     {
         task_count = 0;
         task_capacity = 512;
+        serving_task_id = 0;
     }
 
     bool TaskSpace::is_serial(Task& a, Task& b)
@@ -52,20 +54,26 @@ namespace redGrapes
     {
         std::lock_guard<std::mutex> lock(emplacement_mutex);
 
-        while( task_capacity.fetch_sub(1) > 0 )
-            //while(true)
+        //while( task_capacity.fetch_sub(1, std::memory_order_acquire) > 0 )
+        while(true)
         {
             if(auto task = emplacement_queue.pop())
             {
                 task->alive = 1;
                 task->pre_event.up();
+
+                while( task->task_id != serving_task_id );
                 task->init_graph();
+                serving_task_id.fetch_add(1, std::memory_order_relaxed);
 
                 if(task->get_pre_event().notify())
                     return true;
             }
             else
+            {
+                task_capacity.fetch_add(1, std::memory_order_release);
                 return false;
+            }
         }
 
         return false;
@@ -77,7 +85,7 @@ namespace redGrapes
         {
             if( __sync_bool_compare_and_swap(&task.alive, 1, 0) )
             {
-                task_capacity++;
+                task_capacity.fetch_add(1, std::memory_order_release);
 
                 task.delete_from_resources();
                 task.~Task();

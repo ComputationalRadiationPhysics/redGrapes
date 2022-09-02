@@ -166,7 +166,10 @@ void schedule()
     if(ts)
     {
         //update_active_task_spaces();
-        top_space->init_until_ready();
+        auto space = top_space;
+        if(space)
+            space->init_until_ready();
+
         ts->schedule();
     }
 }
@@ -177,7 +180,10 @@ void schedule( dispatch::thread::WorkerThread & worker )
     if(ts)
     {
         //update_active_task_spaces();
-        top_space->init_until_ready();
+        auto space = top_space;
+        if(space)
+            space->init_until_ready();
+
         ts->schedule( worker );
     }    
 }

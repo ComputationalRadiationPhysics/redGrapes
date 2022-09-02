@@ -81,34 +81,32 @@ void GraphProperty::init_graph()
     
     for( ResourceEntry & r : this->task->unique_resources )
     {
-        std::lock_guard< std::mutex > lock( r.resource->users_mutex );
+        // todo: minimize critical section
+        r.task_idx = r.resource->users.push( this->task );    
 
-        for( auto it = r.resource->users.rbegin(); it != r.resource->users.rend(); ++it )
+        if( r.task_idx > 0 )
         {
-            Task * preceding_task = *it;
-
-            if( preceding_task == nullptr )
-                continue;
-
-            if( preceding_task == this->space->parent )
-                break;
-
-            if(
-               preceding_task->space == this->space &&
-               space->is_serial( *preceding_task, *this->task )
-            )
+            std::unique_lock< std::shared_mutex > lock( r.resource->users_mutex );
+            for(auto it = r.resource->users.iter_from( r.task_idx-1 ); it.first != it.second; ++it.first )
             {
-                add_dependency( *preceding_task );
+                Task * preceding_task = *it.first;
 
-                if( preceding_task->has_sync_access( r.resource ) )
+                if( preceding_task == this->space->parent )
                     break;
+
+                if(
+                   preceding_task->space == this->space &&
+                   space->is_serial( *preceding_task, *this->task )
+                )
+                {
+                    SPDLOG_TRACE("add dependency: task {} -> task {}", preceding_task->task_id, this->task->task_id);
+                    add_dependency( *preceding_task );
+
+                    if( preceding_task->has_sync_access( r.resource ) )
+                        break;
+                }
             }
         }
-
-        //r.resource.users.push(this->task);
-
-        r.task_idx = r.resource->users.size();
-        r.resource->users.push_back(this->task);
     }
 
     // add dependency to parent
@@ -120,9 +118,9 @@ void GraphProperty::delete_from_resources()
 {
     for( ResourceEntry r : this->task->unique_resources )
     {
-        std::lock_guard< std::mutex > lock(r.resource->users_mutex);
+        std::unique_lock< std::shared_mutex > lock( r.resource->users_mutex );
         if( r.task_idx != -1 )
-            r.resource->users[ r.task_idx ] = nullptr;
+            r.resource->users.remove( r.task_idx );
     }
 }
 

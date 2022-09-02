@@ -1,4 +1,4 @@
-/* Copyright 2019 Michael Sippel
+/* Copyright 2019-2022 Michael Sippel
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -15,14 +15,20 @@
 #include <memory> // std::unique_ptr<>
 #include <vector>
 #include <mutex>
+#include <shared_mutex>
 #include <iostream>
 #include <functional>
 
 #include <redGrapes/context.hpp>
 #include <redGrapes/task/property/trait.hpp>
-
+#include <redGrapes/util/chunked_list.hpp>
 
 #include <fmt/format.h>
+
+namespace std
+{
+    using shared_mutex = shared_timed_mutex;
+} // namespace std
 
 namespace redGrapes
 {
@@ -39,11 +45,10 @@ protected:
 
 public:
     unsigned int id;
-
     unsigned int scope_level;
 
-    std::mutex users_mutex;
-    std::vector<Task*> users;
+    std::shared_mutex users_mutex;
+    ChunkedList< Task, 1024 > users;
 
     /**
      * Create a new resource with an unused ID.

@@ -39,7 +39,7 @@ void hash(unsigned task_id,
 
 std::chrono::microseconds task_duration(5);
 unsigned n_resources = 5;
-unsigned n_tasks = 10000;
+unsigned n_tasks = 100000;
 unsigned n_threads = 4;
 unsigned min_dependencies = 0;
 unsigned max_dependencies = 5;
@@ -183,5 +183,7 @@ TEST_CASE("RandomGraph")
  
     for(int i = 0; i < n_resources; ++i)
         REQUIRE( *resources[i] == expected_hash[i] );
+
+    rg::finalize();
 }
 

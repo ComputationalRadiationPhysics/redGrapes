@@ -9,6 +9,11 @@ struct Access
     static bool is_serial(Access a, Access b)
     { return true; }
 
+    bool is_synchronizing() const
+    {
+        return true;
+    }
+    
     bool is_superset_of(Access a) const
     { return true; }
 
