@@ -52,7 +52,7 @@ namespace redGrapes
      */
     bool TaskSpace::init_until_ready()
     {
-        std::lock_guard<std::mutex> lock(emplacement_mutex);
+        //std::lock_guard<std::mutex> lock(emplacement_mutex);
 
         //while( task_capacity.fetch_sub(1, std::memory_order_acquire) > 0 )
         while(true)

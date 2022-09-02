@@ -11,8 +11,10 @@
 
 #pragma once
 
+#include <array>
+#include <atomic>
 #include <mutex>
-#include <shared_mutex>
+#include <memory>
 
 namespace redGrapes
 {
@@ -46,7 +48,7 @@ template < typename T, size_t chunk_size = 1024 >
         unsigned push(T * item)
         {
         retry:
-            auto chunk = head;
+            std::shared_ptr<Chunk> chunk = head;
 
             unsigned id = chunk->next_id.fetch_add(1);
             if( id < chunk_size )
@@ -60,8 +62,6 @@ template < typename T, size_t chunk_size = 1024 >
                 auto new_chunk = std::make_shared< Chunk >(next_chunk_id.fetch_add(1));
                 new_chunk->next = head;
                 head = new_chunk;
-
-                SPDLOG_TRACE("new chunk");
 
                 goto retry;
             }
@@ -77,7 +77,7 @@ template < typename T, size_t chunk_size = 1024 >
         
         void remove(unsigned idx)
         {            
-            auto chunk = head;
+            std::shared_ptr<Chunk> chunk = head;
             while( chunk != nullptr )
             {
                 if( chunk->id == idx / chunk_size )
@@ -89,6 +89,7 @@ template < typename T, size_t chunk_size = 1024 >
             }
 
             // out ouf range
+            throw std::out_of_range("");
             return;
         }
 
@@ -124,8 +125,8 @@ template < typename T, size_t chunk_size = 1024 >
                 
                 return *this;
             }
-
-            T * operator* ()
+            
+            T * operator* () const
             {
                 return chunk->buf[idx];
             }
@@ -133,15 +134,17 @@ template < typename T, size_t chunk_size = 1024 >
 
         std::pair<BackwardsIterator, BackwardsIterator> iter_from(unsigned idx)
         {
-            SPDLOG_TRACE("iter from {}", idx);
-
-            auto chunk = head;
+            std::shared_ptr<Chunk> chunk = head;
             while( chunk != nullptr )
             {
                 if( chunk->id == idx / chunk_size )
                 {
+                    auto s = BackwardsIterator{ chunk, idx%chunk_size };
+                    if( *s == nullptr )
+                        ++s;
+
                     return std::make_pair(
-                               BackwardsIterator{ chunk, idx%chunk_size },
+                               s,
                                BackwardsIterator{ nullptr, chunk_size-1 }
                            );
                 }
