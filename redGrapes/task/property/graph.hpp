@@ -61,6 +61,9 @@ struct GraphProperty
     }
 
     Task * task;
+
+    // ticket for initialization of dependency graph
+    unsigned ticket;
     
     //! number of parents
     unsigned int scope_depth;

@@ -17,8 +17,8 @@ namespace task
 
 struct Queue
 {
-    Task * volatile head;
-    Task volatile * volatile tail;
+    std::atomic< Task * > head;
+    std::atomic< Task * > tail;
 
     std::mutex m;
 

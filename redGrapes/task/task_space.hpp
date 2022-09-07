@@ -32,14 +32,17 @@ struct TaskSpace : std::enable_shared_from_this<TaskSpace>
     std::atomic< unsigned long > task_capacity;
 
     /* queue */
-    std::mutex emplacement_mutex;
     task::Queue emplacement_queue;
 
     // ticket (id) of currently initialized task
-    std::atomic< unsigned > serving_task_id;
+    std::atomic< unsigned > serving_ticket;
+    std::atomic< unsigned > ticket_count;
 
     unsigned depth;
     Task * parent;
+
+    std::shared_mutex active_child_spaces_mutex;
+    std::vector< std::shared_ptr< TaskSpace > > active_child_spaces;
 
     virtual ~TaskSpace();
     
@@ -47,11 +50,25 @@ struct TaskSpace : std::enable_shared_from_this<TaskSpace>
     TaskSpace();
 
     // sub space
-    TaskSpace( Task & parent );
+    TaskSpace( Task * parent );
 
     virtual bool is_serial( Task& a, Task& b );
     virtual bool is_superset( Task& a, Task& b );
 
+    void lock_queue( Task * task );
+    void unlock_queue( Task * task );
+
+    /* Construct a new task in this task space
+     *
+     * Note: for each task space there is at most one thread calling
+     * this function
+     *
+     * @param f callable functor to execute in this task
+     * @param prop Task-Properties (including resource-
+     *             access descriptions)
+     *
+     * @return: reference to new task
+     */
     template < typename F >
     Task & emplace_task( F&& f, TaskProperties&& prop )
     {
@@ -66,6 +83,7 @@ struct TaskSpace : std::enable_shared_from_this<TaskSpace>
         task->space = shared_from_this();
         task->task = task;
         task->next = nullptr;
+        task->ticket = ticket_count.fetch_add(1);
 
         ++ task_count;
 
@@ -87,6 +105,7 @@ struct TaskSpace : std::enable_shared_from_this<TaskSpace>
      */
     bool init_until_ready();
 
+    void kill( Task & task );
     void try_remove( Task & task );
 
     bool empty() const;

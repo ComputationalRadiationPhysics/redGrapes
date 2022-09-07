@@ -48,6 +48,12 @@ struct DefaultScheduler : public IScheduler
             };
     }
 
+    void start()
+    {
+        for( auto & worker : threads )
+            worker->start();
+    }
+
     void stop()
     {
         for( auto & worker : threads )

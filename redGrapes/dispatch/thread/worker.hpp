@@ -42,6 +42,7 @@ private:
     /*! if true, the thread shall stop
      * instead of waiting when it is out of jobs
      */
+    std::atomic_bool m_start;
     std::atomic_bool m_stop;
     CondVar cv;
 
@@ -54,6 +55,7 @@ public:
 public:
 
     WorkerThread() :
+        m_start( false ),
         m_stop( false ),
         thread(
             [this]
@@ -68,6 +70,9 @@ public:
                     {
                         throw std::runtime_error("idle in worker thread!");
                     };
+
+                while( ! m_start )
+                    cv.wait();
 
                 while( ! m_stop )
                 {
@@ -99,8 +104,15 @@ public:
 
     bool wake()
     {
-        SPDLOG_TRACE("Worker::wake()");
-        return cv.notify();
+        bool awake = cv.notify();
+        SPDLOG_TRACE("Worker::wake() ... awake={}", awake);
+        return awake;
+    }
+
+    void start()
+    {
+        m_start = true;
+        wake();
     }
 
     void stop()

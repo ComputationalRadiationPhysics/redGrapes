@@ -13,8 +13,6 @@ struct TaskSpace;
 
 /*! global context
  */
-extern moodycamel::ConcurrentQueue< std::shared_ptr<TaskSpace> > active_task_spaces;
-
 extern thread_local Task * current_task;
 extern thread_local std::function< void () > idle;
 

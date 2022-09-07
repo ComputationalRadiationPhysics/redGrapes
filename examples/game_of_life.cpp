@@ -44,7 +44,7 @@ int main( int, char * [] )
     spdlog::set_level( spdlog::level::trace );
     spdlog::set_pattern("[thread %t] %^[%l]%$ %v");
 
-    redGrapes::init();
+    redGrapes::init(4);
 
     using Buffer =
         std::array<
@@ -113,7 +113,7 @@ int main( int, char * [] )
                 std::cout << std::endl;
             },
             buffers[current].read()
-         ).get();
+                                ).get();
 
         // calculate next step
         for ( size_t x = 1; x <= size.x; x += chunk_size.x )

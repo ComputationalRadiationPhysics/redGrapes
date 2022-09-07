@@ -17,6 +17,8 @@
 int main( int, char*[] )
 {
     spdlog::set_level(spdlog::level::trace);
+    spdlog::set_pattern("[thread %t] %^[%l]%$ %v");
+
     redGrapes::init(4);
 
     redGrapes::emplace_task(
@@ -27,7 +29,8 @@ int main( int, char*[] )
             int i = 0;
             for( auto t : redGrapes::backtrace() )
             {
-                fmt::print("refinement 1 backtrace [{}]: {}\n", i, (redGrapes::TaskProperties const&) t);
+                //fmt::print("refinement 1 backtrace [{}]: {}\n", i, (redGrapes::TaskProperties const&) t.label);
+                fmt::print("refinement 1 backtrace [{}]: {}\n", i, ((redGrapes::Task&)t).label);
             }
 
             redGrapes::emplace_task(
@@ -36,6 +39,8 @@ int main( int, char*[] )
                     fmt::print("Refinement 1\n");
                     std::this_thread::sleep_for( std::chrono::seconds(1) );
                 });
+
+            SPDLOG_TRACE("EX: create next task task");
 
             redGrapes::emplace_task(
                 []

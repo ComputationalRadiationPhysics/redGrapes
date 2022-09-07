@@ -45,6 +45,10 @@ struct IScheduler : virtual IWaker
     {
     }
 
+    virtual void start()
+    {
+    }
+
     virtual void stop()
     {
     }

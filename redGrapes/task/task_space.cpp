@@ -21,17 +21,17 @@ namespace redGrapes
     {
         task_count = 0;
         task_capacity = 512;
-        serving_task_id = 0;
+        serving_ticket = 0;
     }
 
     // sub space
-    TaskSpace::TaskSpace(Task& parent)
-        : depth(parent.space->depth + 1)
-        , parent(&parent)
+    TaskSpace::TaskSpace(Task * parent)
+        : depth(parent->space->depth + 1)
+        , parent(parent)
     {
         task_count = 0;
         task_capacity = 512;
-        serving_task_id = 0;
+        serving_ticket = 0;
     }
 
     bool TaskSpace::is_serial(Task& a, Task& b)
@@ -52,26 +52,25 @@ namespace redGrapes
      */
     bool TaskSpace::init_until_ready()
     {
-        //std::lock_guard<std::mutex> lock(emplacement_mutex);
-
-        //while( task_capacity.fetch_sub(1, std::memory_order_acquire) > 0 )
-        while(true)
+        SPDLOG_TRACE("TaskSpace::init_until_ready() this={}", (void*)this);
+        while( true ) //task_capacity.fetch_sub(1) >  0 )
         {
             if(auto task = emplacement_queue.pop())
             {
                 task->alive = 1;
                 task->pre_event.up();
-
-                while( task->task_id != serving_task_id );
                 task->init_graph();
-                serving_task_id.fetch_add(1, std::memory_order_relaxed);
-
                 if(task->get_pre_event().notify())
                     return true;
             }
             else
             {
-                task_capacity.fetch_add(1, std::memory_order_release);
+                SPDLOG_TRACE("TaskSpace::init_until_ready(): check child spaces");
+                std::shared_lock< std::shared_mutex > read_lock( active_child_spaces_mutex );
+                for( auto child : active_child_spaces )
+                    if( child->init_until_ready() )
+                        return true;
+
                 return false;
             }
         }
@@ -79,35 +78,70 @@ namespace redGrapes
         return false;
     }
 
-    void TaskSpace::try_remove(Task& task)
+    void TaskSpace::lock_queue( Task * task )
     {
-        if(task.post_event.is_reached() && task.result_get_event.is_reached() && (!task.children || task.children->empty()))
-        {
-            if( __sync_bool_compare_and_swap(&task.alive, 1, 0) )
-            {
-                task_capacity.fetch_add(1, std::memory_order_release);
+        while( task->ticket != serving_ticket.load(std::memory_order_acquire) );
+    }
 
-                task.delete_from_resources();
-                task.~Task();
-                task_storage.m_free(&task);
+    void TaskSpace::unlock_queue(Task *task)
+    {
+        serving_ticket.fetch_add(1, std::memory_order_release);
+    }
 
-                auto ts = top_scheduler;
+    void TaskSpace::kill(Task &task) {
+      if (__sync_bool_compare_and_swap(&task.alive, 1, 0)) {
+        if (task.children) {
+          SPDLOG_TRACE("remove child space");
 
-                if( task_count.fetch_sub(1) == 1 )
-                {
-                    SPDLOG_DEBUG("task space empty");
-                    if( ts )
-                        ts->wake_all_workers();
-                }
-            }
+          std::unique_lock<std::shared_mutex> wr_lock(
+              current_task->space->active_child_spaces_mutex);
+          active_child_spaces.erase(std::find(active_child_spaces.begin(),
+                                              active_child_spaces.end(),
+                                              task.children));
         }
 
-        // todo multiple chunks!
+        SPDLOG_TRACE("remove task {}", task.task_id);
+        task.delete_from_resources();
+        task.~Task();
+        task_storage.m_free(&task);
+
+        auto ts = top_scheduler;
+
+        if (task_count.fetch_sub(1) == 1) {
+          SPDLOG_DEBUG("task space empty");
+
+          if (parent)
+            parent->space->try_remove(*parent);
+
+          if (ts)
+            ts->wake_all_workers();
+        }
+
+        SPDLOG_TRACE("kill: task count = {}", task_count);
+      }
+    }
+
+    void TaskSpace::try_remove(Task& task)
+    {
+        SPDLOG_TRACE("try remove {}", task.task_id);
+        if( task.post_event.is_reached() )
+            if( task.result_get_event.is_reached() )
+                if( !task.children || task.children->empty() )
+                    kill(task);
+                else
+                    SPDLOG_TRACE("task {} not yet removed: has children", task.task_id);
+            else
+                SPDLOG_TRACE("task {} not yet removed: result not taken", task.task_id);
+        else
+            SPDLOG_TRACE("task {} not yet removed: post event not reached (still running)", task.task_id);
+
     }
 
     bool TaskSpace::empty() const
     {
-        return task_count == 0;
+        unsigned tc = task_count.load();
+        SPDLOG_TRACE("({}) empty? task count = {}", (void*)this, tc);
+        return tc == 0;
     }
 
 } // namespace redGrapes

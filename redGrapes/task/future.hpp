@@ -29,10 +29,22 @@ namespace redGrapes
               taken(false)
         {}
 
+        
+    Future( Future && other )
+        : task( other.task ),
+          taken( other.taken )
+    {
+        SPDLOG_TRACE("MOVE future");
+        other.taken = true;
+    }
+  
         ~Future()
         {
             if(!taken)
+            {
+                SPDLOG_TRACE("notify in destruct of future");
                 task.get_result_get_event().notify();
+            }
         }
 
         /*!
@@ -74,10 +86,21 @@ struct Future<void>
               taken(false)
         {}
 
+    Future( Future && other )
+        : task( other.task ),
+          taken( other.taken )
+    {
+        SPDLOG_TRACE("MOVE future");
+        other.taken = true;
+    }
+     
         ~Future()
         {
             if(!taken)
+            {
+                SPDLOG_TRACE("notify in destruct of future");
                 task.get_result_get_event().notify();
+            }
         }
 
         /*!

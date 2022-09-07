@@ -78,15 +78,19 @@ void GraphProperty::sg_pause( scheduler::EventPtr event )
 void GraphProperty::init_graph()
 {
     SPDLOG_TRACE("sg init task {}", this->task->task_id);
-    
+
+    this->task->space->lock_queue( this->task );
+
+    for( ResourceEntry & r : this->task->unique_resources )
+        r.task_idx = r.resource->users.push( this->task );
+
+    this->task->space->unlock_queue( this->task );
+
     for( ResourceEntry & r : this->task->unique_resources )
     {
-        // todo: minimize critical section
-        r.task_idx = r.resource->users.push( this->task );    
-
         if( r.task_idx > 0 )
         {
-            std::unique_lock< std::shared_mutex > lock( r.resource->users_mutex );
+            std::shared_lock< std::shared_mutex > lock( r.resource->users_mutex );
             for(auto it = r.resource->users.iter_from( r.task_idx-1 ); it.first != it.second; ++it.first )
             {
                 Task * preceding_task = *it.first;
@@ -111,7 +115,10 @@ void GraphProperty::init_graph()
 
     // add dependency to parent
     if( auto parent = this->space->parent )
-        parent->post_event.add_follower( this->get_post_event() );
+    {
+        SPDLOG_TRACE("add event dep to parent");
+        this->post_event.add_follower( parent->get_post_event() );
+    }
 }
 
 void GraphProperty::delete_from_resources()

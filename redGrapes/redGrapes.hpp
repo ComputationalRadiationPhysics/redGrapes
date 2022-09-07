@@ -132,8 +132,8 @@ void schedule( dispatch::thread::WorkerThread & worker );
 
         SPDLOG_DEBUG("redGrapes::emplace_task {}", (TaskProperties const&)builder);
         Task& task = current_task_space()->emplace_task(std::move(impl), (TaskProperties &&) builder);
-
-        return Future<decltype(impl())>(task);
+        
+        return std::move(Future<decltype(impl())>(task));
     }
 
 } // namespace redGrapes
