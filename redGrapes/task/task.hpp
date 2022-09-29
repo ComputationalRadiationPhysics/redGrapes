@@ -15,6 +15,9 @@
 #include <redGrapes/task/property/queue.hpp>
 #include <redGrapes/task/property/graph.hpp>
 
+// defines REDGRAPES_TASK_PROPERTIES
+#include <redGrapes_config.hpp>
+
 namespace redGrapes
 {
 

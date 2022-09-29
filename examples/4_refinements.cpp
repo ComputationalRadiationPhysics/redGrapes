@@ -9,9 +9,6 @@
 #include <chrono>
 #include <iostream>
 
-#define REDGRAPES_TASK_PROPERTIES redGrapes::LabelProperty
-
-#include <redGrapes/task/property/label.hpp>
 #include <redGrapes/redGrapes.hpp>
 
 int main( int, char*[] )
@@ -28,10 +25,7 @@ int main( int, char*[] )
 
             int i = 0;
             for( auto t : redGrapes::backtrace() )
-            {
-                //fmt::print("refinement 1 backtrace [{}]: {}\n", i, (redGrapes::TaskProperties const&) t.label);
-                fmt::print("refinement 1 backtrace [{}]: {}\n", i, ((redGrapes::Task&)t).label);
-            }
+                fmt::print("refinement 1 backtrace [{}]: {}\n", i++, t.get().label);
 
             redGrapes::emplace_task(
                 []
@@ -50,10 +44,7 @@ int main( int, char*[] )
 
                     int i = 0;
                     for( auto t : redGrapes::backtrace() )
-                    {
-                        fmt::print("refinement 2 backtrace [{}]: {}\n", i, (redGrapes::TaskProperties const&) t);
-                        i++;
-                    }
+                        fmt::print("refinement 2 backtrace [{}]: {}\n", i++, (redGrapes::TaskProperties const&)t);
                 },
                 redGrapes::TaskProperties::Builder().label("Refinement 2"));
         },
