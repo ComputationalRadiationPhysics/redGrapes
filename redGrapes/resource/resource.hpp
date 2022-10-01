@@ -73,6 +73,11 @@ class ResourceAccess
         {
         }
 
+        AccessBase( AccessBase && other )
+            : access_type( other.access_type )
+            , resource( std::move(other.resource) )
+        {}
+
         virtual ~AccessBase() {};
         virtual bool operator==( AccessBase const & r ) const = 0;
 
@@ -97,7 +102,9 @@ class ResourceAccess
   public:
     ResourceAccess( std::shared_ptr< AccessBase > obj ) : obj( obj ) {}
     ResourceAccess( ResourceAccess const & other ) : obj( other.obj ) {}
-    ResourceAccess( ResourceAccess && other ) : obj( other.obj ) {}
+    ResourceAccess( ResourceAccess && other ) : obj( std::move(other.obj) ) {
+        other.obj.reset();
+    }
 
     ResourceAccess& operator= (ResourceAccess const & other )
     {
@@ -244,6 +251,12 @@ protected:
               )
             , policy( policy )
         {}
+
+        Access( Access && other )
+            : AccessBase(std::move((AccessBase&&)other))
+            , policy( std::move(other.policy))
+        {
+        }
 
         ~Access() {}
 

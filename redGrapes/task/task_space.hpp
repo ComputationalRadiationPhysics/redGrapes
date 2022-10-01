@@ -70,7 +70,7 @@ struct TaskSpace : std::enable_shared_from_this<TaskSpace>
      * @return: reference to new task
      */
     template < typename F >
-    Task & emplace_task( F&& f, TaskProperties&& prop )
+    Task & emplace_task( F&& f, TaskProperties::Builder && prop )
     {
         // allocate memory
         FunTask<F> * task = task_storage.m_alloc<FunTask<F>>();

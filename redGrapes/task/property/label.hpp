@@ -29,7 +29,7 @@ struct LabelProperty
             : builder(b)
         {}
 
-        PropertiesBuilder label( std::string const & l )
+        PropertiesBuilder & label( std::string const & l )
         {
             builder.prop.label = l;
             return builder;

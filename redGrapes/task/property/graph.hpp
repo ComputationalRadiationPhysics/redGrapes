@@ -47,10 +47,6 @@ struct TaskSpace;
  */
 struct GraphProperty
 {
-    GraphProperty();
-    GraphProperty(GraphProperty const &);
-
-
     Task & operator*()
     {
         return *task;

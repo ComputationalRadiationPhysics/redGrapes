@@ -96,17 +96,26 @@ struct TaskProperties1
 
         Builder()
             : TaskPropertiesInherit< Policies..., PropEnd_t >::template Builder< Builder >( *this )
-        {}
+        {
+        }
 
-        Builder( TaskProperties1 const & prop )
+        Builder( TaskProperties1 && prop )
             : TaskPropertiesInherit< Policies..., PropEnd_t >::template Builder< Builder >( *this )
-            , prop(prop)
-        {}
+            , prop(std::move(prop))
+        {
+        }
 
-        Builder( Builder const & b )
+        Builder( Builder & b )
             : prop( b.prop )
             , TaskPropertiesInherit< Policies..., PropEnd_t >::template Builder< Builder >( *this )
-        {}
+        {
+        }
+
+        Builder( Builder && b )
+            : prop( std::move(b.prop) )
+            , TaskPropertiesInherit< Policies..., PropEnd_t >::template Builder< Builder >( *this )
+        {
+        }
 
         template < typename T >
         void add( T const & obj )
@@ -114,9 +123,9 @@ struct TaskProperties1
             trait::BuildProperties<T>::build( *this, obj );
         }
 
-        operator TaskProperties1 () const
+        operator TaskProperties1 && ()
         {
-            return prop;
+            return std::move(prop);
         }
     };
 

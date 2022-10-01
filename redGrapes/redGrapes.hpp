@@ -92,8 +92,7 @@ void schedule( dispatch::thread::WorkerThread & worker );
     template<typename Callable, typename... Args>
     auto emplace_task(Callable&& f, Args&&... args)
     {
-        typename TaskProperties::Builder builder;
-        return emplace_task(f, std::move(builder), std::forward<Args>(args)...);
+        return emplace_task(f, std::move(TaskProperties::Builder()), std::forward<Args>(args)...);
     }
 
     /*! create a new task, as child of the currently running task (if there is one)
@@ -114,7 +113,7 @@ void schedule( dispatch::thread::WorkerThread & worker );
     template<typename Callable, typename... Args>
     auto emplace_task(
         Callable&& f,
-        typename TaskProperties::Builder builder,
+        TaskProperties::Builder && builder,
         Args&&... args)
     {
         PropBuildHelper build_helper{builder};
@@ -131,8 +130,9 @@ void schedule( dispatch::thread::WorkerThread & worker );
         builder.init_id();
 
         SPDLOG_DEBUG("redGrapes::emplace_task {}", (TaskProperties const&)builder);
-        Task& task = current_task_space()->emplace_task(std::move(impl), (TaskProperties &&) builder);
-        
+
+        Task& task = current_task_space()->emplace_task(std::move(impl), std::move(builder));
+
         return std::move(Future<decltype(impl())>(task));
     }
 

@@ -102,7 +102,7 @@ struct ResourceProperty : ResourceUser
 
     void apply_patch(Patch const & patch)
     {
-        ResourceUser before = *this;
+        ResourceUser before( *this );
 
         for( auto x : patch.diff )
         {

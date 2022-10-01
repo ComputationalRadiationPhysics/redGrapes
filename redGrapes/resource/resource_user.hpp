@@ -36,6 +36,19 @@ class ResourceUser
         access_list.reserve(1024);
     }
 
+    ResourceUser( ResourceUser const& other )
+        : scope_level( other.scope_level )
+        , access_list( other.access_list )
+        , unique_resources( other.unique_resources )
+    {}
+
+    ResourceUser( ResourceUser && other )
+        : scope_level( other.scope_level )
+        , access_list( std::move(other.access_list) )
+        , unique_resources( std::move( other.unique_resources ))
+    {
+    }
+
     ResourceUser( std::vector<ResourceAccess> const & access_list_ )
         : access_list( access_list_ )
         , scope_level( scope_depth() )

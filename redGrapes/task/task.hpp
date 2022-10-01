@@ -58,7 +58,7 @@ struct ResultTask : Task
     Result result_data;
 
     virtual ~ResultTask() {}
-    ResultTask(TaskProperties&& prop)
+    ResultTask(TaskProperties && prop)
         : Task(std::move(prop))
     {
     }
@@ -81,7 +81,7 @@ template<>
 struct ResultTask<void> : Task
 {
     virtual ~ResultTask() {}
-    ResultTask(TaskProperties&& prop)
+    ResultTask(TaskProperties && prop)
         : Task(std::move(prop))
     {
     }
@@ -99,7 +99,7 @@ struct FunTask : ResultTask< typename std::result_of<F()>::type >
 {
     F impl;
 
-    FunTask(F&& f, TaskProperties&& prop)
+    FunTask(F&& f, TaskProperties && prop)
         : ResultTask<typename std::result_of<F()>::type>(std::move(prop))
         , impl(std::move(f))
     {
