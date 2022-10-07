@@ -45,7 +45,7 @@ struct LabelProperty
         };
     };
 
-    void apply_patch( Patch const & ) {};
+    void apply_patch( Patch const & ) {}
 };
 
 } // namespace redGrapes

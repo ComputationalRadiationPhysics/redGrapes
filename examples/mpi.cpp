@@ -1,17 +1,12 @@
-
-enum SchedulerTags { SCHED_MPI };
-
-#define REDGRAPES_TASK_PROPERTIES scheduler::SchedulingTagProperties< SchedulerTags >
-
 #include  <redGrapes/scheduler/tag_match.hpp>
 #include  <redGrapes/scheduler/default_scheduler.hpp>
+#include  <redGrapes/scheduler/fifo.hpp>
 
 #include <redGrapes/redGrapes.hpp>
 
 #include <redGrapes/resource/ioresource.hpp>
 #include <redGrapes/resource/fieldresource.hpp>
 #include <redGrapes/dispatch/mpi/request_pool.hpp>
-
 
 namespace rg = redGrapes;
 
@@ -41,28 +36,6 @@ struct MPIConfig
     int world_size;
 };
 
-template <>
-struct fmt::formatter< SchedulerTags >
-{
-    constexpr auto parse( format_parse_context& ctx )
-    {
-        return ctx.begin();
-    }
-
-    template < typename FormatContext >
-    auto format(
-        SchedulerTags const & tag,
-        FormatContext & ctx
-    )
-    {
-        switch(tag)
-        {
-        case SCHED_MPI: return fmt::format_to(ctx.out(), "\"MPI\"");
-        default: return fmt::format_to(ctx.out(), "\"undefined\"");
-        }
-    }
-};
-
 int main()
 {
     //spdlog::set_pattern("[thread %t] %^[%l]%$ %v");
@@ -78,14 +51,13 @@ int main()
     auto mpi_request_pool = std::make_shared<rg::dispatch::mpi::RequestPool>();
     auto mpi_fifo = std::make_shared<rg::scheduler::FIFO>();
 
-    
     // initialize main thread to execute tasks from the mpi-queue and poll
     rg::idle =
         [mpi_fifo, mpi_request_pool]
         {
             mpi_request_pool->poll();
             if( auto task = mpi_fifo->get_job() )
-	      rg::dispatch::thread::execute_task( *task );
+                rg::dispatch::thread::execute_task( *task );
         };
 
     rg::init(

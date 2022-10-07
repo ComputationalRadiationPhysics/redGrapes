@@ -26,7 +26,6 @@ struct WorkerThread;
 namespace scheduler
 {
 
-
 struct IWaker
 {
     virtual ~IWaker() {}
@@ -63,11 +62,22 @@ struct IScheduler : virtual IWaker
 
     //! add task to ready set
     virtual void activate_task( Task & task ) {}
-    virtual void schedule() {}
-    virtual void schedule( dispatch::thread::WorkerThread & worker ) {}
 
-    virtual void wake_all_workers() {}
-    virtual void wake_one_worker() {}
+    //! give all waiting workers some work if available
+    virtual void schedule() {}
+
+    //! give worker work if available
+    virtual bool schedule( dispatch::thread::WorkerThread & worker ) {
+        return false;
+    }
+
+    virtual void wake_all_workers()
+    {}
+
+    virtual bool wake_one_worker()
+    {
+        return false;
+    }
 };
 
 } // namespace scheduler

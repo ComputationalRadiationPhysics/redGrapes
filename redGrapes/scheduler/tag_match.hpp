@@ -44,10 +44,20 @@ namespace redGrapes
                     return builder;
                 }
             };
+
+            struct Patch
+            {
+                template <typename PatchBuilder>
+                struct Builder
+                {
+                    Builder( PatchBuilder & ) {}
+                };
+            };
+
+            void apply_patch( Patch const & ) {}
         };
     }
 }
-
 
 template<typename Tag, std::size_t T_tag_count>
 struct fmt::formatter<redGrapes::scheduler::SchedulingTagProperties<Tag, T_tag_count>>
@@ -116,13 +126,33 @@ namespace scheduler
                 this->add_scheduler(supported_tags, s);
             }
 
-            bool notify()
+            void start()
             {
-                for(auto& s : sub_schedulers)
-		  if(s.s->notify())
+                for(auto const& s : sub_schedulers)
+                    s.s->start();
+            }
+
+            void stop()
+            {
+                for(auto const& s : sub_schedulers)
+                    s.s->stop();
+            }
+
+            bool schedule( dispatch::thread::WorkerThread & worker )
+            {
+                for( auto& s : sub_schedulers )
+		  if( s.s->schedule( worker ) )
 		    return true;
 
-		return false;
+		return false;                
+            }
+
+            void activate_task(Task & task)
+            {
+                if(auto sub_scheduler = get_matching_scheduler(task.required_scheduler_tags))
+                    return (*sub_scheduler)->activate_task(task);
+                else
+                    throw std::runtime_error("no scheduler found for task");
             }
 
             std::optional<std::shared_ptr<IScheduler>> get_matching_scheduler(
@@ -144,12 +174,19 @@ namespace scheduler
                     throw std::runtime_error("no scheduler found for task");
             }
 
-            void activate_task(Task & task)
+            void wake_all_workers()
             {
-                if(auto sub_scheduler = get_matching_scheduler(task.required_scheduler_tags))
-                    return (*sub_scheduler)->activate_task(task);
-                else
-                    throw std::runtime_error("no scheduler found for task");
+                for(auto const& s : sub_schedulers)
+                    s.s->wake_all_workers();
+            }
+
+            bool wake_one_worker()
+            {
+                for(auto const& s : sub_schedulers)
+                    if( s.s->wake_one_worker() )
+                        return true;
+
+                return false;
             }
         };
 
