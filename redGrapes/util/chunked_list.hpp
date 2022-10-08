@@ -15,10 +15,12 @@
 #include <atomic>
 #include <mutex>
 #include <memory>
+#include <optional>
 
 namespace redGrapes
 {
-    // A lock-free, append/remove container
+
+// A lock-free, append/remove container
 template < typename T, size_t chunk_size = 1024 >
     struct ChunkedList
     {
@@ -27,7 +29,7 @@ template < typename T, size_t chunk_size = 1024 >
             unsigned id;
 
             std::atomic< unsigned > next_id;
-            std::array< T*, chunk_size > buf;
+            std::array< std::optional<T>, chunk_size > buf;
             std::shared_ptr< Chunk > next;
 
             Chunk( unsigned id )
@@ -40,17 +42,19 @@ template < typename T, size_t chunk_size = 1024 >
         std::atomic_int next_chunk_id;
 
         ChunkedList()
-            : head( std::make_shared<Chunk>(0) ),
-              next_chunk_id(1)
+            : next_chunk_id(0)
         {
         }
-        
-        unsigned push(T * item)
+
+        unsigned push(T const & item)
         {
         retry:
+            unsigned id = chunk_size;
             std::shared_ptr<Chunk> chunk = head;
 
-            unsigned id = chunk->next_id.fetch_add(1);
+            if( chunk )
+                id = chunk->next_id.fetch_add(1);
+
             if( id < chunk_size )
             {
                 chunk->buf[id] = item;
@@ -61,6 +65,9 @@ template < typename T, size_t chunk_size = 1024 >
                 // create new chunk
                 auto new_chunk = std::make_shared< Chunk >(next_chunk_id.fetch_add(1));
                 new_chunk->next = head;
+
+                // only set head if no other thread created a new chunk
+                //head.compare_exchange_strong( chunk, new_chunk );
                 head = new_chunk;
 
                 goto retry;
@@ -82,7 +89,7 @@ template < typename T, size_t chunk_size = 1024 >
             {
                 if( chunk->id == idx / chunk_size )
                 {
-                    chunk->buf[ idx % chunk_size ] = nullptr;
+                    chunk->buf[ idx % chunk_size ] = std::nullopt;
                     return;
                 }
                 chunk = chunk->next;
@@ -91,6 +98,22 @@ template < typename T, size_t chunk_size = 1024 >
             // out ouf range
             throw std::out_of_range("");
             return;
+        }
+
+        void erase(T item)
+        {
+            std::shared_ptr<Chunk> chunk = head;
+            while( chunk != nullptr )
+            {
+                for(unsigned idx = 0; idx < chunk_size; ++idx )
+                    if( chunk->buf[ idx ] == item )
+                    {
+                        chunk->buf[ idx ] = std::nullopt;
+                        //return;
+                    }
+
+                chunk = chunk->next;
+            }
         }
 
         /* ITERATOR */
@@ -119,18 +142,32 @@ template < typename T, size_t chunk_size = 1024 >
                             break;
                     }
 
-                    if( chunk->buf[idx] != nullptr )
+                    if( is_some() )
                         break;
                 }
                 
                 return *this;
             }
-            
-            T * operator* () const
+
+            bool is_some() const
             {
-                return chunk->buf[idx];
+                return (bool)(chunk->buf[idx]);
+            }
+            
+            T & operator* () const
+            {
+                return *chunk->buf[idx];
             }
         };
+
+        auto iter()
+        {
+            unsigned len = 0;
+            if( head )
+                len = (next_chunk_id-1) * chunk_size + (head->next_id-1);
+
+            return iter_from( len );
+        }
 
         std::pair<BackwardsIterator, BackwardsIterator> iter_from(unsigned idx)
         {
@@ -140,7 +177,7 @@ template < typename T, size_t chunk_size = 1024 >
                 if( chunk->id == idx / chunk_size )
                 {
                     auto s = BackwardsIterator{ chunk, idx%chunk_size };
-                    if( *s == nullptr )
+                    if( ! s.is_some() )
                         ++s;
 
                     return std::make_pair(

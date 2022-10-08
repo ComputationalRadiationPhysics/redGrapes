@@ -4,17 +4,17 @@
 
 TEST_CASE("chunked list")
 {
-    redGrapes::ChunkedList< char, 32 > l;
+    redGrapes::ChunkedList< unsigned, 32 > l;
 
     for(unsigned i=0; i < 4096; ++i)
-        l.push((char*)i);
+        l.push(i);
 
     for(unsigned j=1; j < 4096; ++j)
     {
-        unsigned long i = j;
+        unsigned i = j;
         for(auto it=l.iter_from(j); it.first != it.second; ++it.first)
         {
-            REQUIRE( (unsigned long)*it.first == i );
+            REQUIRE( *it.first == i );
             i--;
         }
     }
@@ -31,10 +31,10 @@ TEST_CASE("chunked list")
 
     for(unsigned j=1; j < 4096; ++j)
     {
-        unsigned long i = j;
+        unsigned i = j;
         for(auto it = l.iter_from(j); it.first != it.second; ++it.first)
         {
-            unsigned long x = (unsigned long) *it.first;
+            unsigned x = *it.first;
             if( i == r4 ) i--;
             if( i == r3 ) i--;
             if( i == r2 ) i--;

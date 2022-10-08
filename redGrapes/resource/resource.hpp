@@ -48,7 +48,7 @@ public:
     unsigned int scope_level;
 
     std::shared_mutex users_mutex;
-    ChunkedList< Task, 1024 > users;
+    ChunkedList< Task*, 1024 > users;
 
     /**
      * Create a new resource with an unused ID.
