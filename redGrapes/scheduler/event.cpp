@@ -34,13 +34,11 @@ Event::Event()
 Event::Event(Event & other)
     : state((int)other.state), waker(other.waker)
 {
-    followers.reserve(64);
 }
 
 Event::Event(Event && other)
     : state((int)other.state), waker(other.waker)
 {
-    followers.reserve(64);
 }
 
 bool Event::is_reached() { return state == 0; }
@@ -51,10 +49,9 @@ void Event::dn() { state--; }
 void Event::add_follower( EventPtr follower )
 {
     std::unique_lock< std::shared_mutex > lock( followers_mutex );
-
     if( !is_reached() )
     {
-        followers.push_back(follower);
+        followers.push(follower);
         follower->state++;
     }
 }
@@ -63,8 +60,8 @@ void Event::add_follower( EventPtr follower )
 void Event::remove_follower( EventPtr follower )
 {
     //SPDLOG_TRACE("event {} remove_follower {}", (void*)this, (void*)follower.get());
-    std::unique_lock< std::shared_mutex > lock( followers_mutex );
-    followers.erase(std::find( std::begin(followers), std::end(followers), follower ));
+    //std::unique_lock< std::shared_mutex > lock( followers_mutex );
+    followers.erase( follower );
 }
 
 /*! A preceding event was reached and thus an incoming edge got removed.
@@ -109,10 +106,7 @@ bool EventPtr::notify( bool claimed )
     // post event or result-get event reached
     if (old_state == 1 &&
         (tag == scheduler::T_EVT_POST || tag == scheduler::T_EVT_RES_GET)) {
-      /*
-      if(auto children = task->children)
-          children->init_until_ready();
-*/
+
       remove_task = true;
     }
   }
@@ -132,9 +126,11 @@ bool EventPtr::notify( bool claimed )
     {
         // notify followers
         std::shared_lock< std::shared_mutex > lock( this->get_event().followers_mutex );
-        for( auto & follower : this->get_event().followers )
+
+        for( auto it = this->get_event().followers.iter(); it.first != it.second; ++it.first )
         {
-            follower.notify( );
+            if( std::optional<EventPtr> follower = *it.first)
+                follower->notify( );
         }
     }
 

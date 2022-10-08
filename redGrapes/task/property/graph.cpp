@@ -142,18 +142,18 @@ void GraphProperty::add_dependency( Task & preceding_task )
 void GraphProperty::update_graph( )
 {
     std::unique_lock< std::shared_mutex > lock( post_event.followers_mutex );
-    
-    for( unsigned i = 0; i < post_event.followers.size(); ++i)
-    {
-        scheduler::EventPtr follower = post_event.followers[i];
 
+    for( auto it = post_event.followers.iter(); it.first != it.second; ++it.first )
+    {
+        auto follower = *it.first;
         if( follower.task )
         {
             if( ! space->is_serial(*this->task, *follower.task) )
             {
                 // remove dependency
                 follower.task->in_edges.erase(std::find(std::begin(follower.task->in_edges), std::end(follower.task->in_edges), this));
-                post_event.followers.erase(std::next(std::begin(post_event.followers), i--));
+                post_event.followers.erase(follower);
+
                 follower.notify();
             }
         }

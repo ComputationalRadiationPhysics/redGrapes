@@ -14,6 +14,7 @@
 #include <memory>
 #include <spdlog/spdlog.h>
 #include <redGrapes/scheduler/scheduler.hpp>
+#include <redGrapes/util/chunked_list.hpp>
 
 namespace std
 {
@@ -54,7 +55,7 @@ struct Event
 
     //! the set of subsequent events
     std::shared_mutex followers_mutex;
-    std::vector< EventPtr > followers;
+    ChunkedList< EventPtr, 32 > followers;
 
     Event();
     Event(Event &);
