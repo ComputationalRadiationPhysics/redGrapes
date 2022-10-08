@@ -125,32 +125,16 @@ void yield( scheduler::EventPtr event )
     }
 }
 
-void schedule()
+bool schedule( dispatch::thread::WorkerThread & worker )
 {
+    auto sched = top_scheduler;
     auto space = top_space;
-    if(space)
-        space->init_until_ready();
 
-    auto ts = top_scheduler;
-    if(ts)
-    {
-        ts->schedule();
-    }
+    if( sched && space )
+        return sched->schedule(worker);
+
+    return false;
 }
-
-void schedule( dispatch::thread::WorkerThread & worker )
-{
-    auto space = top_space;
-    if(space)
-        space->init_until_ready();
-
-    auto ts = top_scheduler;
-    if(ts)
-    {
-        ts->schedule( worker );
-    }    
-}
-
 
 //! apply a patch to the properties of the currently running task
 void update_properties(typename TaskProperties::Patch const& patch)

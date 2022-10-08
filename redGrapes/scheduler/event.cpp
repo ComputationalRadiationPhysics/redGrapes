@@ -71,9 +71,12 @@ void Event::remove_follower( EventPtr follower )
  * This events state is decremented and recursively notifies its followers
  * in case it is now also reached.
  *
+ * @param claimed if true, the scheduler already knows about the task,
+ *                if false, activate task is called
+ *
  * @return true if event is ready
  */
-bool EventPtr::notify( )
+bool EventPtr::notify( bool claimed )
 {
   int old_state = this->get_event().state.fetch_sub(1);
     
@@ -86,7 +89,8 @@ bool EventPtr::notify( )
     case EventPtrTag::T_EVT_RES_GET: tag_string = "result-get"; break;
     case EventPtrTag::T_EVT_EXT: tag_string = "external"; break;
     }
-    
+
+    if( this->task )
   SPDLOG_TRACE("notify event {} ({}-event of task {}) ~~> state = {}",
                (void *)&this->get_event(), tag_string, this->task->task_id, old_state-1);
 
@@ -98,7 +102,8 @@ bool EventPtr::notify( )
   if (task) {
     // pre event ready
     if (tag == scheduler::T_EVT_PRE && old_state == 2) {
-      top_scheduler->activate_task(*task);
+        if( !claimed )
+            top_scheduler->activate_task(*task);
     }
 
     // post event or result-get event reached
@@ -110,7 +115,7 @@ bool EventPtr::notify( )
 */
       remove_task = true;
     }
-    }
+  }
 
     // if event is ready or reached (state ∈ {0,1})
     if( old_state <= 2 )

@@ -39,11 +39,19 @@ struct WorkerThread : virtual scheduler::IWaker, std::enable_shared_from_this<Wo
 {
 private:
 
+    /*!
+     * if true, the thread shall start
+     * executing the jobs in its queue
+     * and request rescheduling if empty
+     */
+    std::atomic_bool m_start;
+    
     /*! if true, the thread shall stop
      * instead of waiting when it is out of jobs
      */
-    std::atomic_bool m_start;
     std::atomic_bool m_stop;
+
+    //! condition variable for waiting if queue is empty
     CondVar cv;
 
 public:
@@ -77,15 +85,13 @@ public:
                 while( ! m_stop )
                 {
                     SPDLOG_DEBUG("Worker: work on queue");
-                  
+
                     while( Task * task = queue.pop() )
                         dispatch::thread::execute_task( *task , this->shared_from_this() );
 
-                    has_work.exchange(false);
-                    redGrapes::schedule( *this );
-
-                    if( !m_stop && !has_work )
+                    if( !redGrapes::schedule( *this ) && !m_stop )
                     {
+                        has_work.exchange(false);
                         SPDLOG_DEBUG("Worker: queue empty -> wait");
                         cv.wait();
                         SPDLOG_DEBUG("Wake!");

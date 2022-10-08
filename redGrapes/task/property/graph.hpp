@@ -72,7 +72,7 @@ struct GraphProperty
 
     // in edges dont need a mutex because they are initialized
     // once by `init_dependencies()` and only read afterwards.
-    // expired pointers must be ignored
+    // expired pointers (null) must be ignored
     std::vector<Task*> in_edges;
 
     scheduler::Event pre_event;

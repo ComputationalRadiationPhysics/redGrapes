@@ -49,12 +49,12 @@ struct Event
      */
     std::atomic_int state;
 
-    //! the set of subsequent events
-    std::vector< EventPtr > followers;
-    std::shared_mutex followers_mutex;
-
-    std::weak_ptr<IWaker> waker;
     std::mutex waker_mutex;
+    std::weak_ptr<IWaker> waker;
+
+    //! the set of subsequent events
+    std::shared_mutex followers_mutex;
+    std::vector< EventPtr > followers;
 
     Event();
     Event(Event &);
@@ -96,7 +96,7 @@ struct EventPtr
      * in case it is now also reached.
      * @return true if event was ready
      */
-    bool notify( );
+    bool notify( bool claimed = false );
 };
 
 } // namespace scheduler

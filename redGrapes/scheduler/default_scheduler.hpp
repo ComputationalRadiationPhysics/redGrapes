@@ -34,7 +34,7 @@ struct DefaultScheduler : public IScheduler
 
             cpu_set_t cpuset;
             CPU_ZERO(&cpuset);
-            CPU_SET(i, &cpuset);
+            CPU_SET(2*i, &cpuset);
             int rc = pthread_setaffinity_np(threads[i]->thread.native_handle(), sizeof(cpu_set_t), &cpuset);
         }
         
@@ -62,7 +62,6 @@ struct DefaultScheduler : public IScheduler
 
     void activate_task( Task & task )
     {
-        task.next = nullptr;
         SPDLOG_TRACE("DefaultScheduler::activate_task({})", task.task_id);
         
         /* if one worker is idle, give it the new task */
@@ -81,39 +80,50 @@ struct DefaultScheduler : public IScheduler
     }
 
     // give worker a ready task if available
-    void schedule( dispatch::thread::WorkerThread & worker )
+    // @return true if a new task was assigned to worker
+    bool schedule( dispatch::thread::WorkerThread & worker )
     {
-        if( ! worker.has_work.exchange(true) )
+        SPDLOG_TRACE("schedule worker {}", (void*)&worker);
+        while( true )
         {
-            if( Task * t = ready.pop() )
+            Task *t = nullptr;
+
+            if( t = ready.pop() )
             {
+                worker.has_work.exchange(true);
                 worker.queue.push(t);
-                worker.wake();
+                return true;
+            }
+
+            // try to initialize a new task
+            if( top_space->init_dependencies( t, true ) )
+            {
+                if( t )
+                {
+                    // the newly initialized task is ready
+                    worker.has_work.exchange(true);
+                    worker.queue.push(t);
+                    return true;
+                }
             }
             else
-            {
-                worker.has_work.exchange(false);
-            }
-        }    
+                // emplacement queue is empty
+                return false;
+
+        }
     }
 
-    // give every worker a ready task if available
-    void schedule()
-    {
-        std::lock_guard<std::mutex> l(m);
-        for( auto & worker : threads )
-            schedule( *worker );
-    }
-
-    void wake_one_worker()
+    bool wake_one_worker()
     {
         SPDLOG_DEBUG("DefaultScheduler: wake_one_worker()");
 
         for( auto & worker : threads )
         {
             if( worker->wake() )
-                break;
+                return true;
         }
+
+        return false;
     }
 
     void wake_all_workers()

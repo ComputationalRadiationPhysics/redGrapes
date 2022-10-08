@@ -25,8 +25,7 @@ namespace redGrapes
 
     std::shared_ptr<TaskSpace> current_task_space();
     void update_active_task_spaces();
-    void schedule();
-void schedule( dispatch::thread::WorkerThread & worker );
+    bool schedule( dispatch::thread::WorkerThread & worker );
 
     template<typename... Args>
     static inline void pass(Args&&...)
@@ -113,7 +112,7 @@ void schedule( dispatch::thread::WorkerThread & worker );
     template<typename Callable, typename... Args>
     auto emplace_task(
         Callable&& f,
-        TaskProperties::Builder && builder,
+        TaskProperties::Builder builder,
         Args&&... args)
     {
         PropBuildHelper build_helper{builder};
@@ -121,12 +120,11 @@ void schedule( dispatch::thread::WorkerThread & worker );
 
         build_helper.foo();
 
-        auto impl = std::bind(f, std::forward<Args>(args)...);
-        /*
+        //auto impl = std::bind(f, std::forward<Args>(args)...);
         auto impl = [f=std::move(f), args...]() mutable {
             return f(std::forward<Args>(args)...);
         };
-*/
+
         builder.init_id();
 
         SPDLOG_DEBUG("redGrapes::emplace_task {}", (TaskProperties const&)builder);

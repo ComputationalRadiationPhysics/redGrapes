@@ -63,11 +63,9 @@ struct IScheduler : virtual IWaker
     //! add task to ready set
     virtual void activate_task( Task & task ) {}
 
-    //! give all waiting workers some work if available
-    virtual void schedule() {}
-
     //! give worker work if available
-    virtual bool schedule( dispatch::thread::WorkerThread & worker ) {
+    virtual bool schedule( dispatch::thread::WorkerThread & worker )
+    {
         return false;
     }
 

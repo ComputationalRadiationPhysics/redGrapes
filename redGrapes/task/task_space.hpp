@@ -97,13 +97,13 @@ struct TaskSpace : std::enable_shared_from_this<TaskSpace>
         return *task;
     }
     
-    /*! take tasks from the emplacement queue and initialize them,
-     *  until a task is initialized whose execution could start immediately
+    /*! take one task from the emplacement queue, initialize it
+     *  and if its execution could start immediately, return it.
      *
-     * @return true if ready task found,
-     *         false if no tasks available
+     * @return pointer to the new task if it is ready
      */
-    bool init_until_ready();
+    bool init_dependencies();
+    bool init_dependencies( Task* & t, bool claimed = true );
 
     void kill( Task & task );
     void try_remove( Task & task );
