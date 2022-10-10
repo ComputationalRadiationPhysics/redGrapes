@@ -23,12 +23,14 @@ namespace task
         item->next = nullptr;
         Task * n = nullptr;
         while(! tail->next.compare_exchange_weak(n, item));
-*/
+        */
 
-        std::lock_guard<std::mutex> lock(m);
+        //        std::lock_guard<std::mutex> lock(m);
+        /*
         if( tail )
             tail.load()->next = item;
         tail = item;
+        */
         /*
         //std::lock_guard<std::mutex> lock(m);
 
@@ -51,10 +53,11 @@ namespace task
         Task * t = nullptr;
         if( cq.try_dequeue( t ) )
         {
+            /*
             std::lock_guard<std::mutex> lock(m);
             if( t == tail )
                 tail = nullptr;
-
+            */
             return t;
         }
         else
