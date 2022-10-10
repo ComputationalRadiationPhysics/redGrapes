@@ -2,6 +2,11 @@
 #pragma once
 
 #include <condition_variable>
+#include <redGrapes_config.hpp>
+
+#ifndef REDGRAPES_CONDVAR_TIMEOUT
+#define REDGRAPES_CONDVAR_TIMEOUT 500000
+#endif
 
 namespace redGrapes
 {
@@ -14,11 +19,9 @@ struct CondVar
     std::atomic_flag busy = ATOMIC_FLAG_INIT;
 
     volatile unsigned count;
-    unsigned limit;
 
     CondVar()
         : count(0)
-        , limit(100000)
     {
         wait_flag.test_and_set();
     }
@@ -27,7 +30,7 @@ struct CondVar
     {
         while( wait_flag.test_and_set(std::memory_order_acquire) )
         {
-            if( ++count > limit )
+            if( ++count > REDGRAPES_CONDVAR_TIMEOUT )
             {
                 busy.clear();
 

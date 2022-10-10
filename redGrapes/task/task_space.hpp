@@ -15,8 +15,8 @@
 #include <redGrapes/task/task.hpp>
 #include <redGrapes/task/queue.hpp>
 
-#ifndef TASK_ALLOCATOR_CHUNKSIZE
-#define TASK_ALLOCATOR_CHUNKSIZE 0x800000
+#ifndef REDGRAPES_TASK_ALLOCATOR_CHUNKSIZE
+#define REDGRAPES_TASK_ALLOCATOR_CHUNKSIZE 0x800000
 #endif
 
 namespace redGrapes
@@ -27,7 +27,7 @@ namespace redGrapes
 struct TaskSpace : std::enable_shared_from_this<TaskSpace>
 {
     /* task storage */
-    memory::Allocator< TASK_ALLOCATOR_CHUNKSIZE > task_storage;
+    memory::Allocator< REDGRAPES_TASK_ALLOCATOR_CHUNKSIZE > task_storage;
     std::atomic< unsigned long > task_count;
     std::atomic< unsigned long > task_capacity;
 

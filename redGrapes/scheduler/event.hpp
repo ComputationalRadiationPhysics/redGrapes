@@ -16,6 +16,10 @@
 #include <redGrapes/scheduler/scheduler.hpp>
 #include <redGrapes/util/chunked_list.hpp>
 
+#ifndef REDGRAPES_EVENT_FOLLOWER_LIST_CHUNKSIZE
+#define REDGRAPES_EVENT_FOLLOWER_LIST_CHUNKSIZE 16
+#endif
+
 namespace std
 {
     using shared_mutex = shared_timed_mutex;
@@ -55,7 +59,7 @@ struct Event
 
     //! the set of subsequent events
     std::shared_mutex followers_mutex;
-    ChunkedList< EventPtr, 32 > followers;
+    ChunkedList< EventPtr, REDGRAPES_EVENT_FOLLOWER_LIST_CHUNKSIZE > followers;
 
     Event();
     Event(Event &);
