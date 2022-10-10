@@ -128,7 +128,7 @@ void GraphProperty::delete_from_resources()
 void GraphProperty::add_dependency( Task & preceding_task )
 {
     // precedence graph
-    in_edges.push_back(&preceding_task);
+    //in_edges.push_back(&preceding_task);
 
     // scheduling graph
     auto preceding_event =
@@ -151,7 +151,7 @@ void GraphProperty::update_graph( )
             if( ! space->is_serial(*this->task, *follower.task) )
             {
                 // remove dependency
-                follower.task->in_edges.erase(std::find(std::begin(follower.task->in_edges), std::end(follower.task->in_edges), this));
+                //follower.task->in_edges.erase(std::find(std::begin(follower.task->in_edges), std::end(follower.task->in_edges), this));
                 post_event.followers.erase(follower);
 
                 follower.notify();

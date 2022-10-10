@@ -70,10 +70,14 @@ struct GraphProperty
     //! task space for children, may be null
     std::shared_ptr< TaskSpace > children;
 
+    /*
+
     // in edges dont need a mutex because they are initialized
     // once by `init_dependencies()` and only read afterwards.
     // expired pointers (null) must be ignored
     std::vector<Task*> in_edges;
+
+    */
 
     scheduler::Event pre_event;
     scheduler::Event post_event;
