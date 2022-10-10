@@ -29,16 +29,14 @@ int main()
         [] {
             std::cout << "Task 1" << std::endl;
             return redGrapes::create_event();
-        },
-        redGrapes::TaskProperties::Builder().resources({ r1.make_access(redGrapes::access::IOAccess::write) })
-    );
+        }
+                                           ).resources({ r1.make_access(redGrapes::access::IOAccess::write) }).submit();
 
     redGrapes::emplace_task(
         [] {
             std::cout << "Task 2" << std::endl;
-        },
-        redGrapes::TaskProperties::Builder().resources({ r1.make_access(redGrapes::access::IOAccess::write) })
-    );
+        }
+    ).resources({ r1.make_access(redGrapes::access::IOAccess::write) });
 
     auto event = event_f.get();
     std::cout << "Task 1 finished" << std::endl;

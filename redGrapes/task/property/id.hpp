@@ -61,7 +61,7 @@ public:
 
         void init_id()
         {
-            b.prop.task_id = id_counter().fetch_add( 1, std::memory_order_seq_cst );
+            b.task->task_id = id_counter().fetch_add( 1, std::memory_order_seq_cst );
         }
     };
 

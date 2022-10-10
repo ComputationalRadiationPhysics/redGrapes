@@ -20,18 +20,18 @@ struct LabelProperty
 {
     std::string label;
 
-    template < typename PropertiesBuilder >
+    template < typename TaskBuilder >
     struct Builder
     {
-        PropertiesBuilder & builder;
+        TaskBuilder & builder;
 
-        Builder( PropertiesBuilder & b )
-            : builder(b)
+        Builder( TaskBuilder & builder )
+            : builder(builder)
         {}
 
-        PropertiesBuilder & label( std::string const & l )
+        TaskBuilder & label( std::string const & l )
         {
-            builder.prop.label = l;
+            builder.task->label = l;
             return builder;
         }
     };

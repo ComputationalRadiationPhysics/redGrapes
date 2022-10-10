@@ -45,11 +45,10 @@ int main( int, char*[] )
                     int i = 0;
                     for( auto t : redGrapes::backtrace() )
                         fmt::print("refinement 2 backtrace [{}]: {}\n", i++, (redGrapes::TaskProperties const&)t);
-                },
-                redGrapes::TaskProperties::Builder().label("Refinement 2"));
-        },
-        redGrapes::TaskProperties::Builder().label("Parent Task")
-    );
+                }
+            ).label("Child Task 2");
+        }
+    ).label("Parent Task").submit();
 
     redGrapes::finalize();
 

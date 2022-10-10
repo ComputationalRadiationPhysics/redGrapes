@@ -21,7 +21,7 @@ auto square (int x)
             fmt::print("hello\n");
             return x*x;
         }
-    );
+    ).submit();
 }
 
 int main()

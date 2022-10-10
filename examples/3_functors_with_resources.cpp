@@ -29,8 +29,7 @@ int main(void)
                 *a = 4;
                 std::cout << "Write A done" << std::endl;
             },
-            a.write()
-        );
+            a.write());
 
         redGrapes::emplace_task(
             []( auto a )
@@ -38,8 +37,7 @@ int main(void)
                 std::cout << "Read A: " << *a << std::endl;
                 std::this_thread::sleep_for(std::chrono::seconds(1));
             },
-            a.read()
-        );
+            a.read());
 
         redGrapes::emplace_task(
             []( auto b )
@@ -59,8 +57,7 @@ int main(void)
                 std::this_thread::sleep_for(std::chrono::seconds(1));
             },
             a.read(),
-            b.read()
-        );
+            b.read());
     }
 
     redGrapes::finalize();

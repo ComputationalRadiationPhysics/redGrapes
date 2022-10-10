@@ -32,9 +32,10 @@ namespace redGrapes
     {
     }
 
+    template <typename B>
     struct PropBuildHelper
     {
-        typename TaskProperties::Builder& builder;
+        typename TaskProperties::Builder<B>& builder;
 
         template<typename T>
         inline int build(T const& x)
@@ -76,6 +77,86 @@ namespace redGrapes
      */
     std::optional<scheduler::EventPtr> create_event();
 
+template < typename Callable, typename... Args >
+struct TaskBuilder
+    : TaskProperties::Builder< TaskBuilder<Callable, Args...> >
+{
+    struct BindArgs
+    {
+        auto operator() ( Callable&& f, Args&&... args )
+        {
+            return std::move([f=std::move(f), args...]() mutable {
+                return f(std::forward<Args>(args)...);
+            });
+        }
+    };
+
+    using Impl = typename std::result_of< BindArgs(Callable, Args...) >::type;
+    using Result = typename std::result_of< Callable(Args...)>::type;
+
+    std::shared_ptr< TaskSpace > space;
+    FunTask< Impl > * task;
+
+    TaskBuilder( Callable&& f, Args&&... args )
+        : TaskProperties::Builder< TaskBuilder >( *this )
+        , space( current_task_space() )
+    {
+        // allocate
+        task = space->alloc_task< Impl >( );
+
+        // construct task in-place
+        new (task) FunTask< Impl > ( );
+
+        // init properties from args
+        PropBuildHelper<TaskBuilder> build_helper{ *this };
+        pass(build_helper.template build<Args>(std::forward<Args>(args))...);
+        build_helper.foo();
+
+        // init id
+        this->init_id();
+
+        // set impl
+        task->impl.emplace(BindArgs{}( std::move(f), std::forward<Args>(args)... ));
+    }
+
+    TaskBuilder( TaskBuilder & other )
+        : TaskProperties::Builder< TaskBuilder >( *this )
+        , space( other.space )
+        , task( other.task )
+    {
+        other.task = nullptr;
+    }
+
+    TaskBuilder( TaskBuilder && other )
+        : TaskProperties::Builder< TaskBuilder >( *this )
+        , space( std::move(other.space) )
+        , task( std::move(other.task) )
+    {
+        other.task = nullptr;
+    }
+
+    ~TaskBuilder()
+    {
+        if( task )
+            submit();
+    }
+
+    auto submit()
+    {
+        Task * t = task;
+        task = nullptr;
+
+        SPDLOG_TRACE("submit task {}", (TaskProperties const &)*t);
+        space->submit( t );
+        return std::move(Future<Result>( *t ));
+    }
+
+    auto get()
+    {
+        return submit().get();
+    }
+};
+
     /*! create a new task, as child of the currently running task (if there is one)
      *
      * @param f callable that takes "proprty-building" objects as args
@@ -91,7 +172,7 @@ namespace redGrapes
     template<typename Callable, typename... Args>
     auto emplace_task(Callable&& f, Args&&... args)
     {
-        return emplace_task(f, std::move(TaskProperties::Builder()), std::forward<Args>(args)...);
+        return std::move(TaskBuilder< Callable, Args... >( std::move(f), std::forward<Args>(args)... ));
     }
 
     /*! create a new task, as child of the currently running task (if there is one)
@@ -109,29 +190,6 @@ namespace redGrapes
      *
      * @return future from f's result
      */
-    template<typename Callable, typename... Args>
-    auto emplace_task(
-        Callable&& f,
-        TaskProperties::Builder builder,
-        Args&&... args)
-    {
-        PropBuildHelper build_helper{builder};
-        pass(build_helper.template build<Args>(args)...);
 
-        build_helper.foo();
-
-        //auto impl = std::bind(f, std::forward<Args>(args)...);
-        auto impl = [f=std::move(f), args...]() mutable {
-            return f(std::forward<Args>(args)...);
-        };
-
-        builder.init_id();
-
-        SPDLOG_DEBUG("redGrapes::emplace_task {}", (TaskProperties const&)builder);
-
-        Task& task = current_task_space()->emplace_task(std::move(impl), std::move(builder));
-
-        return std::move(Future<decltype(impl())>(task));
-    }
 
 } // namespace redGrapes

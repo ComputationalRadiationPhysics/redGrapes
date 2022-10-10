@@ -72,9 +72,8 @@ int main()
             MPI_Comm_rank(MPI_COMM_WORLD, &config->world_rank);
             MPI_Comm_size(MPI_COMM_WORLD, &config->world_size);
         },
-        rg::TaskProperties::Builder().scheduling_tags( std::bitset<64>().set(SCHED_MPI) ),
         mpi_config.write()
-    );
+    ).scheduling_tags( std::bitset<64>().set(SCHED_MPI) );
 
     // main loop
     rg::FieldResource< std::array<int, 4> > field[2] = {
@@ -115,10 +114,9 @@ int main()
 
                 mpi_request_pool->get_status( request );
             },
-            rg::TaskProperties::Builder().scheduling_tags({ SCHED_MPI }),
             field[current].at({3}).read(),
             mpi_config.read()
-        );
+        ).scheduling_tags({ SCHED_MPI });
 
         // Receive
         rg::emplace_task(
@@ -134,10 +132,9 @@ int main()
                 int recv_data_count;
                 MPI_Get_count( &status, MPI_CHAR, &recv_data_count );
             },
-            rg::TaskProperties::Builder().scheduling_tags({ SCHED_MPI }),
             field[current].at({0}).write(),
             mpi_config.read()
-        );
+        ).scheduling_tags({ SCHED_MPI });
 
         /*
          * Compute iteration
@@ -175,9 +172,8 @@ int main()
         {
             MPI_Finalize();
         },
-        rg::TaskProperties::Builder().scheduling_tags({ SCHED_MPI }),
         mpi_config.write()
-    );
+    ).scheduling_tags({ SCHED_MPI });
 
     rg::finalize();
 }

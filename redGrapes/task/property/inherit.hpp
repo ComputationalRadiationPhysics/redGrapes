@@ -28,14 +28,14 @@ struct TaskPropertiesInherit
     : T_Head
     , TaskPropertiesInherit< T_Tail ... >
 {
-    template < typename PropertiesBuilder >
+    template < typename B >
     struct Builder
-        : T_Head::template Builder< PropertiesBuilder >
-        , TaskPropertiesInherit< T_Tail ... >::template Builder< PropertiesBuilder >
+        : T_Head::template Builder< B >
+        , TaskPropertiesInherit< T_Tail ... >::template Builder< B >
     {
-        Builder( PropertiesBuilder & p )
-            : T_Head::template Builder< PropertiesBuilder >{ p }
-            , TaskPropertiesInherit< T_Tail ... >::template Builder< PropertiesBuilder >( p )
+        Builder( B & b )
+            : T_Head::template Builder< B >{ b }
+            , TaskPropertiesInherit< T_Tail ... >::template Builder< B >( b )
         {}
     };
 
@@ -89,43 +89,18 @@ template < typename... Policies >
 struct TaskProperties1
     : public TaskPropertiesInherit< Policies..., PropEnd_t >
 {
+    template < typename B >
     struct Builder
-        : TaskPropertiesInherit< Policies..., PropEnd_t >::template Builder< Builder >
+        : TaskPropertiesInherit< Policies..., PropEnd_t >::template Builder< B >
     {
-        TaskProperties1 prop;
-
-        Builder()
-            : TaskPropertiesInherit< Policies..., PropEnd_t >::template Builder< Builder >( *this )
-        {
-        }
-
-        Builder( TaskProperties1 && prop )
-            : TaskPropertiesInherit< Policies..., PropEnd_t >::template Builder< Builder >( *this )
-            , prop(std::move(prop))
-        {
-        }
-
-        Builder( Builder & b )
-            : prop( b.prop )
-            , TaskPropertiesInherit< Policies..., PropEnd_t >::template Builder< Builder >( *this )
-        {
-        }
-
-        Builder( Builder && b )
-            : prop( std::move(b.prop) )
-            , TaskPropertiesInherit< Policies..., PropEnd_t >::template Builder< Builder >( *this )
-        {
-        }
+        Builder( B & b )
+            : TaskPropertiesInherit< Policies..., PropEnd_t >::template Builder< B >( b )
+        {}
 
         template < typename T >
         void add( T const & obj )
         {
             trait::BuildProperties<T>::build( *this, obj );
-        }
-
-        operator TaskProperties1 && ()
-        {
-            return std::move(prop);
         }
     };
 

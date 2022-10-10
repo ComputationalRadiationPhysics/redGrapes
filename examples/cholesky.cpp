@@ -93,7 +93,6 @@ int main(int argc, char* argv[])
                         cblas_dgemm(CblasColMajor, CblasNoTrans, CblasTrans,
                                     blksz, blksz, blksz, -1.0, *a, blksz, *b, blksz, 1.0, *c, blksz);
                     },
-                    rg::TaskProperties::Builder().label("gemm"),
                     A[k * nblks + i].read(),
                     A[k * nblks + j].read(),
                     A[j * nblks + i].write());

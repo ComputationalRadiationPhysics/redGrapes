@@ -70,19 +70,21 @@ struct TaskSpace : std::enable_shared_from_this<TaskSpace>
      * @return: reference to new task
      */
     template < typename F >
-    Task & emplace_task( F&& f, TaskProperties::Builder && prop )
+    FunTask<F> * alloc_task( )
     {
         // allocate memory
         FunTask<F> * task = task_storage.m_alloc<FunTask<F>>();
         if( ! task )
             throw std::runtime_error("out of memory");
 
-        // construct task in-place
-        new (task) FunTask<F> ( std::move(f), std::move(prop) );
+        return task;
+    }
 
+    void submit( Task * task )
+    {
         task->space = shared_from_this();
         task->task = task;
-        task->next = nullptr;
+        //task->next = nullptr;
         task->ticket = ticket_count.fetch_add(1);
 
         ++ task_count;
@@ -91,10 +93,7 @@ struct TaskSpace : std::enable_shared_from_this<TaskSpace>
             assert( is_superset(*parent, *task) );
 
         emplacement_queue.push(task);
-
         top_scheduler->wake_one_worker();
-
-        return *task;
     }
     
     /*! take one task from the emplacement queue, initialize it

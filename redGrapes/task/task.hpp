@@ -41,9 +41,8 @@ struct Task :
     virtual ~Task()
     {}
 
-    Task(TaskProperties && prop)
-        : TaskProperties(std::move(prop))
-        , alive(true)
+    Task()
+        : alive(true)
     {}
 
     virtual void * get_result_data()
@@ -58,10 +57,6 @@ struct ResultTask : Task
     Result result_data;
 
     virtual ~ResultTask() {}
-    ResultTask(TaskProperties && prop)
-        : Task(std::move(prop))
-    {
-    }
 
     virtual void * get_result_data()
     {
@@ -81,10 +76,6 @@ template<>
 struct ResultTask<void> : Task
 {
     virtual ~ResultTask() {}
-    ResultTask(TaskProperties && prop)
-        : Task(std::move(prop))
-    {
-    }
 
     virtual void run_result() {}
     void run()
@@ -95,21 +86,16 @@ struct ResultTask<void> : Task
 };
 
 template< typename F >
-struct FunTask : ResultTask< typename std::result_of<F()>::type >
+struct FunTask
+    : ResultTask< typename std::result_of<F()>::type >
 {
-    F impl;
-
-    FunTask(F&& f, TaskProperties && prop)
-        : ResultTask<typename std::result_of<F()>::type>(std::move(prop))
-        , impl(std::move(f))
-    {
-    }
+    std::optional< F > impl;
 
     virtual ~FunTask() {}
 
     typename std::result_of<F()>::type run_result()
     {
-        return impl();
+        return (*this->impl)();
     }
 };
 
