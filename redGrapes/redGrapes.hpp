@@ -141,6 +141,12 @@ struct TaskBuilder
             submit();
     }
 
+    TaskBuilder & enable_stack_switching()
+    {
+        task->enable_stack_switching = true;
+        return *this;
+    }
+
     auto submit()
     {
         Task * t = task;

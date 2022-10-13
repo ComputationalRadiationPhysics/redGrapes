@@ -115,8 +115,9 @@ int main()
                 mpi_request_pool->get_status( request );
             },
             field[current].at({3}).read(),
-            mpi_config.read()
-        ).scheduling_tags({ SCHED_MPI });
+            mpi_config.read())
+            .scheduling_tags({ SCHED_MPI })
+            .enable_stack_switching();
 
         // Receive
         rg::emplace_task(
@@ -133,8 +134,9 @@ int main()
                 MPI_Get_count( &status, MPI_CHAR, &recv_data_count );
             },
             field[current].at({0}).write(),
-            mpi_config.read()
-        ).scheduling_tags({ SCHED_MPI });
+            mpi_config.read())
+            .scheduling_tags({ SCHED_MPI })
+            .enable_stack_switching();
 
         /*
          * Compute iteration

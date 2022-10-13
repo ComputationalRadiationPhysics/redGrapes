@@ -23,35 +23,43 @@ namespace redGrapes
 struct TaskBase : virtual ITask
 {
     bool finished;
+    bool enable_stack_switching;
 
     virtual ~TaskBase() {}
-    TaskBase() : finished(false) {}
+    TaskBase() : finished(false), enable_stack_switching(false) {}
 
     std::optional< scheduler::EventPtr > operator() ()
     {
-        if(!resume_cont)
-            resume_cont = boost::context::callcc(
-                [this](boost::context::continuation&& c)
-                {
-                    {
-                        std::lock_guard< std::mutex > lock( yield_cont_mutex );
-                        this->yield_cont = std::move(c);
-                    }
+        if( enable_stack_switching )
+        {
+            if(!resume_cont)
+                resume_cont = boost::context::callcc(
+                                                     [this](boost::context::continuation&& c)
+                                                     {
+                                                         {
+                                                             std::lock_guard< std::mutex > lock( yield_cont_mutex );
+                                                             this->yield_cont = std::move(c);
+                                                         }
 
-                    this->run();
-                    this->event = std::nullopt;
+                                                         this->run();
+                                                         this->event = std::nullopt;
 
-                    std::optional< boost::context::continuation > yield_cont;
+                                                         std::optional< boost::context::continuation > yield_cont;
 
-                    {
-                        std::lock_guard< std::mutex > lock( yield_cont_mutex );
-                        this->yield_cont.swap(yield_cont);
-                    }
+                                                         {
+                                                             std::lock_guard< std::mutex > lock( yield_cont_mutex );
+                                                             this->yield_cont.swap(yield_cont);
+                                                         }
 
-                    return std::move(*yield_cont);
-                });
+                                                         return std::move(*yield_cont);
+                                                     });
+            else
+                resume_cont = resume_cont->resume();
+        }
         else
-            resume_cont = resume_cont->resume();
+        {
+            this->run();
+        }
 
         return event;
     }
@@ -60,15 +68,22 @@ struct TaskBase : virtual ITask
     {
         this->event = event;
 
-        std::optional< boost::context::continuation > old_yield;
-        this->yield_cont.swap( old_yield );
+        if( enable_stack_switching )
+        {
+            std::optional< boost::context::continuation > old_yield;
+            this->yield_cont.swap( old_yield );
 
-        boost::context::continuation new_yield = old_yield->resume();
+            boost::context::continuation new_yield = old_yield->resume();
 
-        std::lock_guard< std::mutex > lock( yield_cont_mutex );
-        if( ! yield_cont )
-            yield_cont = std::move(new_yield);
-        // else: yield_cont already been set by another thread running this task
+            std::lock_guard< std::mutex > lock( yield_cont_mutex );
+            if( ! yield_cont )
+                yield_cont = std::move(new_yield);
+            // else: yield_cont already been set by another thread running this task
+        }
+        else
+        {
+            spdlog::error("called yield in task without stack switching!");
+        }
     }
 
     std::optional< scheduler::EventPtr > event;

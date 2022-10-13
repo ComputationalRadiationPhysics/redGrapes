@@ -36,7 +36,7 @@ int main()
             std::cout << "scope = " << rg::scope_depth() << std::endl;
         },
         a.read()
-    );
+    ).enable_stack_switching();
 
     rg::finalize();
 }
