@@ -32,7 +32,8 @@ struct ResourceProperty : ResourceUser
 
         PropertiesBuilder & resources( std::initializer_list<ResourceAccess> list )
         {
-	    builder.task->access_list = list;
+            for( ResourceAccess const & ra : list )
+                builder.task->access_list.push(ra);
             builder.task->build_unique_resource_list();
 
             return builder;

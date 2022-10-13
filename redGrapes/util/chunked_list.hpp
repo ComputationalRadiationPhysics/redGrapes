@@ -46,6 +46,13 @@ template < typename T, size_t chunk_size = 1024 >
         {
         }
 
+        ChunkedList( ChunkedList const & other )
+            : next_chunk_id(0)
+        {
+            for( auto & e : other )
+                push(e);
+        }
+
         unsigned push(T const & item)
         {
         retry:
@@ -160,16 +167,7 @@ template < typename T, size_t chunk_size = 1024 >
             }
         };
 
-        auto iter()
-        {
-            unsigned len = 0;
-            if( head )
-                len = (next_chunk_id-1) * chunk_size + (head->next_id-1);
-
-            return iter_from( len );
-        }
-
-        std::pair<BackwardsIterator, BackwardsIterator> iter_from(unsigned idx)
+        auto begin_from( unsigned idx ) const
         {
             std::shared_ptr<Chunk> chunk = head;
             while( chunk != nullptr )
@@ -180,18 +178,36 @@ template < typename T, size_t chunk_size = 1024 >
                     if( ! s.is_some() )
                         ++s;
 
-                    return std::make_pair(
-                               s,
-                               BackwardsIterator{ nullptr, chunk_size-1 }
-                           );
+                    return s;
                 }
                 chunk = chunk->next;
             }
 
-            return std::make_pair(
-                               BackwardsIterator{ nullptr, chunk_size-1 },
-                               BackwardsIterator{ nullptr, chunk_size-1 }
-                           );
+            return end();
+        }
+
+        auto begin() const
+        {
+            unsigned len = 0;
+            if( head )
+                len = (next_chunk_id-1) * chunk_size + (head->next_id-1);
+
+            return begin_from( len );
+        }
+
+        auto end() const
+        {
+            return BackwardsIterator{ nullptr, chunk_size-1 };
+        }
+
+        auto iter() const
+        {
+            return std::make_pair( begin(), end() );
+        }
+
+        std::pair<BackwardsIterator, BackwardsIterator> iter_from(unsigned idx) const
+        {
+            return std::make_pair( begin_from(idx), end() );
         }
 
     };

@@ -14,7 +14,7 @@
 #include <list>
 #include <redGrapes/resource/resource.hpp>
 #include <redGrapes/context.hpp>
-
+#include <redGrapes/util/chunked_list.hpp>
 #include <fmt/format.h>
 
 namespace redGrapes
@@ -24,6 +24,11 @@ struct ResourceEntry
 {
     std::shared_ptr< ResourceBase > resource;
     int task_idx; // index in task list of resource
+
+    bool operator==( ResourceEntry const & other ) const
+    {
+        return resource == other.resource;
+    }
 };
 
 class ResourceUser
@@ -33,52 +38,44 @@ class ResourceUser
         : scope_level( scope_depth() )
         , access_list()
     {
-        access_list.reserve(1024);
     }
 
     ResourceUser( ResourceUser const& other )
         : scope_level( other.scope_level )
         , access_list( other.access_list )
         , unique_resources( other.unique_resources )
-    {}
-
-    ResourceUser( ResourceUser && other )
-        : scope_level( other.scope_level )
-        , access_list( std::move(other.access_list) )
-        , unique_resources( std::move( other.unique_resources ))
     {
     }
 
-    ResourceUser( std::vector<ResourceAccess> const & access_list_ )
-        : access_list( access_list_ )
-        , scope_level( scope_depth() )
+    ResourceUser( std::initializer_list< ResourceAccess > list )
+        : scope_level( scope_depth() )
     {
-        build_unique_resource_list();
+        for( auto & ra : list )
+            access_list.push(ra);
     }
 
     void add_resource_access( ResourceAccess ra )
     {
-        this->access_list.push_back(ra);
+        this->access_list.push(ra);
+
         std::shared_ptr<ResourceBase> r = ra.get_resource();
-        if( std::find_if(unique_resources.begin(), unique_resources.end(), [r](ResourceEntry const & e){ return e.resource == r; }) == unique_resources.end() )
-            unique_resources.push_back(ResourceEntry{ r, -1 });
+
+        unique_resources.erase(ResourceEntry{ r, -1 });
+        unique_resources.push(ResourceEntry{ r, -1 });
     }
 
     void rm_resource_access( ResourceAccess ra )
     {
-        auto it = std::find(this->access_list.begin(), this->access_list.end(), ra);
-        this->access_list.erase(it);
+        this->access_list.erase(ra);
     }
 
     void build_unique_resource_list()
     {
-        unique_resources.clear();
-        unique_resources.reserve(access_list.size());
         for( auto & ra : access_list )
         {
             std::shared_ptr<ResourceBase> r = ra.get_resource();
-            if( std::find_if(unique_resources.begin(), unique_resources.end(), [r](ResourceEntry const & e){ return e.resource == r; }) == unique_resources.end() )
-            unique_resources.push_back(ResourceEntry{ r, -1 });            
+            unique_resources.erase(ResourceEntry{ r, -1 });
+            unique_resources.push(ResourceEntry{ r, -1 });
         }
     }
 
@@ -92,7 +89,6 @@ class ResourceUser
             )
                 return true;
         }
-
         return false;
     }
 
@@ -131,8 +127,8 @@ class ResourceUser
 
     unsigned int scope_level;
 
-    std::vector<ResourceAccess> access_list;
-    std::vector<ResourceEntry> unique_resources;
+    ChunkedList<ResourceAccess, 16> access_list;
+    ChunkedList<ResourceEntry, 16> unique_resources;
 }; // class ResourceUser
 
 } // namespace redGrapes
