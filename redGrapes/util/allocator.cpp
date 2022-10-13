@@ -7,7 +7,7 @@
 
 #include <cstdlib>
 #include <atomic>
-#include <redGrapes/task/allocator.hpp>
+#include <redGrapes/util/allocator.hpp>
 #include <cstring>
 
 namespace redGrapes

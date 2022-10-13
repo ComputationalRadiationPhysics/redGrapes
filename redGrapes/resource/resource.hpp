@@ -21,6 +21,7 @@
 
 #include <redGrapes/context.hpp>
 #include <redGrapes/task/property/trait.hpp>
+#include <redGrapes/util/allocator.hpp>
 #include <redGrapes/util/chunked_list.hpp>
 
 #include <fmt/format.h>
@@ -323,7 +324,12 @@ protected:
     ResourceAccess
     make_access( AccessPolicy pol ) const
     {
-        return ResourceAccess( std::make_shared<Access>( base, pol ) );
+        static memory::Allocator< 0x80000 > access_alloc;
+
+        Access * acc = access_alloc.m_alloc< Access >();
+
+        new (acc) Access( base, pol );
+        return ResourceAccess( std::shared_ptr<Access>( acc, [&access_alloc]( Access * acc ){ access_alloc.m_free( acc ); }) );
     }
 }; // class Resource
 
