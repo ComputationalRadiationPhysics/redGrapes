@@ -4,6 +4,7 @@
 #include <pthread.h>
 #include <thread>
 #include <condition_variable>
+#include <bitset>
 
 #include <redGrapes/task/task_space.hpp>
 #include <redGrapes/scheduler/scheduler.hpp>
@@ -24,18 +25,32 @@ struct DefaultScheduler : public IScheduler
     std::mutex m;
     task::Queue ready;
 
+
+    unsigned n_workers;
+
+    //!  true if worker available, false if worker busy
+    std::vector<std::bitset<64>> worker_state;
+
     std::vector<std::shared_ptr< dispatch::thread::WorkerThread >> threads;
 
     DefaultScheduler( size_t n_threads = std::thread::hardware_concurrency() )
+        : n_workers( n_threads )
     {
         for( size_t i = 0; i < n_threads; ++i )
         {
-            threads.emplace_back(std::make_shared< dispatch::thread::WorkerThread >());
+            threads.emplace_back(std::make_shared< dispatch::thread::WorkerThread >( i ));
 
             cpu_set_t cpuset;
             CPU_ZERO(&cpuset);
-            CPU_SET(2*i, &cpuset);
+            CPU_SET(i, &cpuset);
             int rc = pthread_setaffinity_np(threads[i]->thread.native_handle(), sizeof(cpu_set_t), &cpuset);
+
+            // initially , every worker is available
+            unsigned j = i / 64;
+            if( j >= worker_state.size() )
+                worker_state.emplace_back();
+
+            worker_state[j].set( i % 64 );
         }
         
         // if not configured otherwise,
@@ -60,23 +75,54 @@ struct DefaultScheduler : public IScheduler
             worker->stop();
     }
 
+    void set_worker_free( unsigned id )
+    {
+        worker_state[ id / 64 ].set( id % 64 );
+    }
+    
+    /*
+     * try to find an available worker
+     *
+     * @return worker_id if found free worker,
+     *         -1 if all workers are busy
+     */
+    int find_free_worker()
+    {
+        std::lock_guard< std::mutex > lock(m);
+
+        unsigned j = 0;
+        for( std::bitset<64> & s : worker_state )
+        {
+            if( s.any() )
+            {
+                for( unsigned i = 0; i < 64; ++i )
+                    if( s.test(i) )
+                    {
+                        s.reset(i);
+                        return j * 64 + i;
+                    }
+            }
+            j++;
+        }
+
+        return -1;
+    }
+
     void activate_task( Task & task )
     {
         SPDLOG_TRACE("DefaultScheduler::activate_task({})", task.task_id);
-        
-        /* if one worker is idle, give it the new task */
-        for( auto & worker : threads )
-        {
-            if( ! worker->has_work.exchange(true) )
-            {
-                worker->queue.push(&task);
-                worker->wake();
-                return;
-            }
-        }
 
-        /* else add it to the ready queue */
-        ready.push(&task);
+        int worker_id = find_free_worker();
+
+        if( worker_id >= 0 )
+        {
+            threads[ worker_id ]->queue.push(&task);
+            threads[ worker_id ]->wake();
+        }
+        else
+        {
+            ready.push(&task);
+        }
     }
 
     // give worker a ready task if available
@@ -90,7 +136,6 @@ struct DefaultScheduler : public IScheduler
 
             if( t = ready.pop() )
             {
-                worker.has_work.exchange(true);
                 worker.queue.push(t);
                 return true;
             }
@@ -101,15 +146,16 @@ struct DefaultScheduler : public IScheduler
                 if( t )
                 {
                     // the newly initialized task is ready
-                    worker.has_work.exchange(true);
                     worker.queue.push(t);
                     return true;
                 }
             }
             else
+            {
                 // emplacement queue is empty
+                set_worker_free( worker.id );
                 return false;
-
+            }
         }
     }
 
@@ -117,13 +163,16 @@ struct DefaultScheduler : public IScheduler
     {
         SPDLOG_DEBUG("DefaultScheduler: wake_one_worker()");
 
-        for( auto & worker : threads )
+        int worker_id = find_free_worker();
+        if( worker_id >= 0 )
         {
-            if( worker->wake() )
-                return true;
+            threads[ worker_id ]->wake();
+            return true;
         }
-
-        return false;
+        else
+        {
+            return false;
+        }
     }
 
     void wake_all_workers()

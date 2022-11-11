@@ -58,13 +58,14 @@ public:
     task::Queue queue;
     std::thread thread;
 
-    std::atomic_bool has_work;
+    unsigned id;
 
 public:
 
-    WorkerThread() :
+    WorkerThread( unsigned id ) :
         m_start( false ),
         m_stop( false ),
+        id( id ),
         thread(
             [this]
             {
@@ -84,17 +85,16 @@ public:
 
                 while( ! m_stop )
                 {
-                    SPDLOG_DEBUG("Worker: work on queue");
+                    SPDLOG_TRACE("Worker: work on queue");
 
                     while( Task * task = queue.pop() )
                         dispatch::thread::execute_task( *task , this->shared_from_this() );
 
                     if( !redGrapes::schedule( *this ) && !m_stop )
                     {
-                        has_work.exchange(false);
-                        SPDLOG_DEBUG("Worker: queue empty -> wait");
+                        SPDLOG_TRACE("Worker: queue empty -> wait");
                         cv.wait();
-                        SPDLOG_DEBUG("Wake!");
+                        SPDLOG_TRACE("Wake!");
                     }
                 }
 
