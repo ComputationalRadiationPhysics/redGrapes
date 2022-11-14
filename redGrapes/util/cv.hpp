@@ -5,61 +5,61 @@
 #include <redGrapes_config.hpp>
 
 #ifndef REDGRAPES_CONDVAR_TIMEOUT
-#define REDGRAPES_CONDVAR_TIMEOUT 500000
+#define REDGRAPES_CONDVAR_TIMEOUT 0x200000
 #endif
 
 namespace redGrapes
 {
 
+struct PhantomLock
+{
+    inline void lock() {}
+    inline void unlock() {}
+};
+
 struct CondVar
 {
-    std::condition_variable cv;
-    std::mutex m;
-    std::atomic_flag wait_flag = ATOMIC_FLAG_INIT;
-    std::atomic_flag busy = ATOMIC_FLAG_INIT;
+    alignas(64) std::atomic<bool> wait_flag;
+    std::condition_variable_any cv;
 
-    volatile unsigned count;
+    alignas(64) std::atomic_flag busy;
 
     CondVar()
-        : count(0)
+        : wait_flag( true )
     {
-        wait_flag.test_and_set();
     }
 
-    void wait()
+    inline void wait()
     {
-        while( wait_flag.test_and_set(std::memory_order_acquire) )
+        unsigned count = 0;
+
+        while( wait_flag.load(std::memory_order_acquire) );
         {
             if( ++count > REDGRAPES_CONDVAR_TIMEOUT )
             {
-                busy.clear();
+                busy.clear(std::memory_order_release);
 
-                std::unique_lock< std::mutex > l( m );
-                cv.wait( l, [this]{ return !wait_flag.test_and_set(std::memory_order_acquire); } );
-                l.unlock();
+                PhantomLock m;
+                std::unique_lock< PhantomLock > l( m );
+                cv.wait( l );
 
+                busy.test_and_set();
                 count = 0;
-                return;
             }
         }
+
+        wait_flag.store(true);
     }
 
-    bool notify()
+    inline bool notify()
     {
-        std::unique_lock< std::mutex > l( m );
-        bool w = wait_flag.test_and_set();
-        wait_flag.clear(std::memory_order_release);
-        l.unlock();
+        bool w = true;
+        wait_flag.compare_exchange_strong(w, false, std::memory_order_release);
 
-        if( ! busy.test_and_set() )
-        {
+        if( ! busy.test_and_set(std::memory_order_acquire) )
             cv.notify_one();
-	    return true;
-        }
-        else
-        {
-            return w;
-        }
+
+        return w;
     }
 };
 
