@@ -23,8 +23,13 @@
 #include <redGrapes/task/property/trait.hpp>
 #include <redGrapes/util/allocator.hpp>
 #include <redGrapes/util/chunked_list.hpp>
+#include <redGrapes_config.hpp>
 
 #include <fmt/format.h>
+
+#ifndef REDGRAPES_RUL_CHUNKSIZE
+#define REDGRAPES_RUL_CHUNKSIZE 128
+#endif
 
 namespace std
 {
@@ -49,7 +54,7 @@ public:
     unsigned int scope_level;
 
     std::shared_mutex users_mutex;
-    ChunkedList< Task*, 1024 > users;
+    ChunkedList< Task*, REDGRAPES_RUL_CHUNKSIZE > users;
 
     /**
      * Create a new resource with an unused ID.
@@ -329,7 +334,7 @@ protected:
         Access * acc = access_alloc.m_alloc< Access >();
 
         new (acc) Access( base, pol );
-        return ResourceAccess( std::shared_ptr<Access>( acc, [&access_alloc]( Access * acc ){ access_alloc.m_free( acc ); }) );
+        return ResourceAccess( std::shared_ptr<Access>( acc, []( Access * acc ){ access_alloc.m_free( acc ); }) );
     }
 }; // class Resource
 
