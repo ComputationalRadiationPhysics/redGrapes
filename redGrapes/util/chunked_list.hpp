@@ -13,7 +13,6 @@
 
 #include <array>
 #include <atomic>
-#include <mutex>
 #include <memory>
 #include <optional>
 
@@ -22,13 +21,12 @@ namespace redGrapes
 
 // A lock-free, append/remove container
 template < typename T, size_t chunk_size = 1024 >
-    struct ChunkedList
+struct ChunkedList
     {
         struct Chunk
         {
-            unsigned id;
-
             std::atomic< unsigned > next_id;
+            unsigned id;
             std::array< std::optional<T>, chunk_size > buf;
             std::shared_ptr< Chunk > next;
 
@@ -38,8 +36,8 @@ template < typename T, size_t chunk_size = 1024 >
             {}
         };
 
-        std::shared_ptr< Chunk > head;
         std::atomic_int next_chunk_id;
+        std::shared_ptr< Chunk > head;
 
         ChunkedList()
             : next_chunk_id(0)
@@ -155,7 +153,7 @@ template < typename T, size_t chunk_size = 1024 >
                 
                 return *this;
             }
-
+            
             bool is_some() const
             {
                 return (bool)(chunk->buf[idx]);
@@ -174,7 +172,7 @@ template < typename T, size_t chunk_size = 1024 >
             {
                 if( chunk->id == idx / chunk_size )
                 {
-                    auto s = BackwardsIterator{ chunk, idx%chunk_size };
+                    auto s = BackwardsIterator{ chunk, (int)(idx%chunk_size) };
                     if( ! s.is_some() )
                         ++s;
 
