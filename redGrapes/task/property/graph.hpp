@@ -84,15 +84,39 @@ struct GraphProperty
     scheduler::Event result_set_event;
     scheduler::Event result_get_event;
 
-    scheduler::EventPtr get_pre_event();
-    scheduler::EventPtr get_post_event();
-    scheduler::EventPtr get_result_set_event();
-    scheduler::EventPtr get_result_get_event();
+    inline scheduler::EventPtr get_pre_event()
+    {
+        return scheduler::EventPtr { scheduler::T_EVT_PRE, this->task };        
+    }
+    inline scheduler::EventPtr get_post_event()
+    {
+        return scheduler::EventPtr { scheduler::T_EVT_POST, this->task };        
+    }
+    inline scheduler::EventPtr get_result_set_event()
+    {
+        return scheduler::EventPtr { scheduler::T_EVT_RES_SET, this->task };
+    }
+    inline scheduler::EventPtr get_result_get_event()
+    {
+        return scheduler::EventPtr { scheduler::T_EVT_RES_GET, this->task };
+    }
 
-    bool is_ready();
-    bool is_running();
-    bool is_finished();
-    bool is_dead();
+    inline bool is_ready()
+    {
+        return pre_event.is_ready();
+    }
+    inline bool is_running()
+    {
+         return pre_event.is_reached();
+    }
+    inline bool is_finished()
+    {
+        return post_event.is_reached();
+    }
+    inline bool is_dead()
+    {
+        return post_event.is_reached() && result_get_event.is_reached();    
+    }
 
     /*! create a new event which precedes the tasks post-event
      */
@@ -102,7 +126,11 @@ struct GraphProperty
      * represent ›pausation of the task until event is reached‹
      * in the scheduling graph
      */
-    void sg_pause( scheduler::EventPtr event );
+    inline void sg_pause( scheduler::EventPtr event )
+    {
+        pre_event.state = 1;
+        event->add_follower( get_pre_event() );
+    }
 
     /*!
      * Insert a new task and add the same dependencies as in the precedence graph.

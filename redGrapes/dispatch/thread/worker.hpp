@@ -108,11 +108,9 @@ public:
     {
     }
 
-    bool wake()
+    inline bool wake()
     {
-        bool awake = cv.notify();
-        SPDLOG_TRACE("Worker::wake() ... awake={}", awake);
-        return awake;
+        return cv.notify();
     }
 
     void start()

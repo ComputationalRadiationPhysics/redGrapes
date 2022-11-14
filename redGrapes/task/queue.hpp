@@ -17,17 +17,29 @@ namespace task
 
 struct Queue
 {
+    /*
     std::atomic< Task * > head;
     std::atomic< Task * > tail;
 
     std::mutex m;
-
+*/
     moodycamel::ConcurrentQueue< Task* > cq;
 
     Queue();
 
-    void push(Task * task);
-    Task * pop();
+    inline void push(Task * task)
+    {
+        this->cq.enqueue(task);
+    }
+    inline Task * pop()
+    {
+        Task * t = nullptr;
+        if( this->cq.try_dequeue( t ) )
+            return t;
+        else
+            return nullptr;
+
+    }
 };
 
 }

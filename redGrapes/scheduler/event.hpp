@@ -90,12 +90,23 @@ struct EventPtr
     Task * task;
     std::shared_ptr< Event > external_event;
 
-    bool operator==( EventPtr const & other ) const;
+    inline bool operator==( EventPtr const & other ) const
+    {
+        return this->tag == other.tag && this->task == other.task;
+    }
 
     Event & get_event() const;
-    Event & operator*() const;
-    Event * operator->() const;
-    
+
+    inline Event & operator*() const
+    {
+        return get_event();
+    }
+
+    inline Event * operator->() const
+    {
+        return &get_event();
+    }
+
     /*! A preceding event was reached and thus an incoming edge got removed.
      * This events state is decremented and recursively notifies its followers
      * in case it is now also reached.

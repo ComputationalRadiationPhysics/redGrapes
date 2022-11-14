@@ -18,31 +18,6 @@
 namespace redGrapes
 {
 
-bool GraphProperty::is_ready() { return pre_event.is_ready(); }
-bool GraphProperty::is_running() { return pre_event.is_reached(); }
-bool GraphProperty::is_finished() { return post_event.is_reached(); }
-bool GraphProperty::is_dead() { return post_event.is_reached() && result_get_event.is_reached(); }
-
-scheduler::EventPtr GraphProperty::get_pre_event()
-{
-    return scheduler::EventPtr { scheduler::T_EVT_PRE, this->task };
-}
-
-scheduler::EventPtr GraphProperty::get_post_event()
-{
-    return scheduler::EventPtr { scheduler::T_EVT_POST, this->task };
-}
-
-scheduler::EventPtr GraphProperty::get_result_set_event()
-{
-    return scheduler::EventPtr { scheduler::T_EVT_RES_SET, this->task };
-}
-
-scheduler::EventPtr GraphProperty::get_result_get_event()
-{
-    return scheduler::EventPtr { scheduler::T_EVT_RES_GET, this->task };
-}
-
 /*! create a new (external) event which precedes the tasks post-event
  */
 scheduler::EventPtr GraphProperty::make_event()
@@ -50,17 +25,6 @@ scheduler::EventPtr GraphProperty::make_event()
     auto event = std::make_shared< scheduler::Event >();
     event->add_follower( get_post_event() );
     return scheduler::EventPtr{ scheduler::T_EVT_EXT, nullptr, event };
-}
-
-/*!
- * represent ›pausation of the task until event is reached‹
- * in the scheduling graph
- */
-void GraphProperty::sg_pause( scheduler::EventPtr event )
-{
-    //SPDLOG_TRACE("sg pause: new_event = {}", (void*) event.get());
-    pre_event.state = 1;
-    event->add_follower( get_pre_event() );
 }
 
 /*!
@@ -142,6 +106,7 @@ void GraphProperty::add_dependency( Task & preceding_task )
 void GraphProperty::update_graph( )
 {
     std::unique_lock< std::shared_mutex > lock( post_event.followers_mutex );
+    //std::lock_guard< SpinLock > lock( post_event.followers_mutex );
 
     for( auto it = post_event.followers.iter(); it.first != it.second; ++it.first )
     {
