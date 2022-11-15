@@ -12,6 +12,7 @@
 #include <memory>
 #include <mutex>
 #include <vector>
+#include <redGrapes/util/spinlock.hpp>
 
 namespace redGrapes
 {
@@ -45,13 +46,15 @@ private:
 template < size_t chunk_size = 0x800000 >
 struct Allocator
 {
-    std::mutex m;
+    SpinLock m;
     std::vector< std::unique_ptr<Chunk> > blocked_chunks;
     std::unique_ptr<Chunk> active_chunk;
 
     Allocator()
         : active_chunk( std::make_unique<Chunk>(chunk_size) )
-    {}
+    {
+        blocked_chunks.reserve(64);
+    }
 
     template <typename T>
     T * m_alloc()
@@ -62,7 +65,7 @@ struct Allocator
         {
             // create new chunk & try again
             {
-                std::lock_guard<std::mutex> lock(m);               
+                std::lock_guard<SpinLock> lock(m);
                 blocked_chunks.emplace_back(std::make_unique<Chunk>( chunk_size ));
                 std::swap(active_chunk, blocked_chunks[blocked_chunks.size()-1]);
             }
@@ -80,7 +83,7 @@ struct Allocator
 
         else
         {
-            std::lock_guard<std::mutex> lock(m);
+            std::lock_guard<SpinLock> lock(m);
 
             // find chunk containing ptr
             for( unsigned i = 0; i < blocked_chunks.size(); ++i )

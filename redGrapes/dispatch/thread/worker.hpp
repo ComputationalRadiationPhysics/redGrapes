@@ -80,19 +80,19 @@ public:
                         throw std::runtime_error("idle in worker thread!");
                     };
 
-                while( ! m_start )
+                while( ! m_start.load(std::memory_order_consume) )
                     cv.wait();
 
-                while( ! m_stop )
+                while( ! m_stop.load(std::memory_order_consume) )
                 {
                     SPDLOG_TRACE("Worker: work on queue");
 
                     while( Task * task = queue.pop() )
                         dispatch::thread::execute_task( *task , this->shared_from_this() );
 
-                    if( !redGrapes::schedule( *this ) && !m_stop )
+                    if( !redGrapes::schedule( *this ) && !m_stop.load(std::memory_order_consume) )
                     {
-                        SPDLOG_TRACE("Worker: queue empty -> wait");
+                        SPDLOG_TRACE("worker sleep");
                         cv.wait();
                         SPDLOG_TRACE("Wake!");
                     }
@@ -115,14 +115,14 @@ public:
 
     void start()
     {
-        m_start = true;
+        m_start.store(true, std::memory_order_release);
         wake();
     }
 
     void stop()
     {
         SPDLOG_TRACE("Worker::stop()");
-        m_stop = true;
+        m_stop.store(true, std::memory_order_release);
         wake();
         thread.join();
     }

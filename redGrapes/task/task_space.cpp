@@ -20,7 +20,6 @@ namespace redGrapes
         , parent(nullptr)
     {
         task_count = 0;
-        task_capacity = 512;
         serving_ticket = 0;
     }
 
@@ -30,7 +29,6 @@ namespace redGrapes
         , parent(parent)
     {
         task_count = 0;
-        task_capacity = 512;
         serving_ticket = 0;
     }
 
@@ -58,18 +56,17 @@ namespace redGrapes
     bool TaskSpace::init_dependencies( Task* & t, bool claimed )
     {
         SPDLOG_TRACE("TaskSpace::init_until_ready() this={}", (void*)this);
+
         if(Task * task = emplacement_queue.pop())
         {
             task->alive = 1;
             task->pre_event.up();
             task->init_graph();
+
             if( task->get_pre_event().notify( claimed ) )
-            {
                 t = task;
-                return true;
-            }
-            else
-                return true;
+
+            return true;
         }
         else
         {
@@ -85,7 +82,7 @@ namespace redGrapes
 
     void TaskSpace::lock_queue( Task * task )
     {
-        while( task->ticket != serving_ticket.load(std::memory_order_acquire) );
+        while( task->ticket != serving_ticket.load(std::memory_order_consume) );
     }
 
     void TaskSpace::unlock_queue(Task *task)
