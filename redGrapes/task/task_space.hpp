@@ -29,14 +29,13 @@ struct TaskSpace : std::enable_shared_from_this<TaskSpace>
     /* task storage */
     memory::Allocator< REDGRAPES_TASK_ALLOCATOR_CHUNKSIZE > task_storage;
     std::atomic< unsigned long > task_count;
-    std::atomic< unsigned long > task_capacity;
 
     /* queue */
     task::Queue emplacement_queue;
 
     // ticket (id) of currently initialized task
-    std::atomic< unsigned > serving_ticket;
-    std::atomic< unsigned > ticket_count;
+    alignas(64) std::atomic< unsigned > serving_ticket;
+    alignas(64) std::atomic< unsigned > ticket_count;
 
     unsigned depth;
     Task * parent;

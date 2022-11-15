@@ -17,7 +17,7 @@ namespace memory
 
 Chunk::Chunk( size_t capacity )
     : capacity( capacity )
-    , base( (uintptr_t) malloc(capacity) )
+    , base( (uintptr_t) aligned_alloc(0x1000, capacity) )
 {
     reset();
 }
@@ -56,7 +56,7 @@ unsigned Chunk::m_free( void * )
     return count.fetch_sub(1) - 1;
 }
 
-bool Chunk::contains( void * ptr )
+bool Chunk::contains( void * ptr ) const
 {
     return (uintptr_t)ptr >= (uintptr_t)base && (uintptr_t)ptr < (uintptr_t)(base + capacity);
 }

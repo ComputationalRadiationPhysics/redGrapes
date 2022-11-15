@@ -32,15 +32,14 @@ struct Chunk
     void * m_alloc( size_t n_bytes );
     unsigned m_free( void * );
 
-    bool contains( void * );
+    bool contains( void * ) const;
 
 private:
+    alignas(64) std::atomic_ptrdiff_t offset;
     size_t capacity;
-
     uintptr_t base;
-    std::atomic_ptrdiff_t offset;
 
-    std::atomic<unsigned> count;
+    alignas(64) std::atomic<unsigned> count;
 };
 
 template < size_t chunk_size = 0x800000 >
@@ -59,7 +58,17 @@ struct Allocator
     template <typename T>
     T * m_alloc()
     {
-        T * item = (T*) active_chunk->m_alloc( sizeof(T) );
+        size_t s = sizeof(T);
+        s--;
+        s |= s >> 0x1;
+        s |= s >> 0x2;
+        s |= s >> 0x4;
+        s |= s >> 0x8;
+        s |= s >> 0x10;
+        s |= s >> 0x20;
+        s++;
+
+        T * item = (T*) active_chunk->m_alloc( s );
 
         if( !item )
         {
@@ -69,7 +78,7 @@ struct Allocator
                 blocked_chunks.emplace_back(std::make_unique<Chunk>( chunk_size ));
                 std::swap(active_chunk, blocked_chunks[blocked_chunks.size()-1]);
             }
-            item = (T*) active_chunk->m_alloc( sizeof(T) );
+            item = (T*) active_chunk->m_alloc( s );
         }
 
         return item;
@@ -93,7 +102,7 @@ struct Allocator
                 if( c.contains((void*)ptr) )
                 {
                     if( c.m_free( (void*) ptr ) == 0 )
-                        blocked_chunks.erase(std::begin(blocked_chunks)+i);
+                        blocked_chunks.erase(std::begin(blocked_chunks) + i);
 
                     break;
                 }
