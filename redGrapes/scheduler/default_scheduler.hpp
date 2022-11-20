@@ -98,7 +98,7 @@ struct DefaultScheduler : public IScheduler
             if( worker_state[j].load() != 0 )
             {
                 unsigned end = 64;
-                if( (j+1) == (n_workers/64) )
+                if( j == 1+(n_workers/64) )
                     end = n_workers%64;
 
                 for(uint64_t k0 = 0; k0 < end; ++k0)
