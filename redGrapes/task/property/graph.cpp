@@ -37,13 +37,6 @@ void GraphProperty::init_graph()
 {
     SPDLOG_TRACE("sg init task {}", this->task->task_id);
 
-    this->task->space->lock_queue( this->task );
-
-    for( ResourceEntry & r : this->task->unique_resources )
-        r.task_idx = r.resource->users.push( this->task );
-
-    this->task->space->unlock_queue( this->task );
-
     for( ResourceEntry & r : this->task->unique_resources )
     {
         if( r.task_idx > 0 )
@@ -58,7 +51,7 @@ void GraphProperty::init_graph()
 
                 if(
                    preceding_task->space == this->space &&
-                   space->is_serial( *preceding_task, *this->task )
+                   this->space->is_serial( *preceding_task, *this->task )
                 )
                 {
                     SPDLOG_TRACE("add dependency: task {} -> task {}", preceding_task->task_id, this->task->task_id);

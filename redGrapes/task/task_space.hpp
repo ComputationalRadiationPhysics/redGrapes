@@ -33,10 +33,6 @@ struct TaskSpace : std::enable_shared_from_this<TaskSpace>
     /* queue */
     task::Queue emplacement_queue;
 
-    // ticket (id) of currently initialized task
-    alignas(64) std::atomic< unsigned > serving_ticket;
-    alignas(64) std::atomic< unsigned > ticket_count;
-
     unsigned depth;
     Task * parent;
 
@@ -53,9 +49,6 @@ struct TaskSpace : std::enable_shared_from_this<TaskSpace>
 
     virtual bool is_serial( Task& a, Task& b );
     virtual bool is_superset( Task& a, Task& b );
-
-    void lock_queue( Task * task );
-    void unlock_queue( Task * task );
 
     /* Construct a new task in this task space
      *
@@ -83,13 +76,14 @@ struct TaskSpace : std::enable_shared_from_this<TaskSpace>
     {
         task->space = shared_from_this();
         task->task = task;
-        //task->next = nullptr;
-        task->ticket = ticket_count.fetch_add(1);
 
         ++ task_count;
 
         if( parent )
-            assert( is_superset(*parent, *task) );
+            assert( this->is_superset(*parent, *task) );
+
+        for( ResourceEntry & r : task->unique_resources )
+            r.task_idx = r.resource->users.push( task );
 
         emplacement_queue.push(task);
         top_scheduler->wake_one_worker();

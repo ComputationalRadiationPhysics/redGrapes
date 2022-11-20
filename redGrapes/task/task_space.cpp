@@ -20,7 +20,6 @@ namespace redGrapes
         , parent(nullptr)
     {
         task_count = 0;
-        serving_ticket = 0;
     }
 
     // sub space
@@ -29,7 +28,6 @@ namespace redGrapes
         , parent(parent)
     {
         task_count = 0;
-        serving_ticket = 0;
     }
 
     bool TaskSpace::is_serial(Task& a, Task& b)
@@ -78,16 +76,6 @@ namespace redGrapes
 
             return false;
         }
-    }
-
-    void TaskSpace::lock_queue( Task * task )
-    {
-        while( task->ticket != serving_ticket.load(std::memory_order_consume) );
-    }
-
-    void TaskSpace::unlock_queue(Task *task)
-    {
-        serving_ticket.fetch_add(1, std::memory_order_release);
     }
 
     void TaskSpace::kill(Task &task) {
