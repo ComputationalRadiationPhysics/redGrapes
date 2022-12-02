@@ -19,6 +19,7 @@ add_library(redGrapes
   ${CMAKE_CURRENT_LIST_DIR}/redGrapes/task/task_space.cpp
   ${CMAKE_CURRENT_LIST_DIR}/redGrapes/task/queue.cpp
   ${CMAKE_CURRENT_LIST_DIR}/redGrapes/util/allocator.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/redGrapes/util/chunked_list.cpp
   ${CMAKE_CURRENT_LIST_DIR}/redGrapes/redGrapes.cpp
 )
 endif()

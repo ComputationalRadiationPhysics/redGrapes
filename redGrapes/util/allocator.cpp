@@ -17,7 +17,7 @@ namespace memory
 
 Chunk::Chunk( size_t capacity )
     : capacity( capacity )
-    , base( (uintptr_t) aligned_alloc(0x1000, capacity) )
+    , base( (uintptr_t) aligned_alloc(0x80000, capacity) )
 {
     reset();
 }

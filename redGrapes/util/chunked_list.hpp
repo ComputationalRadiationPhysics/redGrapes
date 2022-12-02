@@ -15,9 +15,12 @@
 #include <atomic>
 #include <memory>
 #include <optional>
+#include <redGrapes/util/allocator.hpp>
 
 namespace redGrapes
 {
+
+extern memory::Allocator< > list_alloc;
 
 // A lock-free, append/remove container
 template < typename T, size_t chunk_size = 1024 >
@@ -68,7 +71,9 @@ struct ChunkedList
             else if( id == chunk_size )
             {
                 // create new chunk
-                auto new_chunk = std::make_shared< Chunk >(next_chunk_id.fetch_add(1));
+                Chunk * c = list_alloc.m_alloc<Chunk>();
+                new (c) Chunk(next_chunk_id.fetch_add(1));
+                auto new_chunk = std::shared_ptr< Chunk >(c, [](Chunk * c){ list_alloc.m_free(c); });
                 new_chunk->next = head;
 
                 // only set head if no other thread created a new chunk
