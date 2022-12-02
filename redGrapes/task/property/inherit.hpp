@@ -98,7 +98,7 @@ struct TaskProperties1
         {}
 
         template < typename T >
-        void add( T const & obj )
+        inline void add( T const & obj )
         {
             trait::BuildProperties<T>::build( *this, obj );
         }

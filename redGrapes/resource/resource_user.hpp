@@ -54,13 +54,11 @@ class ResourceUser
             access_list.push(ra);
     }
 
-    void add_resource_access( ResourceAccess ra )
+    inline void add_resource_access( ResourceAccess ra )
     {
         this->access_list.push(ra);
-
         std::shared_ptr<ResourceBase> r = ra.get_resource();
-
-        unique_resources.erase(ResourceEntry{ r, -1 });
+        //unique_resources.erase(ResourceEntry{ r, -1 });
         unique_resources.push(ResourceEntry{ r, -1 });
     }
 

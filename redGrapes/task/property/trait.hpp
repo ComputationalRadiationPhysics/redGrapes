@@ -31,7 +31,7 @@ template <
 struct BuildProperties< std::reference_wrapper< T > >
 {
     template <typename Builder>
-    static void build(Builder & builder, std::reference_wrapper< T > const & t)
+    inline static void build(Builder & builder, std::reference_wrapper< T > const & t)
     {
         builder.add( t.get() );
     }
@@ -43,7 +43,7 @@ template <
 struct BuildProperties< T & >
 {
     template <typename Builder>
-    static void build(Builder & builder, T const & t)
+    inline static void build(Builder & builder, T const & t)
     {
         builder.add( t );
     }
@@ -55,7 +55,7 @@ template <
 struct BuildProperties< T const & >
 {
     template <typename Builder>
-    static void build(Builder & builder, T const & t)
+    inline static void build(Builder & builder, T const & t)
     {
         builder.add( t );
     }
@@ -67,7 +67,7 @@ template <>
 struct BuildProperties< int >
 {
     template <typename Builder>
-    static void build(Builder & builder, int const & t)
+    inline static void build(Builder & builder, int const & t)
     {}
 };
 
@@ -75,7 +75,7 @@ template <>
 struct BuildProperties< unsigned int >
 {
     template <typename Builder>
-    static void build(Builder & builder, unsigned int const & t)
+    inline static void build(Builder & builder, unsigned int const & t)
     {}
 };
 

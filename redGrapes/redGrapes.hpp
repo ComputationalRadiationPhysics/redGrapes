@@ -83,7 +83,7 @@ struct TaskBuilder
 {
     struct BindArgs
     {
-        auto operator() ( Callable&& f, Args&&... args )
+        inline auto operator() ( Callable&& f, Args&&... args )
         {
             return std::move([f=std::move(f), args...]() mutable {
                 return f(std::forward<Args>(args)...);
@@ -176,7 +176,7 @@ struct TaskBuilder
      * @return future from f's result
      */
     template<typename Callable, typename... Args>
-    auto emplace_task(Callable&& f, Args&&... args)
+    inline auto emplace_task(Callable&& f, Args&&... args)
     {
         return std::move(TaskBuilder< Callable, Args... >( std::move(f), std::forward<Args>(args)... ));
     }

@@ -39,7 +39,7 @@ struct ResourceProperty : ResourceUser
             return builder;
         }
 
-        PropertiesBuilder & add_resource( ResourceAccess access )
+        inline PropertiesBuilder & add_resource( ResourceAccess access )
         {
             (*builder.task) += access;
             return builder;
@@ -91,12 +91,12 @@ struct ResourceProperty : ResourceUser
         }
     };
 
-    void operator+= (ResourceAccess const & ra)
+    inline void operator+= (ResourceAccess const & ra)
     {
         this->add_resource_access(ra);
     }
 
-    void operator-= (ResourceAccess const & ra)
+    inline void operator-= (ResourceAccess const & ra)
     {
         this->rm_resource_access(ra);
     }
