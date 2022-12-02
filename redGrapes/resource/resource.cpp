@@ -11,6 +11,7 @@
 
 namespace redGrapes
 {
+memory::Allocator< > access_alloc;
 
 int ResourceBase::getID()
 {

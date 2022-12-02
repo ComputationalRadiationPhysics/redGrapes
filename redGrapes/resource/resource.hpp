@@ -39,6 +39,8 @@ namespace std
 namespace redGrapes
 {
 
+extern memory::Allocator< > access_alloc;
+
 template <typename AccessPolicy>
 class Resource;
 
@@ -202,7 +204,7 @@ struct BuildProperties<
 >
 {
     template < typename Builder >
-    static void build( Builder & builder, T const & obj )
+    inline static void build( Builder & builder, T const & obj )
     {
         builder.add_resource( obj );
     }
@@ -329,8 +331,6 @@ protected:
     ResourceAccess
     make_access( AccessPolicy pol ) const
     {
-        static memory::Allocator< 0x80000 > access_alloc;
-
         Access * acc = access_alloc.m_alloc< Access >();
 
         new (acc) Access( base, pol );
