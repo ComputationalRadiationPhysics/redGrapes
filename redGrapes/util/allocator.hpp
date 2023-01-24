@@ -1,116 +1,65 @@
-/* Copyright 2022 Michael Sippel
- *
- * This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
- */
-
 #pragma once
 
-#include <atomic>
-#include <cstdint>
-#include <memory>
-#include <mutex>
-#include <vector>
-#include <redGrapes/util/spinlock.hpp>
+#include <redGrapes/util/chunk_allocator.hpp>
 
 namespace redGrapes
 {
 namespace memory
 {
 
-struct Chunk
-{
-    Chunk( size_t capacity );
-    Chunk( Chunk const & ) = delete;
-    Chunk( Chunk & ) = delete;
-    ~Chunk();
-    
-    bool empty() const;
-    void reset();
-
-    void * m_alloc( size_t n_bytes );
-    unsigned m_free( void * );
-
-    bool contains( void * ) const;
-
-private:
-    alignas(64) std::atomic_ptrdiff_t offset;
-    size_t capacity;
-    uintptr_t base;
-
-    alignas(64) std::atomic<unsigned> count;
-};
-
-template < size_t chunk_size = 0x800000 >
+template < typename T >
 struct Allocator
 {
-    SpinLock m;
-    std::vector< std::unique_ptr<Chunk> > blocked_chunks;
-    std::unique_ptr<Chunk> active_chunk;
+    typedef T value_type;
+ 
+    Allocator () = default;
 
-    Allocator()
-        : active_chunk( std::make_unique<Chunk>(chunk_size) )
+    template< typename U >
+    constexpr Allocator(Allocator<U> const&) noexcept {}
+
+    static ChunkAllocator<> & get_instance()
     {
-        blocked_chunks.reserve(64);
+        static ChunkAllocator<> chunkalloc;
+        return chunkalloc;
     }
-
-    template <typename T>
-    T * m_alloc()
+    
+    T* allocate( std::size_t n )
     {
-        size_t s = sizeof(T);
-        s--;
-        s |= s >> 0x1;
-        s |= s >> 0x2;
-        s |= s >> 0x4;
-        s |= s >> 0x8;
-        s |= s >> 0x10;
-        s |= s >> 0x20;
-        s++;
+        if (n > std::numeric_limits<std::size_t>::max() / sizeof(T))
+            throw std::bad_array_new_length();
 
-        T * item = (T*) active_chunk->m_alloc( s );
-
-        if( !item )
-        {
-            // create new chunk & try again
-            {
-                std::lock_guard<SpinLock> lock(m);
-                blocked_chunks.emplace_back(std::make_unique<Chunk>( chunk_size ));
-                std::swap(active_chunk, blocked_chunks[blocked_chunks.size()-1]);
-            }
-            item = (T*) active_chunk->m_alloc( s );
-        }
-
-        return item;
-    }
-
-    template <typename T>
-    void m_free( T * ptr )
-    {
-        if( active_chunk->contains((void*)ptr) )
-            active_chunk->m_free((void*)ptr);
-
+        T * p = get_instance().allocate< T >( n );
+        if( p )
+            return p;
         else
-        {
-            std::lock_guard<SpinLock> lock(m);
-
-            // find chunk containing ptr
-            for( unsigned i = 0; i < blocked_chunks.size(); ++i )
-            {
-                Chunk & c = *blocked_chunks[i];
-
-                if( c.contains((void*)ptr) )
-                {
-                    if( c.m_free( (void*) ptr ) == 0 )
-                        blocked_chunks.erase(std::begin(blocked_chunks) + i);
-
-                    break;
-                }
-            }
-        }
+            throw std::bad_alloc();
+    }
+ 
+    void deallocate(T* p, std::size_t n) noexcept
+    {
+        get_instance().deallocate< T >( p );
+    }
+    
+    template < typename U, typename... Args >
+    void construct(U * p, Args&&... args )
+    {
+        new (p) U ( std::forward<Args>(args)... );
     }
 };
+ 
+template<typename T, typename U>
+bool operator==(Allocator<T> const&, Allocator<U> const &) { return true; }
+ 
+template<typename T, typename U>
+bool operator!=(Allocator<T> const&, Allocator<U> const&) { return false; }
+
+template < typename T, typename... Args >
+std::shared_ptr<T> alloc_shared( Args&&... args )
+{
+    return std::allocate_shared< T, Allocator<T> >( Allocator<T>(), std::forward<Args>(args)... );
+}
 
 } // namespace memory
 } // namespace redGrapes
+
 

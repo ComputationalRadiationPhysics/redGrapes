@@ -25,7 +25,6 @@ struct DefaultScheduler : public IScheduler
 
     //!  bit is true if worker available, false if worker busy
     std::array< std::atomic< uint64_t >, 8> worker_state;
-
     std::vector<std::shared_ptr< dispatch::thread::WorkerThread >> threads;
 
     std::atomic< unsigned > last_free;
@@ -35,7 +34,7 @@ struct DefaultScheduler : public IScheduler
     {
         for( size_t i = 0; i < n_threads; ++i )
         {
-            threads.emplace_back(std::make_shared< dispatch::thread::WorkerThread >( i ));
+            threads.emplace_back(memory::alloc_shared< dispatch::thread::WorkerThread >( i ));
             cpu_set_t cpuset;
             CPU_ZERO(&cpuset);
             CPU_SET(i, &cpuset);

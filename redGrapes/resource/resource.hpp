@@ -27,19 +27,17 @@
 
 #include <fmt/format.h>
 
-#ifndef REDGRAPES_RUL_CHUNKSIZE
-#define REDGRAPES_RUL_CHUNKSIZE 128
-#endif
-
 namespace std
 {
     using shared_mutex = shared_timed_mutex;
 } // namespace std
 
+#ifndef REDGRAPES_RUL_CHUNKSIZE
+#define REDGRAPES_RUL_CHUNKSIZE 128
+#endif
+
 namespace redGrapes
 {
-
-extern memory::Allocator< > access_alloc;
 
 template <typename AccessPolicy>
 class Resource;
@@ -75,7 +73,7 @@ class ResourceAccess
   private:
     struct AccessBase
     {
-        AccessBase( boost::typeindex::type_index access_type, std::shared_ptr<ResourceBase> resource )
+        AccessBase( boost::typeindex::type_index access_type, std::shared_ptr<ResourceBase > resource )
             : access_type( access_type )
             , resource( resource )
         {
@@ -312,13 +310,13 @@ protected:
 
     std::shared_ptr< ResourceBase > base;
 
-    Resource( std::shared_ptr<ResourceBase> base )
+    Resource( std::shared_ptr<ResourceBase > base )
         : ResourceBase( base )
     {}
 
   public:
     Resource()
-        : base( std::make_shared<ResourceBase>() )
+        : base( memory::alloc_shared<ResourceBase>() )
     {}
 
     /**
@@ -331,10 +329,7 @@ protected:
     ResourceAccess
     make_access( AccessPolicy pol ) const
     {
-        Access * acc = access_alloc.m_alloc< Access >();
-
-        new (acc) Access( base, pol );
-        return ResourceAccess( std::shared_ptr<Access>( acc, []( Access * acc ){ access_alloc.m_free( acc ); }) );
+        return ResourceAccess( memory::alloc_shared<Access>( base, pol ) );
     }
 }; // class Resource
 

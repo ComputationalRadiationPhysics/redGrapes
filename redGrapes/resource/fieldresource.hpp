@@ -206,7 +206,7 @@ struct FieldResource : fieldresource::WriteGuard< Container >
     template <typename... Args>
     FieldResource( Args&&... args )
         : fieldresource::WriteGuard< Container >(
-              std::make_shared< Container >( std::forward<Args>(args)... )
+              memory::alloc_shared< Container >( std::forward<Args>(args)... )
           )
     {}
 };

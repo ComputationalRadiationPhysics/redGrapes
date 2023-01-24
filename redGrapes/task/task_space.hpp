@@ -27,7 +27,7 @@ namespace redGrapes
 struct TaskSpace : std::enable_shared_from_this<TaskSpace>
 {
     /* task storage */
-    memory::Allocator< REDGRAPES_TASK_ALLOCATOR_CHUNKSIZE > task_storage;
+    memory::ChunkAllocator< REDGRAPES_TASK_ALLOCATOR_CHUNKSIZE > task_storage;
     std::atomic< unsigned long > task_count;
 
     /* queue */
@@ -65,7 +65,7 @@ struct TaskSpace : std::enable_shared_from_this<TaskSpace>
     FunTask<F> * alloc_task( )
     {
         // allocate memory
-        FunTask<F> * task = task_storage.m_alloc<FunTask<F>>();
+        FunTask<F> * task = task_storage.allocate<FunTask<F>>();
         if( ! task )
             throw std::runtime_error("out of memory");
 

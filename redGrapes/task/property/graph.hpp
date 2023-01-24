@@ -86,11 +86,11 @@ struct GraphProperty
 
     inline scheduler::EventPtr get_pre_event()
     {
-        return scheduler::EventPtr { scheduler::T_EVT_PRE, this->task };        
+        return scheduler::EventPtr { scheduler::T_EVT_PRE, this->task };
     }
     inline scheduler::EventPtr get_post_event()
     {
-        return scheduler::EventPtr { scheduler::T_EVT_POST, this->task };        
+        return scheduler::EventPtr { scheduler::T_EVT_POST, this->task };
     }
     inline scheduler::EventPtr get_result_set_event()
     {

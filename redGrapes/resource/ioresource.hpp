@@ -61,7 +61,7 @@ struct IOResource : public ioresource::WriteGuard< T >
     template < typename... Args >
     IOResource( Args&&... args )
         : ioresource::WriteGuard< T >(
-              std::make_shared< T >( std::forward<Args>(args)... )
+              memory::alloc_shared< T >( std::forward<Args>(args)... )
           )
     {}
 

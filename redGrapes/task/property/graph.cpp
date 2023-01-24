@@ -22,7 +22,7 @@ namespace redGrapes
  */
 scheduler::EventPtr GraphProperty::make_event()
 {
-    auto event = std::make_shared< scheduler::Event >();
+    auto event = memory::alloc_shared< scheduler::Event >();
     event->add_follower( get_post_event() );
     return scheduler::EventPtr{ scheduler::T_EVT_EXT, nullptr, event };
 }

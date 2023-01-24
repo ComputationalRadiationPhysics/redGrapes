@@ -7,7 +7,7 @@
 
 #include <cstdlib>
 #include <atomic>
-#include <redGrapes/util/allocator.hpp>
+#include <redGrapes/util/chunk_allocator.hpp>
 #include <cstring>
 
 namespace redGrapes

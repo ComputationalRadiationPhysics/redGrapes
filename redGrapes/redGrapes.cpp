@@ -27,7 +27,7 @@ std::shared_ptr<TaskSpace> current_task_space()
     {
         if( ! current_task->children )
         {
-            auto task_space = std::make_shared<TaskSpace>(current_task);
+            auto task_space = memory::alloc_shared<TaskSpace>(current_task);
             SPDLOG_TRACE("create child space = {}", (void*)task_space.get());
             current_task->children = task_space;
 
@@ -79,14 +79,14 @@ std::vector<std::reference_wrapper<Task>> backtrace()
 
 void init( std::shared_ptr<scheduler::IScheduler> scheduler )
 {
-    top_space = std::make_shared<TaskSpace>();
+    top_space = memory::alloc_shared<TaskSpace>();
     top_scheduler = scheduler;
     top_scheduler->start();
 }
 
 void init( size_t n_threads )
 {
-    init(std::make_shared<scheduler::DefaultScheduler>(n_threads));
+    init(memory::alloc_shared<scheduler::DefaultScheduler>(n_threads));
 }
 
 /*! wait until all tasks in the current task space finished

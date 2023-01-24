@@ -93,7 +93,7 @@ namespace redGrapes
         SPDLOG_TRACE("remove task {}", task.task_id);
         task.delete_from_resources();
         task.~Task();
-        task_storage.m_free(&task);
+        task_storage.deallocate(&task);
 
         auto ts = top_scheduler;
 

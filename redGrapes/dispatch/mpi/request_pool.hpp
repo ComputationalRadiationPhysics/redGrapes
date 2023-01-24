@@ -84,7 +84,7 @@ struct RequestPool
      */
     MPI_Status get_status( MPI_Request request )
     {
-        auto status = std::make_shared< MPI_Status >();
+        auto status = memory::alloc_shared< MPI_Status >();
         auto event = *create_event();
 
         //SPDLOG_TRACE("MPI RequestPool: status event = {}", (void*)event.get());

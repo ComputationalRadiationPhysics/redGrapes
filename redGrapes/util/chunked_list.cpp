@@ -9,6 +9,6 @@
 
 namespace redGrapes
 {
-    memory::Allocator< > list_alloc;
+//    memory::Allocator< > list_alloc;
 }
 

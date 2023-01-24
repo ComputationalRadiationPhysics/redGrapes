@@ -11,6 +11,7 @@
 #include <memory>
 #include <optional>
 #include <spdlog/spdlog.h>
+#include <redGrapes/util/allocator.hpp>
 
 namespace redGrapes
 {
@@ -212,7 +213,7 @@ namespace scheduler
         template<size_t T_tag_count = 64>
         auto make_tag_match_scheduler()
         {
-            return TagMatchBuilder<T_tag_count>{std::make_shared<TagMatch<T_tag_count>>()};
+            return TagMatchBuilder<T_tag_count>{memory::alloc_shared<TagMatch<T_tag_count>>()};
         }
 
 
