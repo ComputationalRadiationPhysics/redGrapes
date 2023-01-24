@@ -16,7 +16,7 @@
 
 #include <memory>
 
-#include <redGrapes/task/itask.hpp>
+//#include <redGrapes/task/task.hpp>
 #include <redGrapes/task/property/inherit.hpp>
 #include <redGrapes/scheduler/event.hpp>
 

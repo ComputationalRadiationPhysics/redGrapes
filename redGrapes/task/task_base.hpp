@@ -15,18 +15,19 @@
 #include <boost/context/continuation.hpp>
 
 #include <redGrapes/scheduler/event.hpp>
-#include <redGrapes/task/itask.hpp>
 
 namespace redGrapes
 {
 
-struct TaskBase : virtual ITask
+struct TaskBase
 {
     bool finished;
     bool enable_stack_switching;
 
     virtual ~TaskBase() {}
     TaskBase() : finished(false), enable_stack_switching(false) {}
+
+    virtual void run() = 0;
 
     std::optional< scheduler::EventPtr > operator() ()
     {

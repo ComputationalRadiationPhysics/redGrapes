@@ -12,7 +12,7 @@
 #include <memory>
 #include <spdlog/spdlog.h>
 
-#include <redGrapes/task/itask.hpp>
+#include <redGrapes/task/task.hpp>
 #include <redGrapes/task/property/id.hpp>
 #include <redGrapes/task/task_space.hpp>
 
