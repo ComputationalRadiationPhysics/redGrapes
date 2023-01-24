@@ -11,6 +11,8 @@
 
 #pragma once
 
+#include <string>
+#include <redGrapes/util/allocator.hpp>
 #include <fmt/format.h>
 
 namespace redGrapes
@@ -18,7 +20,9 @@ namespace redGrapes
 
 struct LabelProperty
 {
-    std::string label;
+    using string = std::basic_string< char, std::char_traits<char>, memory::Allocator<char> >;
+
+    string label;
 
     template < typename TaskBuilder >
     struct Builder
@@ -29,7 +33,7 @@ struct LabelProperty
             : builder(builder)
         {}
 
-        TaskBuilder & label( std::string const & l )
+        TaskBuilder & label( string const & l )
         {
             builder.task->label = l;
             return builder;
