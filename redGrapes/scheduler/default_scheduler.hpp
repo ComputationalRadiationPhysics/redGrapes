@@ -34,13 +34,15 @@ struct DefaultScheduler : public IScheduler
     {
         for( size_t i = 0; i < n_threads; ++i )
         {
-            threads.emplace_back(memory::alloc_shared< dispatch::thread::WorkerThread >( i ));
+            threads.emplace_back(memory::alloc_shared< dispatch::thread::WorkerThread >( i + 1 ));
             cpu_set_t cpuset;
             CPU_ZERO(&cpuset);
             CPU_SET(i, &cpuset);
             int rc = pthread_setaffinity_np(threads[i]->thread.native_handle(), sizeof(cpu_set_t), &cpuset);
         }
 
+        redGrapes::dispatch::thread::current_waker_id = 0;
+        
         // if not configured otherwise,
         // the main thread will simply wait
         redGrapes::idle =
@@ -206,11 +208,15 @@ struct DefaultScheduler : public IScheduler
         this->wake();
     }
 
-    //! wakeup sleeping main thread
-    bool wake()
+    bool wake( WakerID id = 0 )
     {
         SPDLOG_TRACE("DefaultScheduler: wake main thread");
-        return cv.notify();
+        if( id == 0 )
+            return cv.notify();
+        else if( id <= threads.size() )
+            threads[ id - 1 ]->wake();
+        else
+            return false;
     }
 };
 

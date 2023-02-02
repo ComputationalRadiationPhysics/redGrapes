@@ -114,11 +114,7 @@ void yield( scheduler::EventPtr event )
             current_task->yield(event);
         else
 	{
-            {
-                std::lock_guard<std::mutex> lock( event->waker_mutex );
-                event->waker = top_scheduler;
-            }
-
+            event->waker_id = dispatch::thread::current_waker_id;
             if( ! event->is_reached() )
                 idle();
 	}

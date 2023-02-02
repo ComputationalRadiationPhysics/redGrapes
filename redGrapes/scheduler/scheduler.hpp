@@ -26,19 +26,11 @@ struct WorkerThread;
 namespace scheduler
 {
 
-struct IWaker
-{
-    virtual ~IWaker() {}
+using WakerID = uint16_t;
 
-    virtual bool wake()
-    {
-        return false;
-    }
-};
-  
 /*! Scheduler Interface
  */
-struct IScheduler : virtual IWaker
+struct IScheduler
 {
     virtual ~IScheduler()
     {
@@ -69,6 +61,11 @@ struct IScheduler : virtual IWaker
         return false;
     }
 
+    virtual bool wake( WakerID id = 0 )
+    {
+        return false;
+    }
+    
     virtual void wake_all_workers()
     {}
 

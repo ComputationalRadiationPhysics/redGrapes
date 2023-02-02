@@ -27,7 +27,9 @@ namespace dispatch
 namespace thread
 {
 
-void execute_task( Task & task, std::weak_ptr<scheduler::IWaker> waker = std::weak_ptr<scheduler::IWaker>() );
+void execute_task( Task & task_id );
+
+extern thread_local scheduler::WakerID current_waker_id;
 
 /*!
  * Creates a thread which repeatedly calls consume()
@@ -35,7 +37,7 @@ void execute_task( Task & task, std::weak_ptr<scheduler::IWaker> waker = std::we
  *
  * Sleeps when no jobs are available.
  */
-struct WorkerThread : virtual scheduler::IWaker, std::enable_shared_from_this<WorkerThread>
+struct WorkerThread : std::enable_shared_from_this<WorkerThread>
 {
 private:
 
@@ -58,11 +60,11 @@ public:
     task::Queue queue;
     std::thread thread;
 
-    unsigned id;
+    scheduler::WakerID id;
 
 public:
 
-    WorkerThread( unsigned id ) :
+    WorkerThread( scheduler::WakerID id ) :
         m_start( false ),
         m_stop( false ),
         id( id ),
@@ -80,6 +82,8 @@ public:
                         throw std::runtime_error("idle in worker thread!");
                     };
 
+                current_waker_id = this->id;
+
                 while( ! m_start.load(std::memory_order_consume) )
                     cv.wait();
 
@@ -88,7 +92,7 @@ public:
                     SPDLOG_TRACE("Worker: work on queue");
 
                     while( Task * task = queue.pop() )
-                        dispatch::thread::execute_task( *task , this->shared_from_this() );
+                        dispatch::thread::execute_task( *task );
 
                     if( !redGrapes::schedule( *this ) && !m_stop.load(std::memory_order_consume) )
                     {

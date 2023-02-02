@@ -33,47 +33,7 @@ struct Task;
 namespace scheduler
 {
 
-struct EventPtr;
-
-/*!
- * An event is the abstraction of the programs execution state.
- * They form a flat/non-recursive graph of events.
- * During runtime, each thread encounters a sequence of events.
- * The goal is to synchronize these events in the manner
- * "Event A must occur before Event B".
- *
- * Multiple events need to be related, so that they
- * form a partial order.
- * This order is an homomorphic image from the timeline of
- * execution states.
- */
-struct Event
-{
-    /*! number of incoming edges
-     * state == 0: event is reached and can be removed
-     */
-    std::atomic_int state;
-
-    std::mutex waker_mutex;
-    std::weak_ptr<IWaker> waker;
-
-    //! the set of subsequent events
-    std::shared_mutex followers_mutex;
-    ChunkedList< EventPtr, REDGRAPES_EVENT_FOLLOWER_LIST_CHUNKSIZE > followers;
-
-    Event();
-    Event(Event &);
-    Event(Event &&);
-
-    bool is_reached();
-    bool is_ready();
-    void up();
-    void dn();
-
-    //! note: follower has to be notified separately!
-    void remove_follower( EventPtr follower );
-    void add_follower( EventPtr follower );
-};
+struct Event;
 
 enum EventPtrTag {
     T_UNINITIALIZED = 0,
@@ -113,6 +73,46 @@ struct EventPtr
      * @return true if event was ready
      */
     bool notify( bool claimed = false );
+};
+
+/*!
+ * An event is the abstraction of the programs execution state.
+ * They form a flat/non-recursive graph of events.
+ * During runtime, each thread encounters a sequence of events.
+ * The goal is to synchronize these events in the manner
+ * "Event A must occur before Event B".
+ *
+ * Multiple events need to be related, so that they
+ * form a partial order.
+ * This order is an homomorphic image from the timeline of
+ * execution states.
+ */
+struct Event
+{
+    /*! number of incoming edges
+     * state == 0: event is reached and can be removed
+     */
+    std::atomic_uint16_t state;
+
+    //! waker that is waiting for this event
+    WakerID waker_id;
+
+    //! the set of subsequent events
+    std::shared_mutex followers_mutex;
+    ChunkedList< EventPtr, REDGRAPES_EVENT_FOLLOWER_LIST_CHUNKSIZE > followers;
+
+    Event();
+    Event(Event &);
+    Event(Event &&);
+
+    bool is_reached();
+    bool is_ready();
+    void up();
+    void dn();
+
+    //! note: follower has to be notified separately!
+    void remove_follower( EventPtr follower );
+    void add_follower( EventPtr follower );
 };
 
 } // namespace scheduler

@@ -20,7 +20,9 @@ namespace dispatch
 namespace thread
 {
 
-void execute_task( Task & task, std::weak_ptr<scheduler::IWaker> waker = std::weak_ptr<scheduler::IWaker>() )
+thread_local scheduler::WakerID current_waker_id;
+
+void execute_task( Task & task )
 {
     SPDLOG_DEBUG("thread dispatch: execute task {}", task.task_id);
     assert( task.is_ready() );
@@ -30,7 +32,7 @@ void execute_task( Task & task, std::weak_ptr<scheduler::IWaker> waker = std::we
 
     if( auto event = task() )
     {
-        //event->get_event().waker = waker;
+        event->get_event().waker_id = current_waker_id;
         task.sg_pause( *event );
 
         task.pre_event.up();
