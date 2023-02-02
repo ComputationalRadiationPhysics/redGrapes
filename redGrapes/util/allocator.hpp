@@ -45,6 +45,12 @@ struct Allocator
     {
         new (p) U ( std::forward<Args>(args)... );
     }
+
+    template < typename U >
+    void destroy( U * p )
+    {
+        p->~U();
+    }
 };
  
 template<typename T, typename U>
