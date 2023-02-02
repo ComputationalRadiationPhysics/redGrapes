@@ -78,37 +78,40 @@ namespace redGrapes
         }
     }
 
-    void TaskSpace::kill(Task &task) {
-      if (__sync_bool_compare_and_swap(&task.alive, 1, 0)) {
-        if (task.children) {
-          SPDLOG_TRACE("remove child space");
+    void TaskSpace::kill(Task &task)
+    {
+        if (__sync_bool_compare_and_swap(&task.alive, 1, 0))
+        {
+            if (task.children)
+            {
+                SPDLOG_TRACE("remove child space");
 
-          std::unique_lock<std::shared_mutex> wr_lock(
-              current_task->space->active_child_spaces_mutex);
-          active_child_spaces.erase(std::find(active_child_spaces.begin(),
-                                              active_child_spaces.end(),
-                                              task.children));
+                std::unique_lock<std::shared_mutex> wr_lock(current_task->space->active_child_spaces_mutex);
+                active_child_spaces.erase(std::find(active_child_spaces.begin(),
+                                                    active_child_spaces.end(),
+                                                    task.children));
+            }
+
+            SPDLOG_TRACE("remove task {}", task.task_id);
+            task.delete_from_resources();
+            task.~Task();
+            task_storage.deallocate(&task);
+
+            auto ts = top_scheduler;
+
+            if (task_count.fetch_sub(1) == 1)
+            {
+                SPDLOG_DEBUG("task space empty");
+
+                if (parent)
+                    parent->space->try_remove(*parent);
+
+                if (ts)
+                    ts->wake_all_workers();
+            }
+
+            SPDLOG_TRACE("kill: task count = {}", task_count);
         }
-
-        SPDLOG_TRACE("remove task {}", task.task_id);
-        task.delete_from_resources();
-        task.~Task();
-        task_storage.deallocate(&task);
-
-        auto ts = top_scheduler;
-
-        if (task_count.fetch_sub(1) == 1) {
-          SPDLOG_DEBUG("task space empty");
-
-          if (parent)
-            parent->space->try_remove(*parent);
-
-          if (ts)
-            ts->wake_all_workers();
-        }
-
-        SPDLOG_TRACE("kill: task count = {}", task_count);
-      }
     }
 
     void TaskSpace::try_remove(Task& task)
