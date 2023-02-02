@@ -123,7 +123,7 @@ class ResourceUser
         return a.is_superset_of(b);
     }
 
-    unsigned int scope_level;
+    uint8_t scope_level;
 
     ChunkedList<ResourceAccess, 16> access_list;
     ChunkedList<ResourceEntry, 16> unique_resources;

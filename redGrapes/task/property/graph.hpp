@@ -59,7 +59,7 @@ struct GraphProperty
     Task * task;
     
     //! number of parents
-    unsigned int scope_depth;
+    uint8_t scope_depth;
 
     //! task space that contains this task, must not be null
     std::shared_ptr< TaskSpace > space;
@@ -68,12 +68,10 @@ struct GraphProperty
     std::shared_ptr< TaskSpace > children;
 
     /*
-
     // in edges dont need a mutex because they are initialized
     // once by `init_dependencies()` and only read afterwards.
     // expired pointers (null) must be ignored
     std::vector<Task*> in_edges;
-
     */
 
     scheduler::Event pre_event;
