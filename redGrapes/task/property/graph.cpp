@@ -98,8 +98,7 @@ void GraphProperty::add_dependency( Task & preceding_task )
 
 void GraphProperty::update_graph( )
 {
-    std::unique_lock< std::shared_mutex > lock( post_event.followers_mutex );
-    //std::lock_guard< SpinLock > lock( post_event.followers_mutex );
+    std::unique_lock< SpinLock > lock( post_event.followers_mutex );
 
     for( auto it = post_event.followers.iter(); it.first != it.second; ++it.first )
     {

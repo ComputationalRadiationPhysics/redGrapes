@@ -32,13 +32,13 @@ Event::Event()
 }
 
 Event::Event(Event & other)
-    : state((int)other.state)
+    : state((uint16_t)other.state)
     , waker_id(other.waker_id)
 {
 }
 
 Event::Event(Event && other)
-    : state((int)other.state)
+    : state((uint16_t)other.state)
     , waker_id(other.waker_id)
 {
 }
@@ -50,9 +50,10 @@ void Event::dn() { state--; }
 
 void Event::add_follower( EventPtr follower )
 {
-    //std::unique_lock< std::shared_mutex > lock( followers_mutex );
+    std::unique_lock< SpinLock > lock( followers_mutex );
     if( !is_reached() )
     {
+        SPDLOG_TRACE("Event add follower");
         followers.push(follower);
         follower->state++;
     }
@@ -62,7 +63,7 @@ void Event::add_follower( EventPtr follower )
 void Event::remove_follower( EventPtr follower )
 {
     //SPDLOG_TRACE("event {} remove_follower {}", (void*)this, (void*)follower.get());
-    std::unique_lock< std::shared_mutex > lock( followers_mutex );
+    std::unique_lock< SpinLock > lock( followers_mutex );
     followers.erase( follower );
 }
 
@@ -78,6 +79,7 @@ void Event::remove_follower( EventPtr follower )
 bool EventPtr::notify( bool claimed )
 {
     int old_state = this->get_event().state.fetch_sub(1);
+    int state = old_state - 1;
     
     std::string tag_string;
     switch( this->tag )
@@ -91,7 +93,7 @@ bool EventPtr::notify( bool claimed )
 
     if( this->task )
         SPDLOG_TRACE("notify event {} ({}-event of task {}) ~~> state = {}",
-               (void *)&this->get_event(), tag_string, this->task->task_id, old_state-1);
+               (void *)&this->get_event(), tag_string, this->task->task_id, state);
 
 
     assert(old_state > 0);
@@ -101,27 +103,28 @@ bool EventPtr::notify( bool claimed )
     if(task)
     {
         // pre event ready
-        if(tag == scheduler::T_EVT_PRE && old_state == 2)
+        if(tag == scheduler::T_EVT_PRE && state == 1)
         {
             if(!claimed)
                 top_scheduler->activate_task(*task);
         }
 
         // post event or result-get event reached
-        if(old_state == 1 && (tag == scheduler::T_EVT_POST || tag == scheduler::T_EVT_RES_GET))
+        if(state == 0 && (tag == scheduler::T_EVT_POST || tag == scheduler::T_EVT_RES_GET))
         {
             remove_task = true;
         }
     }
 
     // if event is ready or reached (state ∈ {0,1})
-    if( old_state <= 2 )
+    if( state <= 1 )
         top_scheduler->wake( this->get_event().waker_id );
 
-    if( old_state == 1 )
+    if( state == 0 )
     {
+        SPDLOG_TRACE("Event::notify(): notify followers");
         // notify followers
-        std::shared_lock< std::shared_mutex > lock( this->get_event().followers_mutex );
+        std::unique_lock< SpinLock > lock( this->get_event().followers_mutex );
 
         for( auto it = this->get_event().followers.iter(); it.first != it.second; ++it.first )
         {
@@ -134,7 +137,7 @@ bool EventPtr::notify( bool claimed )
         task->space->try_remove(*task);
 
     // return true if event is ready (state == 1)
-    return old_state == 2;
+    return state == 1;
 }
 
 } // namespace scheduler

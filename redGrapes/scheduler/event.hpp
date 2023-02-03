@@ -98,7 +98,7 @@ struct Event
     WakerID waker_id;
 
     //! the set of subsequent events
-    std::shared_mutex followers_mutex;
+    SpinLock followers_mutex;
     ChunkedList< EventPtr, REDGRAPES_EVENT_FOLLOWER_LIST_CHUNKSIZE > followers;
 
     Event();

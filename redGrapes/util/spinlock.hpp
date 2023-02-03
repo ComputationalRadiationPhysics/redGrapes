@@ -10,7 +10,7 @@ namespace redGrapes
 
 #define SPIN 1
 
-struct alignas(64) SpinLock
+struct /*alignas(64)*/ SpinLock
 {
 #if SPIN
     std::atomic<bool> state;
