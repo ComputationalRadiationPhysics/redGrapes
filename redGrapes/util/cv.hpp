@@ -19,10 +19,10 @@ struct PhantomLock
 
 struct CondVar
 {
-    alignas(64) std::atomic<bool> wait_flag;
+    std::atomic<bool> wait_flag;
     std::condition_variable_any cv;
 
-    alignas(64) std::atomic_flag busy;
+    std::atomic_flag busy;
 
     CondVar()
         : wait_flag( true )
@@ -33,7 +33,7 @@ struct CondVar
     {
         unsigned count = 0;
 
-        while( wait_flag.load(std::memory_order_acquire) );
+        while( wait_flag.load(std::memory_order_acquire) )
         {
             if( ++count > REDGRAPES_CONDVAR_TIMEOUT )
             {
