@@ -67,6 +67,7 @@ struct DefaultScheduler : public IScheduler
 
     inline void free_worker( unsigned id )
     {
+        SPDLOG_TRACE("free worker", id);
         //assert( id < n_workers );
         worker_state[ id / 64 ].fetch_or( (uint64_t)1 << ( id % 64 ), std::memory_order_release);
         last_free.store(id, std::memory_order_release);
@@ -155,9 +156,6 @@ struct DefaultScheduler : public IScheduler
                 return true;
             }
 
-            unsigned i = 2;
-            while( i-- > 0 )
-            {
                 if( top_space->init_dependencies(t, true) )
                 {
                     if( t )
@@ -170,6 +168,7 @@ struct DefaultScheduler : public IScheduler
                 }
                 else
                 {
+                    /*
                     // emplacement queue is empty
                     if( t = ready.pop() )
                     {
@@ -177,11 +176,10 @@ struct DefaultScheduler : public IScheduler
                         SPDLOG_TRACE("got task from ready queue");
                         return true;
                     }
-
-                    free_worker( worker.id );
+                    */
+                    free_worker( worker.id - 1 );
                     return false;
                 }
-            }
         }
     }
 
@@ -192,7 +190,16 @@ struct DefaultScheduler : public IScheduler
         int worker_id = alloc_worker();
 
         if( worker_id < 0 )
+        {
+            // FIXME: this is a workaround for a racecondition
+            // a worker may be searching for a task and thus not marked free,
+            // so alloc_worker will not return this worker and wake_one_worker
+            // will notify no one.
+            // shortly after that the worker is marked as free and begins to sleep,
+            // but the newly created task will not be executed
+            wake_all_workers();
             return false;
+        }
         else
         {
             threads[ worker_id ]->wake();
@@ -202,10 +209,8 @@ struct DefaultScheduler : public IScheduler
 
     void wake_all_workers()
     {
-        for( auto & worker : threads )
-            worker->wake();
-
-        this->wake();
+        for( uint16_t i = 0; i <= threads.size(); ++i )
+            this->wake( i );
     }
 
     bool wake( WakerID id = 0 )
@@ -214,7 +219,7 @@ struct DefaultScheduler : public IScheduler
         if( id == 0 )
             return cv.notify();
         else if( id <= threads.size() )
-            threads[ id - 1 ]->wake();
+            return threads[ id - 1 ]->wake();
         else
             return false;
     }
