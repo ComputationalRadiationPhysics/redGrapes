@@ -12,6 +12,7 @@
 #include <redGrapes/scheduler/event.hpp>
 #include <redGrapes/task/task.hpp>
 #include <redGrapes/context.hpp>
+#include <redGrapes/util/trace.hpp>
 
 namespace redGrapes
 {
@@ -30,7 +31,11 @@ void execute_task( Task & task )
     task.get_pre_event().notify();
     current_task = &task;
 
-    if( auto event = task() )
+    unsigned th = REDGRAPES_TRACE_START( trace::WORKER_EXECUTE_TASK );
+    auto event = task();
+    REDGRAPES_TRACE_STOP( th );
+    
+    if( event )
     {
         event->get_event().waker_id = current_waker_id;
         task.sg_pause( *event );

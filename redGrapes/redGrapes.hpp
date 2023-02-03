@@ -13,8 +13,8 @@
 #include <redGrapes/scheduler/event.hpp>
 #include <redGrapes/task/future.hpp>
 #include <redGrapes/task/task.hpp>
-
 #include <redGrapes/task/task_space.hpp>
+#include <redGrapes/util/trace.hpp>
 #include <spdlog/spdlog.h>
 #include <type_traits>
 
@@ -149,11 +149,16 @@ struct TaskBuilder
 
     auto submit()
     {
+        unsigned th = REDGRAPES_TRACE_START( trace::TASK_SUBMIT );
+
         Task * t = task;
         task = nullptr;
 
         SPDLOG_TRACE("submit task {}", (TaskProperties const &)*t);
         space->submit( t );
+
+        REDGRAPES_TRACE_STOP( th );
+        
         return std::move(Future<Result>( *t ));
     }
 

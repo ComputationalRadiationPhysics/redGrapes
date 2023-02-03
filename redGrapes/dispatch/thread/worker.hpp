@@ -19,6 +19,7 @@
 #include <redGrapes/context.hpp>
 #include <redGrapes/redGrapes.hpp>
 #include <redGrapes/util/cv.hpp>
+#include <redGrapes/util/trace.hpp>
 
 namespace redGrapes
 {
@@ -97,7 +98,9 @@ public:
                     if( !redGrapes::schedule( *this ) && !m_stop.load(std::memory_order_consume) )
                     {
                         SPDLOG_TRACE("worker sleep");
+                        unsigned trace_handle = REDGRAPES_TRACE_START( trace::WORKER_SLEEP );
                         cv.wait();
+                        REDGRAPES_TRACE_STOP( trace_handle );
                         SPDLOG_TRACE("Wake!");
                     }
                 }

@@ -14,6 +14,7 @@
 #include <redGrapes/task/task.hpp>
 #include <redGrapes/context.hpp>
 #include <redGrapes/resource/resource_user.hpp>
+#include <redGrapes/util/trace.hpp>
 
 namespace redGrapes
 {
@@ -36,6 +37,8 @@ scheduler::EventPtr GraphProperty::make_event()
 void GraphProperty::init_graph()
 {
     SPDLOG_TRACE("sg init task {}", this->task->task_id);
+
+    unsigned th = REDGRAPES_TRACE_START( trace::TASK_INIT_GRAPH );
 
     for( ResourceEntry & r : this->task->unique_resources )
     {
@@ -70,16 +73,22 @@ void GraphProperty::init_graph()
         SPDLOG_TRACE("add event dep to parent");
         this->post_event.add_follower( parent->get_post_event() );
     }
+
+    REDGRAPES_TRACE_STOP( th );
 }
 
 void GraphProperty::delete_from_resources()
 {
+    unsigned th = REDGRAPES_TRACE_START( trace::TASK_DELETE_FROM_RUL );
+
     for( ResourceEntry r : this->task->unique_resources )
     {
         std::unique_lock< std::shared_mutex > lock( r.resource->users_mutex );
         if( r.task_idx != -1 )
             r.resource->users.remove( r.task_idx );
     }
+
+    REDGRAPES_TRACE_STOP( th );
 }
 
 void GraphProperty::add_dependency( Task & preceding_task )

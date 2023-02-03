@@ -20,6 +20,7 @@
 #include <redGrapes/scheduler/event.hpp>
 #include <redGrapes/context.hpp>
 #include <redGrapes/redGrapes.hpp>
+#include <redGrapes/util/trace.hpp>
 
 namespace redGrapes
 {
@@ -78,6 +79,8 @@ void Event::remove_follower( EventPtr follower )
  */
 bool EventPtr::notify( bool claimed )
 {
+    unsigned th = REDGRAPES_TRACE_START( trace::GRAPH_NOTIFY_EVENT );
+
     int old_state = this->get_event().state.fetch_sub(1);
     int state = old_state - 1;
     
@@ -123,6 +126,9 @@ bool EventPtr::notify( bool claimed )
     if( state == 0 )
     {
         SPDLOG_TRACE("Event::notify(): notify followers");
+
+        unsigned th = REDGRAPES_TRACE_START( trace::GRAPH_NOTIFY_FOLLOWERS );
+
         // notify followers
         std::unique_lock< SpinLock > lock( this->get_event().followers_mutex );
 
@@ -131,11 +137,15 @@ bool EventPtr::notify( bool claimed )
             if( std::optional<EventPtr> follower = *it.first)
                 follower->notify( );
         }
+
+        REDGRAPES_TRACE_STOP( th );
     }
 
     if( remove_task )
         task->space->try_remove(*task);
 
+    REDGRAPES_TRACE_STOP( th );
+    
     // return true if event is ready (state == 1)
     return state == 1;
 }
