@@ -12,6 +12,10 @@
 #include <redGrapes/redGrapes.hpp>
 #include <redGrapes/scheduler/default_scheduler.hpp>
 
+#include <redGrapes/util/trace.hpp>
+
+PERFETTO_TRACK_EVENT_STATIC_STORAGE();
+
 namespace redGrapes
 {
 
@@ -79,6 +83,13 @@ std::vector<std::reference_wrapper<Task>> backtrace()
 
 void init( std::shared_ptr<scheduler::IScheduler> scheduler )
 {
+#if REDGRAPES_ENABLE_TRACE
+    perfetto::TracingInitArgs args;
+    args.backends |= perfetto::kInProcessBackend;
+    perfetto::Tracing::Initialize(args);
+    perfetto::TrackEvent::Register();
+#endif
+
     top_space = memory::alloc_shared<TaskSpace>();
     top_scheduler = scheduler;
     top_scheduler->start();

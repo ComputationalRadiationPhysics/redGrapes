@@ -149,15 +149,11 @@ struct TaskBuilder
 
     auto submit()
     {
-        unsigned th = REDGRAPES_TRACE_START( trace::TASK_SUBMIT );
-
         Task * t = task;
         task = nullptr;
 
         SPDLOG_TRACE("submit task {}", (TaskProperties const &)*t);
         space->submit( t );
-
-        REDGRAPES_TRACE_STOP( th );
         
         return std::move(Future<Result>( *t ));
     }

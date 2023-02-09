@@ -8,6 +8,7 @@
 #include <redGrapes/task/task.hpp>
 #include <redGrapes/task/task_space.hpp>
 #include <redGrapes/task/queue.hpp>
+#include <redGrapes/util/trace.hpp>
 
 namespace redGrapes
 {
@@ -53,6 +54,7 @@ namespace redGrapes
 
     bool TaskSpace::init_dependencies( Task* & t, bool claimed )
     {
+        TRACE_EVENT("TaskSpace", "init_dependencies");
         SPDLOG_TRACE("TaskSpace::init_until_ready() this={}", (void*)this);
 
         if(Task * task = emplacement_queue.pop())
@@ -80,6 +82,7 @@ namespace redGrapes
 
     void TaskSpace::kill(Task &task)
     {
+        TRACE_EVENT("TaskSpace", "kill");
         if (__sync_bool_compare_and_swap(&task.alive, 1, 0))
         {
             if (task.children)
@@ -116,7 +119,7 @@ namespace redGrapes
 
     void TaskSpace::try_remove(Task& task)
     {
-        SPDLOG_TRACE("try remove {}", task.task_id);
+        TRACE_EVENT("TaskSpace", "try_remove");
         if( task.post_event.is_reached() )
             if( task.result_get_event.is_reached() )
                 if( !task.children || task.children->empty() )

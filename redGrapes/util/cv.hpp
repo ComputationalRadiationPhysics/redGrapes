@@ -5,7 +5,7 @@
 #include <redGrapes_config.hpp>
 
 #ifndef REDGRAPES_CONDVAR_TIMEOUT
-#define REDGRAPES_CONDVAR_TIMEOUT 0x200000
+#define REDGRAPES_CONDVAR_TIMEOUT 0x2000
 #endif
 
 namespace redGrapes

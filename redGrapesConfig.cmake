@@ -29,19 +29,26 @@ target_compile_features(redGrapes PUBLIC
     cxx_std_14
 )
 
+add_compile_definitions(PERFETTO_ALLOW_SUB_CPP17)
+
 target_include_directories(redGrapes PUBLIC
     $<BUILD_INTERFACE:${redGrapes_SOURCE_DIR}>
     $<INSTALL_INTERFACE:${redGrapes_INSTALL_PREFIX}>
 )
 
+#target_include_directories(redGrapes PUBLIC perfetto/sdk)
+add_library(perfetto STATIC /usr/share/perfetto/sdk/perfetto.cc)
+
 target_link_libraries(redGrapes PUBLIC ${Boost_LIBRARIES})
 target_link_libraries(redGrapes PUBLIC fmt::fmt)
 target_link_libraries(redGrapes PUBLIC spdlog::spdlog)
+target_link_libraries(redGrapes PUBLIC perfetto ${CMAKE_THREAD_LIBS_INIT})
 
 set(redGrapes_INCLUDE_DIRS ${redGrapes_CONFIG_INCLUDE_DIR} ${CMAKE_CURRENT_LIST_DIR})
 set(redGrapes_INCLUDE_DIRS ${redGrapes_INCLUDE_DIRS} "${CMAKE_CURRENT_LIST_DIR}/share/thirdParty/akrzemi/optional/include")
 set(redGrapes_INCLUDE_DIRS ${redGrapes_INCLUDE_DIRS} "${CMAKE_CURRENT_LIST_DIR}/share/thirdParty/cameron314/concurrentqueue/include")
-set(redGrapes_LIBRARIES ${Boost_LIBRARIES} fmt::fmt spdlog::spdlog)
+set(redGrapes_INCLUDE_DIRS ${redGrapes_INCLUDE_DIRS} "/usr/share/perfetto/sdk")
+set(redGrapes_LIBRARIES ${Boost_LIBRARIES} fmt::fmt spdlog::spdlog perfetto ${CMAKE_THREAD_LIBS_INIT})
 
 target_include_directories(redGrapes PUBLIC ${redGrapes_INCLUDE_DIRS})
 

@@ -113,6 +113,8 @@ struct Event
     //! note: follower has to be notified separately!
     void remove_follower( EventPtr follower );
     void add_follower( EventPtr follower );
+
+    void notify_followers();
 };
 
 } // namespace scheduler

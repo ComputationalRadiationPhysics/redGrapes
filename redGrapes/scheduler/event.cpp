@@ -51,6 +51,8 @@ void Event::dn() { state--; }
 
 void Event::add_follower( EventPtr follower )
 {
+    TRACE_EVENT("Event", "add_follower");
+
     std::unique_lock< SpinLock > lock( followers_mutex );
     if( !is_reached() )
     {
@@ -63,9 +65,22 @@ void Event::add_follower( EventPtr follower )
 //! note: follower has to be notified separately!
 void Event::remove_follower( EventPtr follower )
 {
-    //SPDLOG_TRACE("event {} remove_follower {}", (void*)this, (void*)follower.get());
+    TRACE_EVENT("Event", "remove_follower");
+
     std::unique_lock< SpinLock > lock( followers_mutex );
     followers.erase( follower );
+}
+
+void Event::notify_followers()
+{
+    TRACE_EVENT("Event", "notify_followers");
+
+    std::unique_lock< SpinLock > lock( followers_mutex );
+    for( auto it = followers.iter(); it.first != it.second; ++it.first )
+    {
+        if( std::optional<EventPtr> follower = *it.first)
+            follower->notify( );
+    }
 }
 
 /*! A preceding event was reached and thus an incoming edge got removed.
@@ -79,7 +94,7 @@ void Event::remove_follower( EventPtr follower )
  */
 bool EventPtr::notify( bool claimed )
 {
-    unsigned th = REDGRAPES_TRACE_START( trace::GRAPH_NOTIFY_EVENT );
+    TRACE_EVENT("Event", "notify");
 
     int old_state = this->get_event().state.fetch_sub(1);
     int state = old_state - 1;
@@ -124,27 +139,10 @@ bool EventPtr::notify( bool claimed )
         top_scheduler->wake( this->get_event().waker_id );
 
     if( state == 0 )
-    {
-        SPDLOG_TRACE("Event::notify(): notify followers");
-
-        unsigned th = REDGRAPES_TRACE_START( trace::GRAPH_NOTIFY_FOLLOWERS );
-
-        // notify followers
-        std::unique_lock< SpinLock > lock( this->get_event().followers_mutex );
-
-        for( auto it = this->get_event().followers.iter(); it.first != it.second; ++it.first )
-        {
-            if( std::optional<EventPtr> follower = *it.first)
-                follower->notify( );
-        }
-
-        REDGRAPES_TRACE_STOP( th );
-    }
+        this->get_event().notify_followers();
 
     if( remove_task )
         task->space->try_remove(*task);
-
-    REDGRAPES_TRACE_STOP( th );
     
     // return true if event is ready (state == 1)
     return state == 1;

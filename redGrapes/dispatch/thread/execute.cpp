@@ -25,15 +25,15 @@ thread_local scheduler::WakerID current_waker_id;
 
 void execute_task( Task & task )
 {
+    TRACE_EVENT("Worker", "execute");
+
     SPDLOG_DEBUG("thread dispatch: execute task {}", task.task_id);
     assert( task.is_ready() );
 
     task.get_pre_event().notify();
     current_task = &task;
 
-    unsigned th = REDGRAPES_TRACE_START( trace::WORKER_EXECUTE_TASK );
     auto event = task();
-    REDGRAPES_TRACE_STOP( th );
     
     if( event )
     {

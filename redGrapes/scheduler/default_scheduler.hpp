@@ -90,6 +90,8 @@ struct DefaultScheduler : public IScheduler
      */
     inline int alloc_worker()
     {
+        TRACE_EVENT("Scheduler", "alloc_worker");
+
         unsigned off = last_free.fetch_add(1, std::memory_order_acquire) % n_workers;
         unsigned joff = off / 64;
         unsigned koff = off % 64;
@@ -125,6 +127,7 @@ struct DefaultScheduler : public IScheduler
 
     void activate_task( Task & task )
     {
+        TRACE_EVENT("Scheduler", "activate_task");
         SPDLOG_TRACE("DefaultScheduler::activate_task({})", task.task_id);
 
         int worker_id = alloc_worker();
@@ -142,6 +145,7 @@ struct DefaultScheduler : public IScheduler
     // @return true if a new task was assigned to worker
     bool schedule( dispatch::thread::WorkerThread & worker )
     {
+        TRACE_EVENT("Scheduler", "schedule");
         SPDLOG_TRACE("schedule worker {}", worker.id);
 
         while( true )
@@ -185,6 +189,7 @@ struct DefaultScheduler : public IScheduler
 
     bool wake_one_worker()
     {
+        TRACE_EVENT("Scheduler", "wake_one_worker");
         SPDLOG_DEBUG("DefaultScheduler: wake_one_worker()");
 
         int worker_id = alloc_worker();
@@ -215,7 +220,6 @@ struct DefaultScheduler : public IScheduler
 
     bool wake( WakerID id = 0 )
     {
-        SPDLOG_TRACE("DefaultScheduler: wake main thread");
         if( id == 0 )
             return cv.notify();
         else if( id <= threads.size() )
