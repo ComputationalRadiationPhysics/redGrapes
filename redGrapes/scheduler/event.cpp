@@ -128,9 +128,13 @@ bool EventPtr::notify( bool claimed )
         }
 
         // post event or result-get event reached
-        if(state == 0 && (tag == scheduler::T_EVT_POST || tag == scheduler::T_EVT_RES_GET))
+        if(state == 0)
         {
-            remove_task = true;
+            if( tag == scheduler::T_EVT_POST && task->result_get_event.is_reached() )
+                remove_task = true;
+
+            if( tag == scheduler::T_EVT_RES_GET && task->post_event.is_reached() )
+                remove_task = true;
         }
     }
 
@@ -142,8 +146,16 @@ bool EventPtr::notify( bool claimed )
         this->get_event().notify_followers();
 
     if( remove_task )
-        task->space->try_remove(*task);
-    
+    {
+        task->delete_from_resources();
+        task->~Task();
+
+        unsigned count = task->space->task_count.fetch_sub(1) - 1;
+        task->space->task_storage.deallocate(&task);
+        if( count == 0 )
+            top_scheduler->wake_all_workers();
+    }
+
     // return true if event is ready (state == 1)
     return state == 1;
 }
