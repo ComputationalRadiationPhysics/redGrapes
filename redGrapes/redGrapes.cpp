@@ -14,7 +14,9 @@
 
 #include <redGrapes/util/trace.hpp>
 
+#if REDGRAPES_ENABLE_TRACE
 PERFETTO_TRACK_EVENT_STATIC_STORAGE();
+#endif
 
 namespace redGrapes
 {

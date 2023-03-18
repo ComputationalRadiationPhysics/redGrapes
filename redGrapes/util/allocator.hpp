@@ -62,6 +62,7 @@ bool operator!=(Allocator<T> const&, Allocator<U> const&) { return false; }
 template < typename T, typename... Args >
 std::shared_ptr<T> alloc_shared( Args&&... args )
 {
+    TRACE_EVENT("Allocator", "alloc_shared");
     return std::allocate_shared< T, Allocator<T> >( Allocator<T>(), std::forward<Args>(args)... );
 }
 

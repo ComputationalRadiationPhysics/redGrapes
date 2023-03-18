@@ -15,6 +15,7 @@
 #include <boost/context/continuation.hpp>
 
 #include <redGrapes/scheduler/event.hpp>
+#include <redGrapes/util/trace.hpp>
 
 namespace redGrapes
 {

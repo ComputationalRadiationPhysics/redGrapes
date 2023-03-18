@@ -46,6 +46,7 @@ void GraphProperty::init_graph()
             TRACE_EVENT_BEGIN("Graph", "CheckPredecessors");
             for(auto it = r.resource->users.iter_from( r.task_idx-1 ); it.first != it.second; ++it.first )
             {
+                TRACE_EVENT("Graph", "Check Pred");
                 Task * preceding_task = *it.first;
 
                 if( preceding_task == this->space->parent )

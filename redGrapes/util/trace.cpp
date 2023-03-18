@@ -5,6 +5,7 @@
 #include <redGrapes/util/trace.hpp>
 
 std::unique_ptr<perfetto::TracingSession> StartTracing() {
+#if REDGRAPES_ENABLE_TRACE
   // The trace config defines which types of data sources are enabled for
   // recording. In this example we just need the "track_event" data source,
   // which corresponds to the TRACE_EVENT trace points.
@@ -17,9 +18,13 @@ std::unique_ptr<perfetto::TracingSession> StartTracing() {
   tracing_session->Setup(cfg);
   tracing_session->StartBlocking();
   return tracing_session;
+#else
+  return std::unique_ptr<perfetto::TracingSession>();
+#endif
 }
 
 void StopTracing(std::unique_ptr<perfetto::TracingSession> tracing_session) {
+#if REDGRAPES_ENABLE_TRACE
   // Make sure the last event is closed for this example.
   perfetto::TrackEvent::Flush();
 
@@ -31,11 +36,9 @@ void StopTracing(std::unique_ptr<perfetto::TracingSession> tracing_session) {
   // Note: To save memory with longer traces, you can tell Perfetto to write
   // directly into a file by passing a file descriptor into Setup() above.
   std::ofstream output;
-  output.open("example.pftrace", std::ios::out | std::ios::binary);
+  output.open("redGrapes.pftrace", std::ios::out | std::ios::binary);
   output.write(&trace_data[0], std::streamsize(trace_data.size()));
   output.close();
-  PERFETTO_LOG(
-      "Trace written in example.pftrace file. To read this trace in "
-      "text form, run `./tools/traceconv text example.pftrace`");
+#endif
 }
 

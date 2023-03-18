@@ -14,6 +14,8 @@
 #include <redGrapes/task/property/resource.hpp>
 #include <redGrapes/task/property/queue.hpp>
 #include <redGrapes/task/property/graph.hpp>
+#include <redGrapes/util/trace.hpp>
+
 
 // defines REDGRAPES_TASK_PROPERTIES
 #include <redGrapes_config.hpp>

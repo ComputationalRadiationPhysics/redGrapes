@@ -1,5 +1,7 @@
 #pragma once
 
+#define REDGRAPES_ENABLE_TRACE 0
+
 #include <redGrapes/task/property/label.hpp>
 #include <redGrapes/scheduler/tag_match.hpp>
 

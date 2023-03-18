@@ -12,10 +12,12 @@
 #pragma once
 
 #include <list>
+#include <fmt/format.h>
+
 #include <redGrapes/resource/resource.hpp>
 #include <redGrapes/context.hpp>
 #include <redGrapes/util/chunked_list.hpp>
-#include <fmt/format.h>
+#include <redGrapes/util/trace.hpp>
 
 namespace redGrapes
 {
@@ -93,16 +95,21 @@ class ResourceUser
     static bool
     is_serial( ResourceUser const & a, ResourceUser const & b )
     {
+        TRACE_EVENT("ResourceUser", "is_serial");
         for ( ResourceAccess const & ra : a.access_list )
             for ( ResourceAccess const & rb : b.access_list )
+            {
+                TRACE_EVENT("ResourceUser", "RA::is_serial");
                 if ( ResourceAccess::is_serial( ra, rb ) )
                     return true;
+            }
         return false;
     }
 
     bool
     is_superset_of( ResourceUser const & a ) const
     {
+        TRACE_EVENT("ResourceUser", "is_superset");
         for ( ResourceAccess const & ra : a.access_list )
         {
             bool found = false;

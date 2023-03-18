@@ -25,7 +25,7 @@ thread_local scheduler::WakerID current_waker_id;
 
 void execute_task( Task & task )
 {
-    TRACE_EVENT("Worker", "execute");
+    TRACE_EVENT("Worker", "dispatch task");
 
     SPDLOG_DEBUG("thread dispatch: execute task {}", task.task_id);
     assert( task.is_ready() );
