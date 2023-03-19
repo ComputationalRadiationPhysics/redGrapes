@@ -35,23 +35,25 @@ struct Chunk
     bool contains( void * ) const;
 
 private:
-    alignas(64) std::atomic_ptrdiff_t offset;
+    std::atomic_ptrdiff_t offset;
     size_t capacity;
     uintptr_t base;
 
-    alignas(64) std::atomic<unsigned> count;
+    std::atomic<unsigned> count;
 };
 
-template < size_t chunk_size = 0x800000 >
 struct ChunkAllocator
 {
     SpinLock m;
+    size_t chunk_size;
     std::vector< std::unique_ptr<Chunk> > blocked_chunks;
     std::unique_ptr<Chunk> active_chunk;
 
-    ChunkAllocator()
+    ChunkAllocator( size_t chunk_size )
         : active_chunk( std::make_unique<Chunk>(chunk_size) )
+        , chunk_size( chunk_size )
     {
+        spdlog::info("Create Allocator");
         blocked_chunks.reserve(64);
     }
 

@@ -19,6 +19,7 @@ namespace redGrapes
     TaskSpace::TaskSpace()
         : depth(0)
         , parent(nullptr)
+        , task_storage( REDGRAPES_TASK_ALLOCATOR_CHUNKSIZE )
     {
         task_count = 0;
     }
@@ -27,6 +28,7 @@ namespace redGrapes
     TaskSpace::TaskSpace(Task * parent)
         : depth(parent->space->depth + 1)
         , parent(parent)
+        , task_storage( REDGRAPES_TASK_ALLOCATOR_CHUNKSIZE )
     {
         task_count = 0;
     }

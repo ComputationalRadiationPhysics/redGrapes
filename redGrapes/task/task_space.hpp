@@ -27,7 +27,7 @@ namespace redGrapes
 struct TaskSpace : std::enable_shared_from_this<TaskSpace>
 {
     /* task storage */
-    memory::ChunkAllocator< REDGRAPES_TASK_ALLOCATOR_CHUNKSIZE > task_storage;
+    memory::ChunkAllocator task_storage;
     std::atomic< unsigned long > task_count;
 
     /* queue */
