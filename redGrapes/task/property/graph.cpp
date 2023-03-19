@@ -42,8 +42,9 @@ void GraphProperty::init_graph()
     {
         if( r.task_idx > 0 )
         {
-            std::shared_lock< std::shared_mutex > lock( r.resource->users_mutex );
-            TRACE_EVENT_BEGIN("Graph", "CheckPredecessors");
+            std::unique_lock< SpinLock > lock( r.resource->users_mutex );
+
+            TRACE_EVENT("Graph", "CheckPredecessors");
             for(auto it = r.resource->users.iter_from( r.task_idx-1 ); it.first != it.second; ++it.first )
             {
                 TRACE_EVENT("Graph", "Check Pred");
@@ -64,7 +65,6 @@ void GraphProperty::init_graph()
                         break;
                 }
             }
-            TRACE_EVENT_END("Graph");
         }
     }
 
@@ -79,10 +79,9 @@ void GraphProperty::init_graph()
 void GraphProperty::delete_from_resources()
 {
     TRACE_EVENT("Graph", "delete_from_resources");
-
     for( ResourceEntry r : this->task->unique_resources )
     {
-        std::unique_lock< std::shared_mutex > lock( r.resource->users_mutex );
+        std::unique_lock< SpinLock > lock( r.resource->users_mutex );
         if( r.task_idx != -1 )
             r.resource->users.remove( r.task_idx );
     }

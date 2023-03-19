@@ -23,6 +23,7 @@
 #include <redGrapes/task/property/trait.hpp>
 #include <redGrapes/util/allocator.hpp>
 #include <redGrapes/util/chunked_list.hpp>
+#include <redGrapes/util/spinlock.hpp>
 #include <redGrapes_config.hpp>
 
 #include <fmt/format.h>
@@ -53,7 +54,7 @@ public:
     unsigned int id;
     unsigned int scope_level;
 
-    std::shared_mutex users_mutex;
+    SpinLock users_mutex;
     ChunkedList< Task*, REDGRAPES_RUL_CHUNKSIZE > users;
 
     /**
