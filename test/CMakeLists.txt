@@ -8,7 +8,7 @@ include_directories(SYSTEM ${redGrapes_INCLUDE_DIRS})
 
 find_package(Threads REQUIRED)
 
-find_package(Catch2 2.2.1 CONFIG)
+find_package(Catch2 3.3.2 CONFIG)
 
 option(redGrapes_USE_INTERNAL_CATCH "Use internally stored Catch2" ON)
 option(redGrapes_DOWNLOAD_CATCH "Download Catch2 if not found" ON)
@@ -19,24 +19,13 @@ enable_testing()
 if(Catch2_FOUND)
     message(STATUS "Catch2: Found version ${Catch2_VERSION}")
 elseif(redGrapes_USE_INTERNAL_CATCH)
-    set(Catch2_DIR ${redGrapes_SOURCE_DIR}/share/thirdParty/catch2)
-    if(EXISTS ${Catch2_DIR})
-        message(STATUS "Catch2: found INTERNAL version")
-    else()
-        if(redGrapes_DOWNLOAD_CATCH)
-            message(STATUS "Catch2: Downloading latest version...")
-            execute_process(COMMAND mkdir -p "${Catch2_DIR}/include/catch")
-            execute_process(
-              WORKING_DIRECTORY "${Catch2_DIR}/include/catch"
-              COMMAND curl -LO "https://github.com/catchorg/Catch2/releases/download/v2.13.6/catch.hpp")
-        else()
-            message(WARNING "Catch2: not found and download is disabled")
-        endif()
-    endif()
-
-    target_include_directories(redGrapes SYSTEM INTERFACE
-        $<BUILD_INTERFACE:${Catch2_DIR}/include>
+    Include(FetchContent)
+    FetchContent_Declare(
+      Catch2
+      GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+      GIT_TAG        v3.3.2 # or a later release
     )
+    FetchContent_MakeAvailable(Catch2)
 else()
     message(WARNING "Catch2: No CMake package or internal version found")
 endif()
@@ -102,7 +91,6 @@ endif()
 
 
 set(TEST_SOURCES
-    main.cpp
     access.cpp
     resource.cpp
     resource_user.cpp
@@ -116,5 +104,6 @@ set(TEST_TARGET redGrapes_test)
 add_executable(${TEST_TARGET} ${TEST_SOURCES})
 target_link_libraries(${TEST_TARGET} PRIVATE redGrapes)
 target_link_libraries(${TEST_TARGET} PRIVATE Threads::Threads)
+target_link_libraries(${TEST_TARGET} PRIVATE Catch2WithMain)
 add_test(NAME unittest COMMAND ${TEST_TARGET})
 

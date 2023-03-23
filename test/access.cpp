@@ -1,5 +1,5 @@
 
-#include <catch/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include <redGrapes/resource/access/io.hpp>
 #include <redGrapes/resource/access/area.hpp>
