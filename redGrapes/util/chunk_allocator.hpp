@@ -53,10 +53,9 @@ struct ChunkAllocator
         : active_chunk( std::make_unique<Chunk>(chunk_size) )
         , chunk_size( chunk_size )
     {
-        spdlog::info("Create Allocator");
         blocked_chunks.reserve(64);
     }
-
+ 
     template <typename T>
     T * allocate( std::size_t n = 1 )
     {

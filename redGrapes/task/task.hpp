@@ -49,6 +49,9 @@ struct Task :
     }
 };
 
+// TODO: fuse ResultTask and FunTask into one template
+//     ---> removes one layer of virtual function calls
+
 template < typename Result >
 struct ResultTask : Task
 {
@@ -63,7 +66,7 @@ struct ResultTask : Task
 
     virtual Result run_result() {}
 
-    void run()
+    void run() final
     {
         result_data = run_result();
         get_result_set_event().notify(); // result event now ready
@@ -74,9 +77,10 @@ template<>
 struct ResultTask<void> : Task
 {
     virtual ~ResultTask() {}
-
+ 
     virtual void run_result() {}
-    void run()
+
+    void run() final
     {
         run_result();
         get_result_set_event().notify();

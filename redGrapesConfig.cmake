@@ -19,7 +19,6 @@ add_library(redGrapes
   ${CMAKE_CURRENT_LIST_DIR}/redGrapes/task/task_space.cpp
   ${CMAKE_CURRENT_LIST_DIR}/redGrapes/task/queue.cpp
   ${CMAKE_CURRENT_LIST_DIR}/redGrapes/util/chunk_allocator.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/redGrapes/util/chunked_list.cpp
   ${CMAKE_CURRENT_LIST_DIR}/redGrapes/util/trace.cpp
   ${CMAKE_CURRENT_LIST_DIR}/redGrapes/redGrapes.cpp
 )
@@ -37,7 +36,7 @@ target_include_directories(redGrapes PUBLIC
 )
 
 #target_include_directories(redGrapes PUBLIC perfetto/sdk)
-add_library(perfetto STATIC /usr/share/perfetto/sdk/perfetto.cc)
+#add_library(perfetto STATIC /usr/share/perfetto/sdk/perfetto.cc)
 
 target_link_libraries(redGrapes PUBLIC ${Boost_LIBRARIES})
 target_link_libraries(redGrapes PUBLIC fmt::fmt)

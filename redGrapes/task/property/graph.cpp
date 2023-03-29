@@ -45,7 +45,7 @@ void GraphProperty::init_graph()
             std::unique_lock< SpinLock > lock( r.resource->users_mutex );
 
             TRACE_EVENT("Graph", "CheckPredecessors");
-            for(auto it = r.resource->users.iter_from( r.task_idx-1 ); it.first != it.second; ++it.first )
+            for(auto it = r.resource->users.iter_from( r.task_idx-1 ); it.first != it.second; --it.first )
             {
                 TRACE_EVENT("Graph", "Check Pred");
                 Task * preceding_task = *it.first;

@@ -1,7 +1,6 @@
 #pragma once
 
 #include <redGrapes/util/chunk_allocator.hpp>
-#include <redGrapes/util/trace.hpp>
 
 namespace redGrapes
 {
@@ -49,7 +48,6 @@ struct Allocator
 
     static T* allocate( std::size_t n )
     {
-        //TRACE_EVENT("Allocator", "allocate");
         if (n > std::numeric_limits<std::size_t>::max() / sizeof(T))
             throw std::bad_array_new_length();
 
@@ -62,7 +60,6 @@ struct Allocator
  
     static void deallocate(T* p, std::size_t n) noexcept
     {
-        //TRACE_EVENT("Allocator", "deallocate");
         get_instance().deallocate< T >( p );
     }
     
@@ -88,7 +85,6 @@ bool operator!=(Allocator<T> const&, Allocator<U> const&) { return false; }
 template < typename T, typename... Args >
 std::shared_ptr<T> alloc_shared( Args&&... args )
 {
-    TRACE_EVENT("Allocator", "alloc_shared");
     return std::allocate_shared< T, Allocator<T> >( Allocator<T>(), std::forward<Args>(args)... );
 }
 

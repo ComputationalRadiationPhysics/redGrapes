@@ -11,201 +11,348 @@
 
 #pragma once
 
+#include <cassert>
 #include <array>
 #include <atomic>
 #include <memory>
 #include <optional>
 #include <redGrapes/util/allocator.hpp>
+#include <spdlog/spdlog.h>
 
 namespace redGrapes
 {
+
     // A lock-free, append/remove container
-    template<typename T, size_t chunk_size = 1024>
+    template<typename T, size_t T_chunk_size = 1024>
     struct ChunkedList
     {
-        struct Chunk
+    private:
+        using Chunk = std::optional<T>*;
+        size_t const chunk_size;
+        Chunk * chunks;
+        std::atomic< uint16_t > chunks_capacity;
+        std::atomic< uint16_t > chunks_count;
+        std::atomic< uint32_t > next_item_id;
+
+        void init_chunk( )
         {
-            unsigned chunk_id;
+            unsigned chunk_idx = chunks_count.fetch_add(1);
 
-            std::atomic<unsigned> next_item_id;
-            std::array< std::optional<T>, chunk_size > buf;
-            std::shared_ptr< Chunk > next;
+            if( chunk_idx >= chunks_capacity )
+                resize_superchunk( chunks_capacity * 2 );
+            
+            std::optional<T>* new_chunk = memory::Allocator<std::optional<T>>().allocate(chunk_size);
+            for( int i = 0; i < chunk_size; ++i )
+                new_chunk[i] = std::nullopt;
 
-            Chunk(unsigned id) : chunk_id(id), next_item_id(0)
-            {
-            }
-        };
-
-        std::atomic_int next_chunk_id;
-        std::shared_ptr<Chunk> head;
-
-        ChunkedList() : next_chunk_id(0)
-        {
+            chunks[ chunk_idx ] = new_chunk;
         }
 
-        ChunkedList(ChunkedList const& other) : next_chunk_id(0)
+        void resize_superchunk( size_t new_chunks_capacity )
         {
-            for(auto& e : other)
+            assert( new_chunks_capacity > chunks_capacity );
+
+            spdlog::info("resize to {} chunks", new_chunks_capacity);
+
+            Chunk * new_chunks = memory::Allocator< Chunk >().allocate( new_chunks_capacity );
+
+            for( int i = 0; i < chunks_capacity; ++i )
+                new_chunks[i] = chunks[i];
+            for( int i = chunks_capacity; i < new_chunks_capacity; ++i )
+                new_chunks[i] = nullptr;
+
+            auto old_chunks = chunks;
+            chunks = new_chunks;
+
+            memory::Allocator< Chunk >().deallocate( old_chunks, chunks_capacity );
+            chunks_capacity = new_chunks_capacity;
+        }
+
+    public:
+        ~ChunkedList()
+        {
+            for( unsigned i = 0; i < chunks_count; ++i )
+                if( chunks[i] )
+                    memory::Allocator< std::optional<T> >().deallocate( chunks[i], chunk_size );
+            memory::Allocator< Chunk >().deallocate( chunks, chunks_capacity );
+        }
+
+        ChunkedList( size_t chunk_size = T_chunk_size )
+            : chunk_size( chunk_size )
+            , next_item_id( 0 )
+            , chunks_count( 0 )
+            , chunks_capacity( 16 )
+        {
+            chunks = memory::Allocator< Chunk >().allocate( chunks_capacity );
+            for( int i = 0; i < chunks_capacity; ++i )
+                chunks[i] = nullptr;
+        }
+
+        ChunkedList( ChunkedList && other ) = default;
+        
+        ChunkedList( ChunkedList const& other )
+            : ChunkedList()
+        {
+            SPDLOG_TRACE("copy construct ChunkedList!!");
+            reserve( other.size() );
+            for( auto& e : other )
                 push(e);
         }
 
-        unsigned push(T const& item)
+        unsigned size() const noexcept
         {
-        retry:
-            unsigned id = chunk_size;
-            std::shared_ptr<Chunk> chunk = head;
+            return next_item_id;
+        }
 
-            if(chunk)
-                id = chunk->next_item_id.fetch_add(1);
+        unsigned capacity() const noexcept
+        {
+            return chunks_count * chunk_size;
+        }
 
-            if(id < chunk_size)
-            {
-                chunk->buf[id] = item;
-                return chunk->chunk_id * chunk_size + id;
+        unsigned free_capacity() const noexcept
+        {
+            return capacity() - next_item_id;
+        }
+
+        void reserve( size_t required_size )
+        {
+            if( required_size > free_capacity() ) {
+                reserve_chunks(
+                    1 +
+                    ((required_size - free_capacity() - 1) / chunk_size)
+                );
             }
-            else if(id == chunk_size)
-            {
-                // create new chunk
-                auto new_chunk = memory::alloc_shared<Chunk>( next_chunk_id.fetch_add(1) );
-                new_chunk->next = head;
+        }
 
-                // only set head if no other thread created a new chunk
-                // head.compare_exchange_strong( chunk, new_chunk );
-                head = new_chunk;
+        void reserve_chunks( size_t n )
+        {
+            SPDLOG_TRACE("reserve {} chunks", n);
 
-                goto retry;
-            }
+            if( chunks_count + n > chunks_capacity )
+                resize_superchunk( chunks_count + n );
+
+            assert( chunks_count + n <= chunks_capacity );
+
+            for( size_t i = 0; i < n; ++i )
+                init_chunk();
+        }
+
+        std::optional< T > & get( unsigned idx )
+        {
+            unsigned chunk_idx = idx / chunk_size;
+            unsigned chunk_off = idx % chunk_size;
+
+            assert( chunk_idx < chunks_count );
+
+            if( chunks[ chunk_idx ] )
+                return chunks[ chunk_idx ][ chunk_off ];
             else
-            {
-                // wait for new chunk
-                while(head != chunk->next)
-                    ;
+                throw std::runtime_error("invalid index: missing chunk");
+        }
 
-                // try again
-                goto retry;
-            }
+        std::optional< T > const & get( unsigned idx ) const
+        {
+            unsigned chunk_idx = idx / chunk_size;
+            unsigned chunk_off = idx % chunk_size;
+
+            assert( chunk_idx < chunks_count );
+
+            if( chunks[ chunk_idx ] )
+                return chunks[ chunk_idx ][ chunk_off ];
+            else
+                throw std::runtime_error("invalid index: missing chunk");
+        }
+
+        unsigned push( T const& item )
+        {            
+            unsigned idx = next_item_id.fetch_add(1);
+            unsigned chunk_idx = idx / chunk_size;
+            unsigned chunk_off = idx % chunk_size;
+
+            while( chunk_idx >= chunks_capacity
+                || chunks[ chunk_idx ] == nullptr )
+                init_chunk();
+
+            chunks[ chunk_idx ][ chunk_off ] = item;
+
+            return idx;
         }
 
         void remove(unsigned idx)
         {
-            std::shared_ptr<Chunk> chunk = head;
-            while(chunk != nullptr)
-            {
-                if(chunk->chunk_id == idx / chunk_size)
-                {
-                    chunk->buf[idx % chunk_size] = std::nullopt;
-                    return;
-                }
-                chunk = chunk->next;
-            }
-
-            // out ouf range
-            throw std::out_of_range("");
-            return;
+            assert( idx < size() );
+            get( idx ) = std::nullopt;
         }
 
-        void erase(T item)
+        void erase( T item )
         {
-            std::shared_ptr<Chunk> chunk = head;
-            while(chunk != nullptr)
+            for( unsigned i = 0; i < size(); ++i )
             {
-                for(unsigned idx = 0; idx < chunk_size; ++idx)
-                    if(chunk->buf[idx] == item)
-                    {
-                        chunk->buf[idx] = std::nullopt;
-                        // return;
-                    }
-
-                chunk = chunk->next;
+                auto & x = get(i);
+                if( x )
+                {
+                    if( *x == item )
+                        remove( i );
+                }
             }
         }
 
         /* ITERATOR */
         /************/
-
-        struct BackwardsIterator
+        struct ConstIterator
         {
-            std::shared_ptr<Chunk> chunk;
+            ChunkedList< T, T_chunk_size > const & c;
             int idx;
 
-            bool operator!=(BackwardsIterator const& other)
+            bool operator!=(ConstIterator const& other)
             {
-                return this->chunk != other.chunk; // || this->idx != other.idx;
+                return this->idx != other.idx;
             }
 
-            BackwardsIterator& operator++()
+            ConstIterator& operator--()
             {
-                while(chunk)
-                {
+                do {
                     --idx;
-                    if(idx < 0)
-                    {
-                        idx = chunk_size - 1;
-                        chunk = chunk->next;
-                        if(!chunk)
-                            break;
-                    }
-
-                    if(is_some())
-                        break;
+                    if( idx < 0 )
+                        return *this;
                 }
+                while( !is_some() );
+
+                return *this;
+            }
+
+            ConstIterator& operator++()
+            {
+                do {
+                    ++idx;
+                    if( idx >= c.size() )
+                    {
+                        idx = -1;
+                        return *this;
+                    }
+                }
+                while( !is_some() );
 
                 return *this;
             }
 
             bool is_some() const
             {
-                return (bool) (chunk->buf[idx]);
+                if( idx < c.size() && idx >= 0 )
+                    return (bool) (c.get(idx));
+                else
+                    return false;
+            }
+
+            T const & operator*() const
+            {
+                assert( is_some() );
+                return *c.get(idx);
+            }            
+        };
+
+        struct Iterator
+        {
+            ChunkedList< T, T_chunk_size > & c;
+            int idx;
+
+            bool operator!=(Iterator const& other)
+            {
+                return this->idx != other.idx;
+            }
+
+            Iterator& operator--()
+            {
+                do {
+                    --idx;
+                    if( idx < 0 )
+                        return *this;
+                }
+                while( !is_some() );
+
+                return *this;
+            }
+
+            Iterator& operator++()
+            {
+                do {
+                    ++idx;
+                    if( idx >= c.size() )
+                    {
+                        idx = -1;
+                        return *this;
+                    }
+                }
+                while( !is_some() );
+
+                return *this;
+            }
+
+            bool is_some() const
+            {
+                if( idx < c.size() && idx >= 0 )
+                    return (bool) (c.get(idx));
+                else
+                    return false;
             }
 
             T& operator*() const
             {
-                return *chunk->buf[idx];
+                assert( is_some() );
+                return *c.get(idx);
             }
         };
 
-        auto begin_from(unsigned idx) const
+        auto begin_from(unsigned idx)
         {
-            std::shared_ptr<Chunk> chunk = head;
-            while(chunk != nullptr)
-            {
-                if(chunk->chunk_id == idx / chunk_size)
-                {
-                    auto s = BackwardsIterator{chunk, (int) (idx % chunk_size)};
-                    if(!s.is_some())
-                        ++s;
+            auto it = Iterator{ *this, (int)idx };
 
-                    return s;
-                }
-                chunk = chunk->next;
-            }
+            if( ! it.is_some() )
+                --it;
 
-            return end();
+            return it;
         }
 
+        auto begin()
+        {
+            return begin_from(0);
+        }
+
+        auto end()
+        {
+            return Iterator{ *this, -1 };
+        }
+
+        auto begin_from(unsigned idx) const
+        {
+            auto it = ConstIterator{ *this, (int)idx };
+
+            if( ! it.is_some() )
+                --it;
+
+            return it;
+        }
+        
         auto begin() const
         {
-            unsigned len = 0;
-            if(head)
-                len = (next_chunk_id - 1) * chunk_size + (head->next_item_id - 1);
-
-            return begin_from(len);
+            return begin_from(0);
         }
 
         auto end() const
         {
-            return BackwardsIterator{nullptr, chunk_size - 1};
+            return ConstIterator{ *this, -1 };
         }
 
-        auto iter() const
+        auto iter()
         {
             return std::make_pair(begin(), end());
         }
 
-        std::pair<BackwardsIterator, BackwardsIterator> iter_from(unsigned idx) const
+        std::pair<Iterator, Iterator> iter_from(unsigned idx)
         {
             return std::make_pair(begin_from(idx), end());
         }
     };
 
 } // namespace redGrapes
+

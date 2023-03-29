@@ -57,7 +57,7 @@ struct GraphProperty
     }
 
     Task * task;
-    
+
     //! number of parents
     uint8_t scope_depth;
 
