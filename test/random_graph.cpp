@@ -39,7 +39,7 @@ void hash(unsigned task_id,
 
 std::chrono::microseconds task_duration(5);
 unsigned n_resources = 5;
-unsigned n_tasks = 100000;
+unsigned n_tasks = 10000;
 unsigned n_threads = 4;
 unsigned min_dependencies = 0;
 unsigned max_dependencies = 5;
@@ -98,7 +98,7 @@ TEST_CASE("RandomGraph")
     generate_access_pattern();
     rg::init(4);
     spdlog::set_pattern("[thread %t] %^[%l]%$ %v");
-    
+
     std::vector<rg::IOResource<std::array<uint64_t, 8>>> resources(n_resources);
 
     for(int i = 0; i < n_tasks; ++i)

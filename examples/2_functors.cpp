@@ -7,30 +7,23 @@
 
 #include <iostream>
 
-//#define REDGRAPES_TASK_PROPERTIES redGrapes::LabelProperty
-
 #include <redGrapes/redGrapes.hpp>
 #include <redGrapes/task/property/id.hpp>
 #include <redGrapes/task/property/resource.hpp>
 
-auto square (int x)
+int square (int x)
 {
-    return redGrapes::emplace_task(
-        [x]
-        {
-            fmt::print("hello\n");
-            return x*x;
-        }
-    ).submit();
+    return x*x;
 }
 
 int main()
 {
-    spdlog::set_level(spdlog::level::trace);
-    spdlog::set_pattern("[thread %t] %^[%l]%$ %v");
     redGrapes::init(1);
     
-    fmt::print( "square(2) = {}\n", square(2).get() );
+    fmt::print(
+        "square(2) = {}\n",
+        redGrapes::emplace_task(square, 2).get()
+    );
 
     redGrapes::finalize();    
     return 0;

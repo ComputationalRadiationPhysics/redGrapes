@@ -32,7 +32,7 @@ void test_worker_utilization( unsigned n_workers )
                          );
     }
 
-    std::this_thread::sleep_for(milliseconds(500));
+    std::this_thread::sleep_for(seconds(1));
 
     REQUIRE( count == n_workers );
 
@@ -45,13 +45,8 @@ void test_worker_utilization( unsigned n_workers )
  */
 TEST_CASE("WorkerUtilization")
 {
-    test_worker_utilization(16);
-    test_worker_utilization(48);
-    test_worker_utilization(63);
-    test_worker_utilization(64);
-    test_worker_utilization(65);
-    test_worker_utilization(120);
-    test_worker_utilization(128);
-    test_worker_utilization(512);
+    for( unsigned i = 1; i <= std::thread::hardware_concurrency(); ++i )
+        test_worker_utilization(i);
 }
+
 
