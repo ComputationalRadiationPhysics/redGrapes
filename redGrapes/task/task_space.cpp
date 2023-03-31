@@ -5,10 +5,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
+#include <redGrapes/util/trace.hpp>
 #include <redGrapes/task/task.hpp>
 #include <redGrapes/task/task_space.hpp>
 #include <redGrapes/task/queue.hpp>
-#include <redGrapes/util/trace.hpp>
 
 namespace redGrapes
 {

@@ -27,6 +27,10 @@ thread_local std::function<void()> idle;
 std::shared_ptr< TaskSpace > top_space;
 std::shared_ptr< scheduler::IScheduler > top_scheduler;
 
+#if REDGRAPES_ENABLE_TRACE
+std::shared_ptr< perfetto::TracingSession > tracing_session;
+#endif
+
 std::shared_ptr<TaskSpace> current_task_space()
 {
     if( current_task )
@@ -90,6 +94,8 @@ void init( std::shared_ptr<scheduler::IScheduler> scheduler )
     args.backends |= perfetto::kInProcessBackend;
     perfetto::Tracing::Initialize(args);
     perfetto::TrackEvent::Register();
+
+    tracing_session = StartTracing();
 #endif
 
     top_space = memory::alloc_shared<TaskSpace>();
@@ -116,6 +122,10 @@ void finalize()
     top_scheduler->stop();
     top_scheduler.reset();
     top_space.reset();
+
+#if REDGRAPES_ENABLE_TRACE
+    StopTracing( tracing_session );
+#endif
 }
 
 //! pause the currently running task at least until event is reached

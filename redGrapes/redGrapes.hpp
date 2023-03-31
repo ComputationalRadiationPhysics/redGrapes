@@ -164,39 +164,22 @@ struct TaskBuilder
     }
 };
 
-    /*! create a new task, as child of the currently running task (if there is one)
-     *
-     * @param f callable that takes "proprty-building" objects as args
-     * @param args are forwarded to f after the each arg added its
-     *             properties to the task
-     *
-     * For the argument-types can a trait be implemented which
-     * defines a hook to add task properties depending the the
-     * argument.
-     *
-     * @return future from f's result
-     */
-    template<typename Callable, typename... Args>
-    inline auto emplace_task(Callable&& f, Args&&... args)
-    {
-        return std::move(TaskBuilder< Callable, Args... >( std::move(f), std::forward<Args>(args)... ));
-    }
-
-    /*! create a new task, as child of the currently running task (if there is one)
-     *
-     * @param f callable that takes "proprty-building" objects as args
-     * @param builder used sequentially by property-builders of each arg
-     * @param args are forwarded to f after the each arg added its
-     *             properties to the task
-     *
-     * Firstly the task properties get initialized through
-     * the builder-object.
-     * Secondly, for the argument-types can a trait be implemented which
-     * defines a hook to add further task properties depending the the
-     * argument.
-     *
-     * @return future from f's result
-     */
-
+/*! create a new task, as child of the currently running task (if there is one)
+ *
+ * @param f callable that takes "proprty-building" objects as args
+ * @param args are forwarded to f after the each arg added its
+ *             properties to the task
+ *
+ * For the argument-types can a trait be implemented which
+ * defines a hook to add task properties depending the the
+ * argument.
+ *
+ * @return future from f's result
+ */
+template<typename Callable, typename... Args>
+inline auto emplace_task(Callable&& f, Args&&... args)
+{
+    return std::move(TaskBuilder< Callable, Args... >( std::move(f), std::forward<Args>(args)... ));
+}
 
 } // namespace redGrapes
