@@ -30,6 +30,7 @@ namespace scheduler
 Event::Event()
   : state(1)
   , waker_id(-1)
+  , followers( REDGRAPES_EVENT_FOLLOWER_LIST_CHUNKSIZE )
 {
 }
 

@@ -21,6 +21,7 @@ int ResourceBase::getID()
 ResourceBase::ResourceBase()
     : id( getID() )
     , scope_level( scope_depth() )
+    , users( REDGRAPES_RUL_CHUNKSIZE )
 {}
 
 } // namespace redGrapes

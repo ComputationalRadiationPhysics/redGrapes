@@ -99,7 +99,7 @@ struct Event
 
     //! the set of subsequent events
     SpinLock followers_mutex;
-    ChunkedList< EventPtr, REDGRAPES_EVENT_FOLLOWER_LIST_CHUNKSIZE > followers;
+    ChunkedList< EventPtr > followers;
 
     Event();
     Event(Event &);

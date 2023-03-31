@@ -40,11 +40,11 @@ namespace redGrapes
  *
  *
  */
-template < typename T, size_t T_chunk_size >
+template < typename T >
 struct ChunkedList
 {
 private:
-    size_t const chunk_size = T_chunk_size;
+    size_t const chunk_size;
 
     using Chunk = std::optional<T> * ;
     Chunk * chunks;
@@ -96,7 +96,7 @@ private:
             memory::Allocator<Chunk >().deallocate( chunks, chunks_capacity );
         }
 
-        ChunkedList( size_t chunk_size = T_chunk_size )
+        ChunkedList( size_t chunk_size = 256 )
             : chunk_size( chunk_size )
             , next_item_id( 0 )
             , chunks_count( 0 )
@@ -216,11 +216,13 @@ private:
             }
         }
 
+        // TODO: can we have one iterator class for const and non-const ?
+
         /* ITERATOR */
         /************/
         struct ConstIterator
         {
-            ChunkedList< T, T_chunk_size > const & c;
+            ChunkedList< T > const & c;
             int idx;
 
             bool operator!=(ConstIterator const& other)
@@ -272,7 +274,7 @@ private:
 
         struct Iterator
         {
-            ChunkedList< T, T_chunk_size > & c;
+            ChunkedList< T > & c;
             int idx;
 
             bool operator!=(Iterator const& other)

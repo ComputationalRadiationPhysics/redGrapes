@@ -5,7 +5,7 @@
 
 TEST_CASE("chunked list")
 {
-    redGrapes::ChunkedList< unsigned, 32 > l;
+    redGrapes::ChunkedList< unsigned > l( 32 );
 
     // initialy empty
     REQUIRE( l.size() == 0 );

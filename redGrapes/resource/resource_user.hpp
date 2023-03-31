@@ -38,7 +38,8 @@ class ResourceUser
   public:    
     ResourceUser()
         : scope_level( scope_depth() )
-        , access_list()
+        , access_list( 16 )
+        , unique_resources( 16 )
     {
     }
 
@@ -132,8 +133,8 @@ class ResourceUser
 
     uint8_t scope_level;
 
-    ChunkedList<ResourceAccess, 16> access_list;
-    ChunkedList<ResourceEntry, 16> unique_resources;
+    ChunkedList<ResourceAccess> access_list;
+    ChunkedList<ResourceEntry> unique_resources;
 }; // class ResourceUser
 
 } // namespace redGrapes
