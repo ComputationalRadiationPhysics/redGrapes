@@ -202,7 +202,7 @@ struct DefaultScheduler : public IScheduler
             // will notify no one.
             // shortly after that the worker is marked as free and begins to sleep,
             // but the newly created task will not be executed
-            wake_all_workers();
+            //wake_all_workers();
             return false;
         }
         else

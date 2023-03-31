@@ -40,7 +40,10 @@ struct Task :
 {
     virtual ~Task() {}
 
+    std::atomic_int removal_countdown;
+
     Task()
+        : removal_countdown(2)
     {}
 
     virtual void * get_result_data()

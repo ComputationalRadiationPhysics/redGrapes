@@ -127,33 +127,26 @@ bool EventPtr::notify( bool claimed )
                 top_scheduler->activate_task(*task);
         }
 
-        // post event or result-get event reached
-        if(state == 0)
-        {
-            if( tag == scheduler::T_EVT_POST && task->result_get_event.is_reached() )
-                remove_task = true;
-
-            if( tag == scheduler::T_EVT_RES_GET && task->post_event.is_reached() )
-                remove_task = true;
-        }
+        // post event reached:
+        // no other task can now create dependencies
+        if( state == 0 && tag == scheduler::T_EVT_POST )
+            task->delete_from_resources();
     }
 
     // if event is ready or reached (state ∈ {0,1})
-    if( state <= 1 )
+    if( state <= 1 && this->get_event().waker_id >= 0 )
         top_scheduler->wake( this->get_event().waker_id );
 
     if( state == 0 )
+    {
         this->get_event().notify_followers();
 
-    if( remove_task )
-    {
-        task->delete_from_resources();
-        task->~Task();
-
-        unsigned count = task->space->task_count.fetch_sub(1) - 1;
-        task->space->task_storage.deallocate(&task);
-        if( count == 0 )
-            top_scheduler->wake_all_workers();
+        // the second one of either post-event or result-get-event shall destroy the task
+        if( task )
+            if( tag == scheduler::T_EVT_POST
+             || tag == scheduler::T_EVT_RES_GET )
+                if( task->removal_countdown.fetch_sub(1) == 1 )
+                    task->space->free_task( task );
     }
 
     // return true if event is ready (state == 1)

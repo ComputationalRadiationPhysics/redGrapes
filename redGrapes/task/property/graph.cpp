@@ -42,6 +42,14 @@ void GraphProperty::init_graph()
     {
         if( r.task_idx > 0 )
         {
+            // TODO: can this lock be avoided?
+            //
+            //   even though the container supports
+            //   lock free iteration and removal,
+            //   with out this lock, its still possible,
+            //   that the iterator points at an element,
+            //   which will get removed AFTER iterating
+            //   and BEFORE adding the dependency.
             std::unique_lock< SpinLock > lock( r.resource->users_mutex );
 
             TRACE_EVENT("Graph", "CheckPredecessors");
@@ -81,6 +89,9 @@ void GraphProperty::delete_from_resources()
     TRACE_EVENT("Graph", "delete_from_resources");
     for( ResourceEntry r : this->task->unique_resources )
     {
+        // TODO: can this lock be avoided?
+        //   corresponding lock to init_graph()
+
         std::unique_lock< SpinLock > lock( r.resource->users_mutex );
         if( r.task_idx != -1 )
             r.resource->users.remove( r.task_idx );

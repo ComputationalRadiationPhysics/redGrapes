@@ -22,51 +22,70 @@
 namespace redGrapes
 {
 
-    // A lock-free, append/remove container
-    template<typename T, size_t T_chunk_size = 1024>
-    struct ChunkedList
+/*
+ * A lock-free, append/remove container.
+ *
+ * New elements can only be `push`ed to the end,
+ * but can not be inserted at random position.
+ * Depending on `chunk_size` 
+ *
+ * Elements are removed in constant time,
+ * however their memory is still occupied
+ * until all elements of the chunk are removed.
+ *
+ *    [ ChkPtr_1, ChkPtr_2, .., ChkPtr_chunk_count ]
+ *        |           |_________________     |_____
+ *       V                              V          V
+ *    [ x_1, x_2, .., x_chunk_size ] [ ... ] .. [ ... ]
+ *
+ *
+ */
+template < typename T, size_t T_chunk_size >
+struct ChunkedList
+{
+private:
+    size_t const chunk_size = T_chunk_size;
+
+    using Chunk = std::optional<T> * ;
+    Chunk * chunks;
+
+    std::atomic< uint16_t > chunks_capacity;
+    std::atomic< uint16_t > chunks_count;
+    std::atomic< uint32_t > next_item_id;
+
+    void init_chunk( )
     {
-    private:
-        using Chunk = std::optional<T>*;
-        size_t const chunk_size;
-        Chunk * chunks;
-        std::atomic< uint16_t > chunks_capacity;
-        std::atomic< uint16_t > chunks_count;
-        std::atomic< uint32_t > next_item_id;
+        unsigned chunk_idx = chunks_count.fetch_add(1);
 
-        void init_chunk( )
-        {
-            unsigned chunk_idx = chunks_count.fetch_add(1);
+        if( chunk_idx >= chunks_capacity )
+            resize_superchunk( chunks_capacity * 2 );
 
-            if( chunk_idx >= chunks_capacity )
-                resize_superchunk( chunks_capacity * 2 );
-            
-            std::optional<T>* new_chunk = memory::Allocator<std::optional<T>>().allocate(chunk_size);
-            for( int i = 0; i < chunk_size; ++i )
-                new_chunk[i] = std::nullopt;
+        std::optional<T>* new_chunk = memory::Allocator<std::optional<T>>().allocate(chunk_size);
+        for( int i = 0; i < chunk_size; ++i )
+            new_chunk[i] = std::nullopt;
 
-            chunks[ chunk_idx ] = new_chunk;
-        }
+        chunks[ chunk_idx ] = new_chunk;
+    }
 
-        void resize_superchunk( size_t new_chunks_capacity )
-        {
-            assert( new_chunks_capacity > chunks_capacity );
+    void resize_superchunk( size_t new_chunks_capacity )
+    {
+        assert( new_chunks_capacity > chunks_capacity );
 
-            spdlog::info("resize to {} chunks", new_chunks_capacity);
+        SPDLOG_TRACE("resize to {} chunks", new_chunks_capacity);
 
-            Chunk * new_chunks = memory::Allocator< Chunk >().allocate( new_chunks_capacity );
+        Chunk * new_chunks = memory::Allocator<Chunk >().allocate( new_chunks_capacity );
 
-            for( int i = 0; i < chunks_capacity; ++i )
-                new_chunks[i] = chunks[i];
-            for( int i = chunks_capacity; i < new_chunks_capacity; ++i )
-                new_chunks[i] = nullptr;
+        for( int i = 0; i < chunks_capacity; ++i )
+            new_chunks[i] = chunks[i];
+        for( int i = chunks_capacity; i < new_chunks_capacity; ++i )
+            new_chunks[i] = nullptr;
 
-            auto old_chunks = chunks;
-            chunks = new_chunks;
+        auto old_chunks = chunks;
+        chunks = new_chunks;
 
-            memory::Allocator< Chunk >().deallocate( old_chunks, chunks_capacity );
-            chunks_capacity = new_chunks_capacity;
-        }
+        memory::Allocator< Chunk >().deallocate( old_chunks, chunks_capacity );
+        chunks_capacity = new_chunks_capacity;
+    }
 
     public:
         ~ChunkedList()
@@ -74,7 +93,7 @@ namespace redGrapes
             for( unsigned i = 0; i < chunks_count; ++i )
                 if( chunks[i] )
                     memory::Allocator< std::optional<T> >().deallocate( chunks[i], chunk_size );
-            memory::Allocator< Chunk >().deallocate( chunks, chunks_capacity );
+            memory::Allocator<Chunk >().deallocate( chunks, chunks_capacity );
         }
 
         ChunkedList( size_t chunk_size = T_chunk_size )

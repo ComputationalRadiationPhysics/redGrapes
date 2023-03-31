@@ -72,6 +72,20 @@ struct TaskSpace : std::enable_shared_from_this<TaskSpace>
         return task;
     }
 
+    void free_task( Task * task )
+    {
+        unsigned count = task_count.fetch_sub(1) - 1;
+
+        task->~Task();
+        task_storage.deallocate(&task);
+
+        // TODO: implement this using post-event of root-task?
+        //  - event already has in_edge count
+        //  -> never have current_task = nullptr
+        if( count == 0 )
+            top_scheduler->wake_all_workers();
+    }
+
     void submit( Task * task )
     {
         task->space = shared_from_this();

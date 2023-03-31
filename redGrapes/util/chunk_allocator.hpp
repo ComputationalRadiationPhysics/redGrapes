@@ -40,6 +40,10 @@ private:
     uintptr_t base;
 
     std::atomic<unsigned> count;
+
+    // TODO: linked list of blocked chunks
+    //    ---> avoids std::vector in ChunkAllocator
+    // std::optional< std::unique_ptr< Chunk > > prev;
 };
 
 struct ChunkAllocator
@@ -55,7 +59,7 @@ struct ChunkAllocator
     {
         blocked_chunks.reserve(64);
     }
- 
+
     template <typename T>
     T * allocate( std::size_t n = 1 )
     {
