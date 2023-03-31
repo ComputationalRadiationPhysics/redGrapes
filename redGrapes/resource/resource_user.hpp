@@ -53,7 +53,7 @@ class ResourceUser
         : scope_level( scope_depth() )
     {
         for( auto & ra : list )
-            access_list.push(ra);
+            add_resource_access(ra);
     }
 
     inline void add_resource_access( ResourceAccess ra )
