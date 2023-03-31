@@ -121,16 +121,16 @@ void finalize()
 //! pause the currently running task at least until event is reached
 void yield( scheduler::EventPtr event )
 {
-    while( ! event->is_reached() )
+    if( current_task )
     {
-        if( current_task )
+        while( ! event->is_reached() )
             current_task->yield(event);
-        else
-	{
-            event->waker_id = dispatch::thread::current_waker_id;
-            if( ! event->is_reached() )
-                idle();
-	}
+    }
+    else
+    {
+        event->waker_id = dispatch::thread::current_waker_id;
+        while( ! event->is_reached() )
+            idle();
     }
 }
 
