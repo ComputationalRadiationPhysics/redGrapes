@@ -29,6 +29,7 @@ namespace scheduler
 
 Event::Event()
   : state(1)
+  , waker_id(-1)
 {
 }
 
@@ -98,7 +99,7 @@ bool EventPtr::notify( bool claimed )
 
     int old_state = this->get_event().state.fetch_sub(1);
     int state = old_state - 1;
-    
+
     std::string tag_string;
     switch( this->tag )
     {
@@ -112,7 +113,6 @@ bool EventPtr::notify( bool claimed )
     if( this->task )
         SPDLOG_TRACE("notify event {} ({}-event of task {}) ~~> state = {}",
                (void *)&this->get_event(), tag_string, this->task->task_id, state);
-
 
     assert(old_state > 0);
 

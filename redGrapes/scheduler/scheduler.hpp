@@ -26,7 +26,7 @@ struct WorkerThread;
 namespace scheduler
 {
 
-using WakerID = uint16_t;
+using WakerID = int16_t;
 
 /*! Scheduler Interface
  */

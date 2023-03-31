@@ -222,7 +222,7 @@ struct DefaultScheduler : public IScheduler
     {
         if( id == 0 )
             return cv.notify();
-        else if( id <= threads.size() )
+        else if( id > 0 && id <= threads.size() )
             return threads[ id - 1 ]->wake();
         else
             return false;
