@@ -23,3 +23,15 @@ In order to build the examples and tests, do the typical cmake procedure:
     cd build
     cmake ..
     make -j
+
+Enable Tests with
+::
+    cmake .. BUILD_TESTING=ON
+    
+Set Loglevel
+::
+    cmake .. CMAKE_CXX_FLAGS="-DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_OFF"
+
+Enable Tracing with Perfetto
+::
+    cmake .. redGrapes_ENABLE_PERFETTO=ON

@@ -11,20 +11,6 @@ Task Dependencies
 When creating a new task, it is inserted into the precedence graph based on an *EqueuePolicy*, which compares the properties of two tasks and decides whether they are dependent. This is done in reverse with all previously inserted tasks to calculate the task dependencies. The manager must be configured with an enqueue policy. ``redGrapes::ResourceEnqueuePolicy`` is predefined and uses the resource properties which are defined
 with ``redGrapes::ResourceProperty``.
 
-.. code-block:: c++
-
-    using TaskProperties =
-        rg::TaskProperties<
-	    redGrapes::ResourceProperty,
-	    /* other properties ... */
-	>;
-
-    rg::Manager<
-        TaskProperties,
-        rg::ResourceEnqueuePolicy
-    > mgr;
-
-
 Resources
 =========
 
@@ -45,10 +31,9 @@ Resource accesses are created with the method ``Resource::make_access(AccessPoli
 
 .. code-block:: c++
 
-    mgr.emplace_task(
-        []{ /* ... */ },
-        TaskProperties::Builder().resources({ r1.make_access( rg::access::IOAccess::read ) })
-    );
+    rg::emplace_task(
+        []{ /* ... */ }
+    ).resources({ r1.make_access( rg::access::IOAccess::read ) });
 
 Shared Resource Objects
 -----------------------
@@ -80,7 +65,7 @@ For convenience the guard objects also provide methods to create new guard objec
 
     rg::IOResource< int > r1;
 
-    mgr.emplace_task(
+    rg::emplace_task(
         []( auto r1 )
         {
 	    // ok.
@@ -103,43 +88,30 @@ In this example `Task 2` and `Task 3` will be executed after `Task 1`. When enou
 
 .. code-block:: c++
 
-   #include <redGrapes/manager.hpp>
+   #include <redGrapes/redGrapes.hpp>
    #include <redGrapes/resource/ioresource.hpp>
-   #include <redGrapes/property/inherit.hpp>
-   #include <redGrapes/property/resource.hpp>
-   #include <redGrapes/property/label.hpp>
 
    namespace rg = redGrapes;
 
-   using TaskProperties =
-       rg::TaskProperties<
-           rg::ResourceProperty,
-           rg::LabelProperty
-       >;
-
    int main()
    {
-       rg::Manager< TaskProperties, rg::ResourceEnqueuePolicy > mgr;
-
+       rg::init();
        rg::IOResource< int > a;
 
-       mgr.emplace_task(
+       rg::emplace_task(
            []( auto a ){ *a = 123; },
-           TaskProperties::Builder().label("Task 1"),
            a.write()
-       );
+       ).label("Task 1");
 
-       mgr.emplace_task(
+       rg::emplace_task(
            []( auto a ){ int x = *a; },
-           TaskProperties::Builder().label("Task 2"),
            a.read()
-       );
+       ).label("Task 2");
 
-       mgr.emplace_task(
+       rg::emplace_task(
            []( auto a ){ int x = *a; },
-           TaskProperties::Builder().label("Task 3"),
            a.read()
-       );
+       ).label("Task 3");
 
        return 0;
    }

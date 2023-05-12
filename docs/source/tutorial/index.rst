@@ -8,8 +8,9 @@ The features are introduced in the order of the sections from basic to more adva
 Most code snippets are compilable and you may be able to understand the basic usage by looking through them.
 
 .. toctree::
-  tasks
-  properties
-  resources
-  refinements
-  access_demotion
+   init
+   tasks
+   properties
+   resources
+   refinements
+   access_demotion

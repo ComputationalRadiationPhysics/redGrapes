@@ -22,11 +22,11 @@ The builder :ref:`ResourceProperty <class_ResourceProperty>` provides in its bui
 
     rg::IOResource< int > r1;
 
-    mgr.emplace_task(
-        [&mgr]( auto r1 )
+    rg::emplace_task(
+        []( auto r1 )
         {
             // OK.
-            mgr.update_properties(
+            rg::update_properties(
                 TaskProperties::Patch::Builder()
                     .remove_resources({ r1.write() })
                     .add_resources({ r1.read() })
@@ -37,7 +37,7 @@ The builder :ref:`ResourceProperty <class_ResourceProperty>` provides in its bui
 	    *r1 = 123;
 
 	    // throws runtime error, only demotion allowed
-            mgr.update_properties(
+            rg::update_properties(
                 TaskProperties::Patch::Builder()
                     .add_resources({ r1.write() })
             );

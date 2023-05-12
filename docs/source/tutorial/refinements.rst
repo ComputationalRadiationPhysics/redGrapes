@@ -9,16 +9,14 @@ Either you always capture the manager by reference or create a singleton (See :r
 
 .. code-block:: c++
 
-    mgr.emplace_task(
-        [&mgr]
+    rg::emplace_task(
+        []
         {
-            mgr.emplace_task(
-                []{ /* ... */ },
-                TaskProperties::Builder().label("Child Task")
-            );
-        },
-        TaskProperties::Builder().label("Parent Task")
-    );
+            rg::emplace_task(
+                []{ /* ... */ }
+            ).label("Child Task");
+        }
+    ).label("Parent Task");
 
 Property Constraints
 ====================
@@ -33,30 +31,26 @@ revert these assumptions. So the properties of child tasks are constrained and a
 
     rg::Resource< rg::access::IOAccess > r1;
 
-    mgr.emplace_task(
-       [&mgr, r1]
+    rg::emplace_task(
+       [r1]
        {
            // OK.
-           mgr.emplace_task(
+           rg::emplace_task(
                []{ /* ... */ },
-               TaskProperties::Builder()
-	           .label("good child")
-                   .resources({ r1.make_access(rg::access::IOAccess::read) })
-	   );
+	   )
+	   .label("good child")
+           .resources({ r1.make_access(rg::access::IOAccess::read) });
 
            // throws runtime error
            mgr.emplace_task(
                []{ /* ... */ },
-               TaskProperties::Builder()
-                   .label("bad child")
-                   .resources({ r1.make_access(rg::access::IOAccess::write) })
-           );
-       },
-       TaskProperties::Builder()
-           .label("Parent Task")
-           .resources({ r1.make_access(rg::access::IOAccess::read) })
-   );
-
+           )
+	   .label("bad child")
+           .resources({ r1.make_access(rg::access::IOAccess::write) });
+       }
+   )
+   .label("Parent Task")
+   .resources({ r1.make_access(rg::access::IOAccess::read) });
 
 Resource Scopes
 ===============

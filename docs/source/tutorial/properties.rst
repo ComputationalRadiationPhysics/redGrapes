@@ -5,6 +5,8 @@
     Task Properties
 #######################
 
+TODO: redGrapes_config.hpp
+
 Every task has *properties*, which contain additional scheduling or debug information about that task. What these task-properties are, must be configured by the user.
 This is typically done by combining multiple predefined and custom property classes, each providing a *builder*.
 RedGrapes provides the means for combining such independent property definitions accordingly from a variadic template:
@@ -21,21 +23,20 @@ Here is a full example using the predefined ``LabelProperty``:
 .. code-block:: c++
 
    #include <iostream>
-   #include <redGrapes/manager.hpp>
+   #include <redGrapes/redGrapes.hpp>
    #include <redGrapes/property/label.hpp>
 
    namespace rg = redGrapes;
 
-   using TaskProperties = rg::TaskProperties< rg::LabelProperty >;
-
    int main()
    {
-       rg::Manager< TaskProperties > mgr;
+       rg::init();
 
-       mgr.emplace_task(
+       rg::emplace_task(
            [] { std::cout << "Hello World!" << std::endl; },
-	   TaskProperties::Builder().label( "Example Task" )
-       );
+       ).label( "Example Task" );
+
+       rg::finalize();
 
        return 0;
    }
