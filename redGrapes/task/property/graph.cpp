@@ -53,10 +53,10 @@ void GraphProperty::init_graph()
             std::unique_lock< SpinLock > lock( r.resource->users_mutex );
 
             TRACE_EVENT("Graph", "CheckPredecessors");
-            for(auto it = r.resource->users.iter_from( r.task_idx-1 ); it.first != it.second; --it.first )
+            for(auto it = r.resource->users.begin_from_rev( r.task_idx-1 ); it != r.resource->users.end(); --it )
             {
                 TRACE_EVENT("Graph", "Check Pred");
-                Task * preceding_task = *it.first;
+                Task * preceding_task = *it;
 
                 if( preceding_task == this->space->parent )
                     break;
@@ -91,8 +91,8 @@ void GraphProperty::delete_from_resources()
     {
         // TODO: can this lock be avoided?
         //   corresponding lock to init_graph()
-
         std::unique_lock< SpinLock > lock( r.resource->users_mutex );
+
         if( r.task_idx != -1 )
             r.resource->users.remove( r.task_idx );
     }
@@ -116,9 +116,8 @@ void GraphProperty::update_graph( )
 {
     std::unique_lock< SpinLock > lock( post_event.followers_mutex );
 
-    for( auto it = post_event.followers.iter(); it.first != it.second; ++it.first )
+    for( auto follower : post_event.followers )
     {
-        auto follower = *it.first;
         if( follower.task )
         {
             if( ! space->is_serial(*this->task, *follower.task) )

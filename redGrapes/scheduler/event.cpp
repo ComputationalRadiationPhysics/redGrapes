@@ -55,7 +55,7 @@ void Event::add_follower( EventPtr follower )
 {
     TRACE_EVENT("Event", "add_follower");
 
-    std::unique_lock< SpinLock > lock( followers_mutex );
+    //std::unique_lock< SpinLock > lock( followers_mutex );
     if( !is_reached() )
     {
         SPDLOG_TRACE("Event add follower");
@@ -78,11 +78,8 @@ void Event::notify_followers()
     TRACE_EVENT("Event", "notify_followers");
 
     std::unique_lock< SpinLock > lock( followers_mutex );
-    for( auto it = followers.iter(); it.first != it.second; ++it.first )
-    {
-        if( std::optional<EventPtr> follower = *it.first)
-            follower->notify( );
-    }
+    for( auto follower : followers )
+        follower.notify();
 }
 
 /*! A preceding event was reached and thus an incoming edge got removed.
