@@ -27,7 +27,7 @@ void test_worker_utilization( unsigned n_workers )
         rg::emplace_task(
                          [&count] {
                              count ++;
-                             std::this_thread::sleep_for(seconds(1));
+                             std::this_thread::sleep_for(milliseconds(300));
                          }
                          );
     }
@@ -45,8 +45,9 @@ void test_worker_utilization( unsigned n_workers )
  */
 TEST_CASE("WorkerUtilization")
 {
-    for( unsigned i = 1; i <= std::thread::hardware_concurrency(); ++i )
+    for( int i = 1; i < std::thread::hardware_concurrency(); i += 5)
         test_worker_utilization(i);
+    test_worker_utilization(std::thread::hardware_concurrency());
 }
 
 

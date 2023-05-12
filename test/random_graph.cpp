@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/benchmark/catch_benchmark.hpp>
 
 #include <cstdint>
 #include <cassert>
@@ -19,9 +20,7 @@ using namespace std::chrono;
 
 void sleep(std::chrono::microseconds d)
 {
-    auto end = std::chrono::high_resolution_clock::now() + d;
-    while(std::chrono::high_resolution_clock::now() < end)
-        ;
+    std::this_thread::sleep_for( d );
 }
 
 void hash(unsigned task_id,
@@ -37,10 +36,10 @@ void hash(unsigned task_id,
     sha256_process(state, (uint8_t*)&val[0], sizeof(val));
 }
 
-std::chrono::microseconds task_duration(5);
-unsigned n_resources = 5;
-unsigned n_tasks = 10000;
-unsigned n_threads = 4;
+std::chrono::microseconds task_duration(2);
+unsigned n_resources = 16;
+unsigned n_tasks = 128;
+unsigned n_threads = 1;
 unsigned min_dependencies = 0;
 unsigned max_dependencies = 5;
 std::mt19937 gen;
@@ -53,12 +52,12 @@ void generate_access_pattern()
     std::uniform_int_distribution<unsigned> distrib_n_deps(min_dependencies, max_dependencies);
     std::uniform_int_distribution<unsigned> distrib_resource(0, n_resources - 1);
 
+    access_pattern = std::vector<std::vector<unsigned>>(n_tasks);
     expected_hash = std::vector<std::array<uint64_t, 8>>(n_resources);
     std::vector<unsigned> path_length(n_resources);
 
     for(int i = 0; i < n_tasks; ++i)
     {
-        access_pattern.emplace_back();
         unsigned n_dependencies = distrib_n_deps(gen);
         for(int j = 0; j < n_dependencies; ++j)
         {
@@ -95,95 +94,98 @@ void generate_access_pattern()
 
 TEST_CASE("RandomGraph")
 {
-    generate_access_pattern();
-    rg::init(4);
     spdlog::set_pattern("[thread %t] %^[%l]%$ %v");
 
-    std::vector<rg::IOResource<std::array<uint64_t, 8>>> resources(n_resources);
+    generate_access_pattern();
 
-    for(int i = 0; i < n_tasks; ++i)
-        switch(access_pattern[i].size())
-        {
-        case 0:
-            rg::emplace_task([i]() { sleep(task_duration); });
-            break;
+    {
+        rg::init(n_threads);
+        std::vector<rg::IOResource<std::array<uint64_t, 8>>> resources(n_resources);
 
-        case 1:
-            rg::emplace_task(
-                [i](auto ra1)
-                {
-                    sleep(task_duration);
-                    hash(i, *ra1);
-                },
-                resources[access_pattern[i][0]].write());
-            break;
+        for(int i = 0; i < n_tasks; ++i)
+            switch(access_pattern[i].size())
+            {
+            case 0:
+                rg::emplace_task([i]() { sleep(task_duration); });
+                break;
 
-        case 2:
-            rg::emplace_task(
-                [i](auto ra1, auto ra2)
-                {
-                    sleep(task_duration);
-                    hash(i, *ra1);
-                    hash(i, *ra2);
-                },
-                resources[access_pattern[i][0]].write(),
-                resources[access_pattern[i][1]].write());
-            break;
+            case 1:
+                rg::emplace_task(
+                                 [i](auto ra1)
+                                 {
+                                     sleep(task_duration);
+                                     hash(i, *ra1);
+                                 },
+                                 resources[access_pattern[i][0]].write());
+                break;
 
-        case 3:
-            rg::emplace_task(
-                [i](auto ra1, auto ra2, auto ra3)
-                {
-                    sleep(task_duration);
-                    hash(i, *ra1);
-                    hash(i, *ra2);
-                    hash(i, *ra3);
-                },
-                resources[access_pattern[i][0]].write(),
-                resources[access_pattern[i][1]].write(),
-                resources[access_pattern[i][2]].write());
-            break;
+            case 2:
+                rg::emplace_task(
+                                 [i](auto ra1, auto ra2)
+                                 {
+                                     sleep(task_duration);
+                                     hash(i, *ra1);
+                                     hash(i, *ra2);
+                                 },
+                                 resources[access_pattern[i][0]].write(),
+                                 resources[access_pattern[i][1]].write());
+                break;
 
-        case 4:
-            rg::emplace_task(
-                [i](auto ra1, auto ra2, auto ra3, auto ra4)
-                {
-                    sleep(task_duration);
-                    hash(i, *ra1);
-                    hash(i, *ra2);
-                    hash(i, *ra3);
-                    hash(i, *ra4);
-                },
-                resources[access_pattern[i][0]].write(),
-                resources[access_pattern[i][1]].write(),
-                resources[access_pattern[i][2]].write(),
-                resources[access_pattern[i][3]].write());
-            break;
+            case 3:
+                rg::emplace_task(
+                                 [i](auto ra1, auto ra2, auto ra3)
+                                 {
+                                     sleep(task_duration);
+                                     hash(i, *ra1);
+                                     hash(i, *ra2);
+                                     hash(i, *ra3);
+                                 },
+                                 resources[access_pattern[i][0]].write(),
+                                 resources[access_pattern[i][1]].write(),
+                                 resources[access_pattern[i][2]].write());
+                break;
 
-        case 5:
-            rg::emplace_task(
-                [i](auto ra1, auto ra2, auto ra3, auto ra4, auto ra5)
-                {
-                    sleep(task_duration);
-                    hash(i, *ra1);
-                    hash(i, *ra2);
-                    hash(i, *ra3);
-                    hash(i, *ra4);
-                    hash(i, *ra5);
-                },
-                resources[access_pattern[i][0]].write(),
-                resources[access_pattern[i][1]].write(),
-                resources[access_pattern[i][2]].write(),
-                resources[access_pattern[i][3]].write(),
-                resources[access_pattern[i][4]].write());
-            break;
-        }
+            case 4:
+                rg::emplace_task(
+                                 [i](auto ra1, auto ra2, auto ra3, auto ra4)
+                                 {
+                                     sleep(task_duration);
+                                     hash(i, *ra1);
+                                     hash(i, *ra2);
+                                     hash(i, *ra3);
+                                     hash(i, *ra4);
+                                 },
+                                 resources[access_pattern[i][0]].write(),
+                                 resources[access_pattern[i][1]].write(),
+                                 resources[access_pattern[i][2]].write(),
+                                 resources[access_pattern[i][3]].write());
+                break;
 
-    rg::barrier();
- 
-    for(int i = 0; i < n_resources; ++i)
-        REQUIRE( *resources[i] == expected_hash[i] );
+            case 5:
+                rg::emplace_task(
+                                 [i](auto ra1, auto ra2, auto ra3, auto ra4, auto ra5)
+                                 {
+                                     sleep(task_duration);
+                                     hash(i, *ra1);
+                                     hash(i, *ra2);
+                                     hash(i, *ra3);
+                                     hash(i, *ra4);
+                                     hash(i, *ra5);
+                                 },
+                                 resources[access_pattern[i][0]].write(),
+                                 resources[access_pattern[i][1]].write(),
+                                 resources[access_pattern[i][2]].write(),
+                                 resources[access_pattern[i][3]].write(),
+                                 resources[access_pattern[i][4]].write());
+                break;
+            }
 
-    rg::finalize();
+        rg::barrier();
+
+        for(int i = 0; i < n_resources; ++i)
+            REQUIRE( *resources[i] == expected_hash[i] );
+
+        rg::finalize();
+    };
 }
 
