@@ -98,8 +98,8 @@ bool EventPtr::notify( bool claimed )
     std::string tag_string;
     switch( this->tag )
     {
-    case EventPtrTag::T_EVT_PRE: tag_string = "pre-event"; break;
-    case EventPtrTag::T_EVT_POST: tag_string = "post-event"; break;
+    case EventPtrTag::T_EVT_PRE: tag_string = "pre"; break;
+    case EventPtrTag::T_EVT_POST: tag_string = "post"; break;
     case EventPtrTag::T_EVT_RES_SET: tag_string = "result-set"; break;
     case EventPtrTag::T_EVT_RES_GET: tag_string = "result-get"; break;
     case EventPtrTag::T_EVT_EXT: tag_string = "external"; break;
@@ -123,7 +123,8 @@ bool EventPtr::notify( bool claimed )
         }
 
         // post event reached:
-        // no other task can now create dependencies
+        // no other task can now create dependencies to this
+        // task after deleting it from the resource list
         if( state == 0 && tag == scheduler::T_EVT_POST )
             task->delete_from_resources();
     }
@@ -140,8 +141,10 @@ bool EventPtr::notify( bool claimed )
         if( task )
             if( tag == scheduler::T_EVT_POST
              || tag == scheduler::T_EVT_RES_GET )
+            {
                 if( task->removal_countdown.fetch_sub(1) == 1 )
                     task->space->free_task( task );
+            }
     }
 
     // return true if event is ready (state == 1)
