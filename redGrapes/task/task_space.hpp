@@ -72,37 +72,9 @@ struct TaskSpace : std::enable_shared_from_this<TaskSpace>
         return task;
     }
 
-    void free_task( Task * task )
-    {
-        unsigned count = task_count.fetch_sub(1) - 1;
+    void free_task( Task * task );
+    void submit( Task * task );
 
-        task->~Task();
-        task_storage.deallocate(&task);
-
-        // TODO: implement this using post-event of root-task?
-        //  - event already has in_edge count
-        //  -> never have current_task = nullptr
-        if( count == 0 )
-            top_scheduler->wake_all_workers();
-    }
-
-    void submit( Task * task )
-    {
-        task->space = shared_from_this();
-        task->task = task;
-
-        ++ task_count;
-
-        if( parent )
-            assert( this->is_superset(*parent, *task) );
-
-        for( ResourceEntry & r : task->unique_resources )
-            r.task_idx = r.resource->users.push( task );
-
-        emplacement_queue.push(task);
-        top_scheduler->wake_one_worker();
-    }
-    
     /*! take one task from the emplacement queue, initialize it
      *  and if its execution could start immediately, return it.
      *
@@ -110,9 +82,6 @@ struct TaskSpace : std::enable_shared_from_this<TaskSpace>
      */
     bool init_dependencies();
     bool init_dependencies( Task* & t, bool claimed = true );
-
-    void kill( Task & task );
-    void try_remove( Task & task );
 
     bool empty() const;
 };

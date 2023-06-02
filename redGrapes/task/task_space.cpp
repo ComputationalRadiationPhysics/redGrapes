@@ -88,4 +88,39 @@ namespace redGrapes
         return tc == 0;
     }
 
+    void TaskSpace::free_task( Task * task )
+    {
+        unsigned count = task_count.fetch_sub(1) - 1;
+
+        task->~Task();
+        task_storage.deallocate(&task);
+
+        // TODO: implement this using post-event of root-task?
+        //  - event already has in_edge count
+        //  -> never have current_task = nullptr
+        //spdlog::info("kill task... {} remaining", count);
+        if( count == 0 )
+        {
+            //spdlog::info("last task, wake all");
+            top_scheduler->wake_all_workers();
+        }
+    }
+
+    void TaskSpace::submit( Task * task )
+    {
+        task->space = shared_from_this();
+        task->task = task;
+
+        ++ task_count;
+
+        if( parent )
+            assert( this->is_superset(*parent, *task) );
+
+        for( ResourceEntry & r : task->unique_resources )
+            r.task_idx = r.resource->users.push( task );
+
+        emplacement_queue.push(task);
+        top_scheduler->wake_one_worker();
+    }
+
 } // namespace redGrapes
