@@ -73,6 +73,12 @@ struct DefaultScheduler : public IScheduler
         last_free.store(id, std::memory_order_release);
     }
 
+    /* try to allocate worker with id
+     * and mark it to be busy
+     *
+     * @return true if worker was free and is now allocated,
+     *         false if worker is already busy
+     */
     inline bool alloc_worker( unsigned id )
     {
         unsigned j = id / 64;
@@ -92,33 +98,28 @@ struct DefaultScheduler : public IScheduler
     {
         TRACE_EVENT("Scheduler", "alloc_worker");
 
-        unsigned off = last_free.fetch_add(1, std::memory_order_acquire) % n_workers;
-        unsigned joff = off / 64;
-        unsigned koff = off % 64;
-
-        for(uint64_t j0 = 0; j0 < worker_state.size(); ++j0)
+        for(uint64_t j = 0; j < worker_state.size(); ++j)
         {
-            unsigned j = (j0 + joff) % worker_state.size();
-            if( worker_state[j].load() != 0 )
+            while( worker_state[j] > 0 )
             {
-                unsigned end = 64;
-                if( j == 1+(n_workers/64) )
-                    end = n_workers%64;
+                // find index of first set bit
+                // taken from https://graphics.stanford.edu/~seander/bithacks.html#ZerosOnRightParallel
+                uint64_t v = worker_state[j];
 
-                for(uint64_t k0 = 0; k0 < end; ++k0)
-                {
-                    unsigned k = (k0 + koff) % end;
+                unsigned int c = 64; // c will be the number of zero bits on the right
+                v &= -int64_t(v);
+                if (v) c--;
+                if (v & 0x00000000FFFFFFFF) c -= 32;
+                if (v & 0x0000FFFF0000FFFF) c -= 16;
+                if (v & 0x00FF00FF00FF00FF) c -= 8;
+                if (v & 0x0F0F0F0F0F0F0F0F) c -= 4;
+                if (v & 0x3333333333333333) c -= 2;
+                if (v & 0x5555555555555555) c -= 1;
 
-                    unsigned i = j*64 + k;
-                    if( i < n_workers )
-                    {
-                        uint64_t old_val = worker_state[j].fetch_and(~((uint64_t)1 << k), std::memory_order_acquire);
-                        if( old_val & ((uint64_t)1 << k) )
-                            return i;
-                    }
-                    else
-                        return -1;
-                }
+                unsigned idx = j * 64 + c;
+
+                if( alloc_worker( idx ) )
+                    return idx;            
             }
         }
 
@@ -152,7 +153,7 @@ struct DefaultScheduler : public IScheduler
         {
             Task *t = nullptr;
 
-            // try to initialize a new task
+            // check global ready queue
             if( t = ready.pop() )
             {
                 worker.queue.push(t);
@@ -160,30 +161,34 @@ struct DefaultScheduler : public IScheduler
                 return true;
             }
 
-                if( top_space->init_dependencies(t, true) )
+            // try to initialize a new task
+            if( top_space->init_dependencies(t, true) )
+            {
+                if( t )
                 {
-                    if( t )
-                    {
-                        // the newly initialized task is ready
-                        SPDLOG_TRACE("found task in space");
-                        worker.queue.push(t);
-                        return true;
-                    }
+                    // the newly initialized task is ready
+                    SPDLOG_TRACE("found task in space");
+                    worker.queue.push(t);
+                    return true;
                 }
-                else
+            }
+            else
+            {
+                // no tasks available
+                free_worker( worker.id - 1 );
+
+                if( t = ready.pop() )
                 {
-                    /*
-                    // emplacement queue is empty
-                    if( t = ready.pop() )
-                    {
+                    if( alloc_worker( worker.id ) )
                         worker.queue.push(t);
-                        SPDLOG_TRACE("got task from ready queue");
-                        return true;
-                    }
-                    */
-                    free_worker( worker.id - 1 );
-                    return false;
+                    else
+                        ready.push(t);
+
+                    return true;
                 }
+
+                return false;
+            }
         }
     }
 
@@ -202,7 +207,8 @@ struct DefaultScheduler : public IScheduler
             // will notify no one.
             // shortly after that the worker is marked as free and begins to sleep,
             // but the newly created task will not be executed
-            //wake_all_workers();
+            wake_all_workers();
+
             return false;
         }
         else
