@@ -55,7 +55,6 @@ void Event::add_follower( EventPtr follower )
 {
     TRACE_EVENT("Event", "add_follower");
 
-    //std::unique_lock< SpinLock > lock( followers_mutex );
     if( !is_reached() )
     {
         SPDLOG_TRACE("Event add follower");
@@ -69,7 +68,6 @@ void Event::remove_follower( EventPtr follower )
 {
     TRACE_EVENT("Event", "remove_follower");
 
-    std::unique_lock< SpinLock > lock( followers_mutex );
     followers.erase( follower );
 }
 
@@ -77,7 +75,6 @@ void Event::notify_followers()
 {
     TRACE_EVENT("Event", "notify_followers");
 
-    std::unique_lock< SpinLock > lock( followers_mutex );
     for( auto follower : followers )
         follower.notify();
 }

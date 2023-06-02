@@ -107,14 +107,14 @@ void GraphProperty::add_dependency( Task & preceding_task )
     auto preceding_event =
         top_scheduler->task_dependency_type(preceding_task, *this->task)
         ? preceding_task->get_pre_event() : preceding_task->get_post_event();
-    
-    if(! preceding_event->is_reached() )
+
+    if( ! preceding_event->is_reached() )
         preceding_event->add_follower( this->get_pre_event() );
 }
 
 void GraphProperty::update_graph( )
 {
-    std::unique_lock< SpinLock > lock( post_event.followers_mutex );
+    //std::unique_lock< SpinLock > lock( post_event.followers_mutex );
 
     for( auto follower : post_event.followers )
     {

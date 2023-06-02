@@ -98,7 +98,6 @@ struct Event
     WakerID waker_id;
 
     //! the set of subsequent events
-    SpinLock followers_mutex;
     ChunkedList< EventPtr > followers;
 
     Event();
