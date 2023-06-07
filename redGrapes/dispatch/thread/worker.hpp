@@ -58,13 +58,12 @@ private:
     CondVar cv;
 
 public:
-    task::Queue queue;
+    std::shared_ptr< task::Queue > queue;
     std::thread thread;
 
     scheduler::WakerID id;
 
 public:
-
     WorkerThread( scheduler::WakerID id ) :
         m_start( false ),
         m_stop( false ),
@@ -82,8 +81,10 @@ public:
                     {
                         throw std::runtime_error("idle in worker thread!");
                     };
-
+                
                 current_waker_id = this->id;
+
+                queue = memory::alloc_shared< task::Queue >( 16 );
 
                 while( ! m_start.load(std::memory_order_consume) )
                     cv.wait();
@@ -92,7 +93,7 @@ public:
                 {
                     SPDLOG_TRACE("Worker: work on queue");
 
-                    while( Task * task = queue.pop() )
+                    while( Task * task = queue->pop() )
                         dispatch::thread::execute_task( *task );
 
                     if( !redGrapes::schedule( *this ) && !m_stop.load(std::memory_order_consume) )
@@ -111,6 +112,16 @@ public:
 
     ~WorkerThread()
     {
+    }
+
+    inline unsigned get_worker_id()
+    {
+        return id - 1;
+    }
+    
+    inline scheduler::WakerID get_waker_id()
+    {
+        return id;
     }
 
     inline bool wake()

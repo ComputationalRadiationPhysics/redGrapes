@@ -26,6 +26,8 @@ struct Queue
     moodycamel::ConcurrentQueue< Task* > cq;
 
     Queue();
+    Queue( unsigned capacity ) :cq(capacity) {
+    }
 
     inline void push(Task * task)
     {

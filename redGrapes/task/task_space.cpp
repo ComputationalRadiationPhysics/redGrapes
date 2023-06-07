@@ -57,7 +57,7 @@ namespace redGrapes
     bool TaskSpace::init_dependencies( Task* & t, bool claimed )
     {
         TRACE_EVENT("TaskSpace", "init_dependencies");
-        SPDLOG_TRACE("TaskSpace::init_until_ready() this={}", (void*)this);
+        SPDLOG_INFO("TaskSpace::init_until_ready() this={}", (void*)this);
 
         if(Task * task = emplacement_queue.pop())
         {
