@@ -84,7 +84,7 @@ public:
                 
                 current_waker_id = this->id;
 
-                queue = memory::alloc_shared< task::Queue >( 16 );
+                queue = std::make_shared< task::Queue >( 16 );
 
                 while( ! m_start.load(std::memory_order_consume) )
                     cv.wait();
@@ -93,10 +93,14 @@ public:
                 {
                     SPDLOG_TRACE("Worker: work on queue");
 
-                    while( Task * task = queue->pop() )
+                    Task * task;
+                    
+                    while( task = queue->pop() )
                         dispatch::thread::execute_task( *task );
 
-                    if( !redGrapes::schedule( *this ) && !m_stop.load(std::memory_order_consume) )
+                    if( task = redGrapes::schedule( *this ) )
+                        dispatch::thread::execute_task( *task );
+                    else if( !m_stop.load(std::memory_order_consume) )
                     {
                         SPDLOG_TRACE("worker sleep");
                         //TRACE_EVENT("Worker", "sleep");

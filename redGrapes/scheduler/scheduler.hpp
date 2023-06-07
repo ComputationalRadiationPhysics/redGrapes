@@ -56,9 +56,9 @@ struct IScheduler
     virtual void activate_task( Task & task ) {}
 
     //! give worker work if available
-    virtual bool schedule( dispatch::thread::WorkerThread & worker )
+    virtual Task * schedule( dispatch::thread::WorkerThread & worker )
     {
-        return false;
+        return nullptr;
     }
 
     virtual bool wake( WakerID id = 0 )

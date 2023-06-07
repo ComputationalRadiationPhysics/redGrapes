@@ -144,7 +144,7 @@ void yield( scheduler::EventPtr event )
     }
 }
 
-bool schedule( dispatch::thread::WorkerThread & worker )
+Task * schedule( dispatch::thread::WorkerThread & worker )
 {
     auto sched = top_scheduler;
     auto space = top_space;
@@ -152,7 +152,7 @@ bool schedule( dispatch::thread::WorkerThread & worker )
     if( sched && space )
         return sched->schedule(worker);
 
-    return false;
+    return nullptr;
 }
 
 //! apply a patch to the properties of the currently running task
