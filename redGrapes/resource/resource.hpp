@@ -15,7 +15,6 @@
 #include <memory> // std::unique_ptr<>
 #include <vector>
 #include <mutex>
-#include <shared_mutex>
 #include <iostream>
 #include <functional>
 
@@ -27,11 +26,6 @@
 #include <redGrapes_config.hpp>
 
 #include <fmt/format.h>
-
-namespace std
-{
-    using shared_mutex = shared_timed_mutex;
-} // namespace std
 
 #ifndef REDGRAPES_RUL_CHUNKSIZE
 #define REDGRAPES_RUL_CHUNKSIZE 128

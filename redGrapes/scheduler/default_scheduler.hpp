@@ -27,12 +27,8 @@ struct DefaultScheduler : public IScheduler
     std::array< std::atomic< uint64_t >, 8> worker_state;
     std::vector<std::shared_ptr< dispatch::thread::WorkerThread >> threads;
 
-    //! worker id to use in case all workers are busy
-    std::atomic< unsigned > wid;
-
     DefaultScheduler( size_t n_threads = std::thread::hardware_concurrency() )
         : n_workers( n_threads )
-        , wid(0)
     {
         for( size_t i = 0; i < n_threads; ++i )
         {
@@ -102,7 +98,7 @@ struct DefaultScheduler : public IScheduler
 
     // find index of first set bit
     // taken from https://graphics.stanford.edu/~seander/bithacks.html#ZerosOnRightParallel
-    unsigned int first_one_idx( uint64_t v )
+    inline unsigned int first_one_idx( uint64_t v )
     {
         unsigned int c = 64; // c will be the number of zero bits on the right
         v &= -int64_t(v);
@@ -134,7 +130,7 @@ struct DefaultScheduler : public IScheduler
         TRACE_EVENT("Scheduler", "find_worker");
 
         SPDLOG_TRACE("find worker...");
-       
+
         for(uint64_t j = 0; j < ceil_div(n_workers, bitfield_len); ++j)
         {
             uint64_t mask = -1;
@@ -160,15 +156,14 @@ struct DefaultScheduler : public IScheduler
 
         // no free worker found,
         return -1;
-        // return a busy worker instead.
     }
 
     /* tries to find a ready task in any queue of other workers
      * and removes it from the queue
      */
-    Task * steal_task( dispatch::thread::WorkerThread & worker )
+    Task * steal_new_task( dispatch::thread::WorkerThread & worker )
     {
-        //spdlog::info("steal task");
+        //spdlog::info("steal new task");
         for(uint64_t j = 0; j < ceil_div(n_workers, bitfield_len); ++j)
         {
             uint64_t mask = -1;
@@ -185,29 +180,61 @@ struct DefaultScheduler : public IScheduler
                 if( k < bitfield_len ) {
                     unsigned int idx = j * bitfield_len + k;
 
-                    //spdlog::info("try idx {}", idx);
-
-                    if( Task * t = threads[ idx ]->queue->pop() )
-                    {
-                        //spdlog::info("stole task");
+                    if( Task * t = threads[ idx ]->emplacement_queue->pop() )
                         return t;
-                    }
+
+                    // dont check this worker again
+                    mask &= ~(uint64_t(1) << k);
+                }
+                /*
+                // check own queue
+                if( Task * t = worker.emplacement_queue->pop() )
+                    return t;
+                */
+            }
+        }
+
+        return nullptr;        
+    }
+
+    /* tries to find a ready task in any queue of other workers
+     * and removes it from the queue
+     */
+    Task * steal_ready_task( dispatch::thread::WorkerThread & worker )
+    {
+        spdlog::info("steal ready task");
+        for(uint64_t j = 0; j < ceil_div(n_workers, bitfield_len); ++j)
+        {
+            uint64_t mask = -1;
+            if( j == n_workers/bitfield_len )
+                mask = (uint64_t(1) << (n_workers%bitfield_len)) - 1;
+
+            uint64_t busy_field;
+            while( (busy_field = ~worker_state[j])&mask > 0 )
+            {
+                // find index of first *busy* worker,
+                // hence invert worker state
+
+                unsigned int k = first_one_idx(busy_field&mask);
+                if( k < bitfield_len ) {
+                    unsigned int idx = j * bitfield_len + k;
+
+                    if( Task * t = threads[ idx ]->ready_queue->pop() )
+                        return t;
 
                     // dont check this worker again
                     mask &= ~(uint64_t(1) << k);
                 }
 
                 // check own queue
-                if( Task * t = worker.queue->pop() )
+                if( Task * t = worker.ready_queue->pop() )
                     return t;
             }
         }
 
-        //spdlog::info("found no task");
-
         return nullptr;        
     }
-    
+
     // give worker a ready task if available
     // @return task if a new task was found, nullptr otherwise
     Task * schedule( dispatch::thread::WorkerThread & worker )
@@ -216,60 +243,61 @@ struct DefaultScheduler : public IScheduler
 
         TRACE_EVENT("Scheduler", "schedule");
         SPDLOG_INFO("schedule worker {}", worker_id);
+        
+        Task * task = nullptr;
+
+        while( worker.init_dependencies( task, true ) )
+        {
+            if( task )
+                return task;
+        }
 
         free_worker( worker_id );
 
-        SPDLOG_DEBUG("free worker {}", worker_id);
-        
-        Task * task = nullptr;
-        /*
-        if( task = steal_task( worker ) )
+        if( task = steal_ready_task( worker ) )
         {
             alloc_worker( worker_id );
             return task;
         }
-        */
-        // while worker is still available
-        while( ! (task = worker.queue->pop()) )
+
+        if( task = steal_new_task( worker ) )
         {
-            // try to initialize a new task
-            if( top_space->init_dependencies(task, true) )
+            task->pre_event.up();
+            task->init_graph();
+
+            if( task->get_pre_event().notify( true ) )
             {
-                if( task )
-                {
-                    // the newly initialized task is ready
-                    SPDLOG_DEBUG("worker {} found new ready task in space", worker_id);
-                    alloc_worker( worker_id );
-                    return task;
-                }
-            }
-            else
-            {
-                // no tasks available
-                return nullptr;
-            }
+                alloc_worker( worker_id );
+                return task;
+            }            
         }
 
-        SPDLOG_DEBUG("worker {} got activated while searching", worker_id);
+        return nullptr;
+    }
 
-        // worker got activated from event
-        return task;
+    void emplace_task( Task & task )
+    {
+        static std::atomic< unsigned int > next_worker(0);
+        auto & worker = threads[ next_worker.fetch_add(1) % n_workers ];
+        worker->emplace_task( &task );
     }
 
     void activate_task( Task & task )
     {
+        //! worker id to use in case all workers are busy
+        static std::atomic< unsigned int > next_worker(0);
+
         TRACE_EVENT("Scheduler", "activate_task");
         SPDLOG_TRACE("DefaultScheduler::activate_task({})", task.task_id);
 
         int worker_id = find_worker();
         if( worker_id < 0 )
-        {
-            worker_id = wid.fetch_add(1) % n_workers;
+        {            
+            worker_id = next_worker.fetch_add(1) % n_workers;
             alloc_worker(worker_id);
         }
 
-        //spdlog::info("activate to worker {}", worker_id);
-        threads[ worker_id ]->queue->push(&task);
+        threads[ worker_id ]->ready_queue->push(&task);
         threads[ worker_id ]->wake();
     }
 
@@ -289,7 +317,7 @@ struct DefaultScheduler : public IScheduler
             // but the newly created task will not be executed
             SPDLOG_INFO("no busy worker found, wake all");
 
-            //wake_all_workers();
+            wake_all_workers();
             return false;
         }
         else

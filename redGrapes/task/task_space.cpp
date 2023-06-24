@@ -43,44 +43,6 @@ namespace redGrapes
         return ResourceUser::is_superset(a, b);
     }
 
-    /*! take tasks from the emplacement queue and initialize them,
-     *  until a task is initialized whose execution could start immediately
-     *
-     * @return false if queue is empty
-     */
-    bool TaskSpace::init_dependencies( )
-    {
-        Task * t;
-        return init_dependencies(t, false);
-    }
-
-    bool TaskSpace::init_dependencies( Task* & t, bool claimed )
-    {
-        TRACE_EVENT("TaskSpace", "init_dependencies");
-        SPDLOG_INFO("TaskSpace::init_until_ready() this={}", (void*)this);
-
-        if(Task * task = emplacement_queue.pop())
-        {
-            task->pre_event.up();
-            task->init_graph();
-
-            if( task->get_pre_event().notify( claimed ) )
-                t = task;
-
-            return true;
-        }
-        else
-        {
-            SPDLOG_TRACE("TaskSpace::init_until_ready(): check child spaces");
-            std::shared_lock< std::shared_mutex > read_lock( active_child_spaces_mutex );
-            for( auto child : active_child_spaces )
-                if( child->init_dependencies( t, claimed ) )
-                    return true;
-
-            return false;
-        }
-    }
-
     bool TaskSpace::empty() const
     {
         unsigned tc = task_count.load();
@@ -119,8 +81,7 @@ namespace redGrapes
         for( ResourceEntry & r : task->unique_resources )
             r.task_idx = r.resource->users.push( task );
 
-        emplacement_queue.push(task);
-        top_scheduler->wake_one_worker();
+        top_scheduler->emplace_task( *task );
     }
 
 } // namespace redGrapes

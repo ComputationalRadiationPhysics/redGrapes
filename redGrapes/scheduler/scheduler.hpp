@@ -52,6 +52,9 @@ struct IScheduler
         return false;
     }
 
+    //! add task to the set of to-initialize tasks
+    virtual void emplace_task( Task & task ) {}
+
     //! add task to ready set
     virtual void activate_task( Task & task ) {}
 

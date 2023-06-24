@@ -58,7 +58,8 @@ private:
     CondVar cv;
 
 public:
-    std::shared_ptr< task::Queue > queue;
+    std::shared_ptr< task::Queue > emplacement_queue;
+    std::shared_ptr< task::Queue > ready_queue;
     std::thread thread;
 
     scheduler::WakerID id;
@@ -84,7 +85,8 @@ public:
                 
                 current_waker_id = this->id;
 
-                queue = std::make_shared< task::Queue >( 16 );
+                emplacement_queue = std::make_shared< task::Queue >( 32 );
+                ready_queue = std::make_shared< task::Queue >( 32 );
 
                 while( ! m_start.load(std::memory_order_consume) )
                     cv.wait();
@@ -95,7 +97,7 @@ public:
 
                     Task * task;
                     
-                    while( task = queue->pop() )
+                    while( task = ready_queue->pop() )
                         dispatch::thread::execute_task( *task );
 
                     if( task = redGrapes::schedule( *this ) )
@@ -145,6 +147,43 @@ public:
         m_stop.store(true, std::memory_order_release);
         wake();
         thread.join();
+    }
+
+    void emplace_task( Task * task )
+    {
+        emplacement_queue->push( task );
+        wake();
+    }
+
+    /*! take a task from the emplacement queue and initialize it,
+     * @param t is set to the task if the new task is ready,
+     * @param t is set to nullptr if the new task is blocked.
+     * @param claimed if set, the new task will not be actiated,
+     *        if it is false, activate_task will be called by notify_event
+     *
+     * @return false if queue is empty
+     */
+    bool init_dependencies( Task* & t, bool claimed = true )
+    {
+        if(Task * task = emplacement_queue->pop())
+        {
+            SPDLOG_DEBUG("init task {}", task->task_id);
+
+            task->pre_event.up();
+            task->init_graph();
+
+            if( task->get_pre_event().notify( claimed ) )
+                t = task;
+            else
+            {
+                //s           spdlog::info("task already taken");
+                t = nullptr;
+            }
+
+            return true;
+        }
+        else
+            return false;
     }
 };
 

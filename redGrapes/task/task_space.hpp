@@ -30,9 +30,6 @@ struct TaskSpace : std::enable_shared_from_this<TaskSpace>
     memory::ChunkAllocator task_storage;
     std::atomic< unsigned long > task_count;
 
-    /* queue */
-    task::Queue emplacement_queue;
-
     unsigned depth;
     Task * parent;
 
@@ -74,14 +71,6 @@ struct TaskSpace : std::enable_shared_from_this<TaskSpace>
 
     void free_task( Task * task );
     void submit( Task * task );
-
-    /*! take one task from the emplacement queue, initialize it
-     *  and if its execution could start immediately, return it.
-     *
-     * @return pointer to the new task if it is ready
-     */
-    bool init_dependencies();
-    bool init_dependencies( Task* & t, bool claimed = true );
 
     bool empty() const;
 };
