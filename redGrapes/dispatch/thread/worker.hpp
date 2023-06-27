@@ -30,6 +30,9 @@ namespace thread
 
 void execute_task( Task & task_id );
 
+void pin_cpu( unsigned );
+void unpin_cpu();
+
 extern thread_local scheduler::WakerID current_waker_id;
 
 /*!
@@ -54,6 +57,8 @@ private:
      */
     std::atomic_bool m_stop;
 
+    std::atomic_bool ready;
+
     //! condition variable for waiting if queue is empty
     CondVar cv;
 
@@ -62,16 +67,19 @@ public:
     std::shared_ptr< task::Queue > ready_queue;
     std::thread thread;
 
-    scheduler::WakerID id;
+    unsigned id;
 
 public:
-    WorkerThread( scheduler::WakerID id ) :
+    WorkerThread( unsigned id ) :
         m_start( false ),
         m_stop( false ),
         id( id ),
+        ready( false ),
         thread(
             [this]
             {
+                dispatch::thread::pin_cpu( get_worker_id() );
+
                 /* since we are in a worker, there should always
                  * be a task running (we always have a parent task
                  * and therefore yield() guarantees to do
@@ -83,10 +91,12 @@ public:
                         throw std::runtime_error("idle in worker thread!");
                     };
                 
-                current_waker_id = this->id;
+                current_waker_id = this->get_waker_id();
 
                 emplacement_queue = std::make_shared< task::Queue >( 32 );
                 ready_queue = std::make_shared< task::Queue >( 32 );
+
+                ready = true;
 
                 while( ! m_start.load(std::memory_order_consume) )
                     cv.wait();
@@ -122,12 +132,12 @@ public:
 
     inline unsigned get_worker_id()
     {
-        return id - 1;
+        return id;
     }
     
     inline scheduler::WakerID get_waker_id()
     {
-        return id;
+        return id + 1;
     }
 
     inline bool wake()
@@ -151,6 +161,8 @@ public:
 
     void emplace_task( Task * task )
     {
+        while( ! ready );// wait until queues are allocated
+
         emplacement_queue->push( task );
         wake();
     }
@@ -165,6 +177,8 @@ public:
      */
     bool init_dependencies( Task* & t, bool claimed = true )
     {
+        while( ! ready );// wait until queues are allocated
+
         if(Task * task = emplacement_queue->pop())
         {
             SPDLOG_DEBUG("init task {}", task->task_id);
@@ -176,7 +190,6 @@ public:
                 t = task;
             else
             {
-                //s           spdlog::info("task already taken");
                 t = nullptr;
             }
 

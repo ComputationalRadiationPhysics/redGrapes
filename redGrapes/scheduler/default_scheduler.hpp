@@ -30,13 +30,15 @@ struct DefaultScheduler : public IScheduler
     DefaultScheduler( size_t n_threads = std::thread::hardware_concurrency() )
         : n_workers( n_threads )
     {
+        threads.reserve( n_threads );
+
         for( size_t i = 0; i < n_threads; ++i )
         {
-            threads.emplace_back(memory::alloc_shared< dispatch::thread::WorkerThread >( i + 1 ));
-            cpu_set_t cpuset;
-            CPU_ZERO(&cpuset);
-            CPU_SET(i, &cpuset);
-            int rc = pthread_setaffinity_np(threads[i]->thread.native_handle(), sizeof(cpu_set_t), &cpuset);
+            dispatch::thread::pin_cpu( i );
+            auto worker = std::make_shared< dispatch::thread::WorkerThread >( i );
+            dispatch::thread::unpin_cpu();
+
+            threads.emplace_back( worker );
         }
 
         redGrapes::dispatch::thread::current_waker_id = 0;

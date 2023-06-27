@@ -13,6 +13,7 @@ if( NOT TARGET redGrapes )
 add_library(redGrapes
   ${CMAKE_CURRENT_LIST_DIR}/redGrapes/resource/resource.cpp
   ${CMAKE_CURRENT_LIST_DIR}/redGrapes/dispatch/thread/execute.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/redGrapes/dispatch/thread/cpuset.cpp
   ${CMAKE_CURRENT_LIST_DIR}/redGrapes/scheduler/event.cpp
   ${CMAKE_CURRENT_LIST_DIR}/redGrapes/scheduler/event_ptr.cpp
   ${CMAKE_CURRENT_LIST_DIR}/redGrapes/task/property/graph.cpp
