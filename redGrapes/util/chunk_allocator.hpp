@@ -13,6 +13,22 @@
 #include <mutex>
 #include <vector>
 #include <redGrapes/util/spinlock.hpp>
+#include <redGrapes/scheduler/scheduler.hpp>
+
+namespace redGrapes
+{
+namespace dispatch
+{
+namespace thread
+{
+
+void pin_cpu( unsigned );
+void unpin_cpu();
+
+extern thread_local scheduler::WakerID current_waker_id;
+}
+}
+}
 
 namespace redGrapes
 {
@@ -115,6 +131,42 @@ struct ChunkAllocator
         }
     }
 };
+
+
+struct NUMAChunkAllocator
+{
+    std::vector< std::unique_ptr<ChunkAllocator> > arenas;
+
+    NUMAChunkAllocator( size_t chunk_size )
+    {
+        arenas.reserve(65);
+        for(unsigned i =0; i < 65; ++i)
+        {
+            if( i > 0)
+                dispatch::thread::pin_cpu( i - 1 );
+
+            arenas.push_back( std::make_unique<ChunkAllocator>(chunk_size) );
+        }
+
+        dispatch::thread::unpin_cpu();
+    }
+
+    template <typename T>
+    T * allocate( std::size_t n = 1 )
+    {
+        unsigned numa_domain = (redGrapes::dispatch::thread::current_waker_id);
+        T * ptr = arenas[numa_domain]->template allocate<T>( n );
+        return ptr;
+    }
+
+    template <typename T>
+    void deallocate( T * ptr )
+    {
+        unsigned numa_domain = (redGrapes::dispatch::thread::current_waker_id);
+        arenas[numa_domain]->template deallocate<T>( ptr );
+    }    
+};
+
 
 } // namespace memory
 } // namespace redGrapes

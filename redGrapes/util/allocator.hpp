@@ -9,9 +9,9 @@ namespace memory
 
 struct GlobalAlloc
 {
-    static inline ChunkAllocator & get_instance()
+    static inline NUMAChunkAllocator & get_instance()
     {
-        static ChunkAllocator chunkalloc( 0x80000 );
+        static NUMAChunkAllocator chunkalloc( 0x80000 );
         return chunkalloc;
     }
 };
@@ -35,11 +35,11 @@ struct Allocator
     template< typename U >
     constexpr Allocator(Allocator<U> const&) noexcept {}
 
-    static inline ChunkAllocator & get_instance()
+    static inline NUMAChunkAllocator & get_instance()
     {
         if ( trait::alloc_config<T>::dedicated )
         {
-            static ChunkAllocator alloc( trait::alloc_config<T>::chunk_size );
+            static NUMAChunkAllocator alloc( trait::alloc_config<T>::chunk_size );
             return alloc;
         }
         else
