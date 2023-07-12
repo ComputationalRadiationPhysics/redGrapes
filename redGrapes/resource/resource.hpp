@@ -311,8 +311,12 @@ protected:
 
   public:
     Resource()
-        : base( memory::alloc_shared<ResourceBase>() )
-    {}
+    {
+        static unsigned i = 0;
+        dispatch::thread::pin_cpu( i++ % 64 );
+        base = std::make_shared< ResourceBase >();
+        dispatch::thread::unpin_cpu();
+    }
 
     /**
      * Create an ResourceAccess, which represents an concrete
@@ -324,7 +328,10 @@ protected:
     ResourceAccess
     make_access( AccessPolicy pol ) const
     {
-        return ResourceAccess( memory::alloc_shared<Access>( base, pol ) );
+        dispatch::thread::pin_cpu( base->id % 64 );
+        auto a = std::make_shared<Access>( base, pol );
+        dispatch::thread::unpin_cpu();
+        return ResourceAccess( a );
     }
 }; // class Resource
 
