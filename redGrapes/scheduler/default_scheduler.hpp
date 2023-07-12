@@ -55,6 +55,14 @@ struct DefaultScheduler : public IScheduler
 
     void start()
     {
+        bool all_ready = false;
+        while( ! all_ready )
+        {
+            all_ready = true;
+            for( auto & worker : threads )
+                all_ready &= worker->ready.load();
+        }
+        
         for( auto & worker : threads )
             worker->start();
     }

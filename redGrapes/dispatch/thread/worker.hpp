@@ -56,7 +56,7 @@ private:
      * instead of waiting when it is out of jobs
      */
     std::atomic_bool m_stop;
-
+public:
     std::atomic_bool ready;
 
     //! condition variable for waiting if queue is empty
