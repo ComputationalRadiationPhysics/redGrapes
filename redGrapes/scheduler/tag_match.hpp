@@ -139,13 +139,13 @@ namespace scheduler
                     s.s->stop();
             }
 
-            bool schedule( dispatch::thread::WorkerThread & worker )
+            Task * schedule( dispatch::thread::WorkerThread & worker )
             {
                 for( auto& s : sub_schedulers )
-		  if( s.s->schedule( worker ) )
-		    return true;
+		  if( Task * t = s.s->schedule( worker ) )
+		    return t;
 
-		return false;                
+		return nullptr;                
             }
 
             void activate_task(Task & task)
