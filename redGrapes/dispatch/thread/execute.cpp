@@ -22,6 +22,7 @@ namespace thread
 {
 
 thread_local scheduler::WakerID current_waker_id;
+thread_local std::shared_ptr< WorkerThread > current_worker;
 
 void execute_task( Task & task )
 {

@@ -34,6 +34,7 @@ void pin_cpu( unsigned );
 void unpin_cpu();
 
 extern thread_local scheduler::WakerID current_waker_id;
+extern thread_local std::shared_ptr< WorkerThread > current_worker;
 
 /*!
  * Creates a thread which repeatedly calls consume()
@@ -90,7 +91,8 @@ public:
                     {
                         throw std::runtime_error("idle in worker thread!");
                     };
-                
+
+                current_worker = this->shared_from_this();
                 current_waker_id = this->get_waker_id();
 
                 emplacement_queue = std::make_shared< task::Queue >( 32 );
