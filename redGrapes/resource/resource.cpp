@@ -12,14 +12,14 @@
 namespace redGrapes
 {
 
-int ResourceBase::getID()
+unsigned int ResourceBase::generateID()
 {
-    static std::atomic_int id_counter;
+    static std::atomic< unsigned int > id_counter;
     return id_counter.fetch_add(1);
 }
 
 ResourceBase::ResourceBase()
-    : id( getID() )
+    : id( generateID() )
     , scope_level( scope_depth() )
     , users( REDGRAPES_RUL_CHUNKSIZE )
 {}

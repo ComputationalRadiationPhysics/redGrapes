@@ -43,7 +43,7 @@ struct Task;
 class ResourceBase
 {
 protected:
-    static int getID();
+    static unsigned int generateID();
 
 public:
     unsigned int id;
