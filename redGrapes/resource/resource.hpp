@@ -24,6 +24,7 @@
 #include <redGrapes/util/chunked_list.hpp>
 #include <redGrapes/util/spinlock.hpp>
 #include <redGrapes_config.hpp>
+#include <redGrapes/dispatch/thread/cpuset.hpp>
 
 #include <fmt/format.h>
 

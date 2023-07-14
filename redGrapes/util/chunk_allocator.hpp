@@ -14,21 +14,8 @@
 #include <vector>
 #include <redGrapes/util/spinlock.hpp>
 #include <redGrapes/scheduler/scheduler.hpp>
-
-namespace redGrapes
-{
-namespace dispatch
-{
-namespace thread
-{
-
-void pin_cpu( unsigned );
-void unpin_cpu();
-
-extern thread_local scheduler::WakerID current_waker_id;
-}
-}
-}
+#include <redGrapes/dispatch/thread/local.hpp>
+#include <redGrapes/dispatch/thread/cpuset.hpp>
 
 namespace redGrapes
 {

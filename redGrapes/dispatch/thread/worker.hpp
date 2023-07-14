@@ -20,6 +20,7 @@
 #include <redGrapes/redGrapes.hpp>
 #include <redGrapes/util/cv.hpp>
 #include <redGrapes/util/trace.hpp>
+#include <redGrapes/dispatch/thread/cpuset.hpp>
 
 namespace redGrapes
 {
@@ -29,9 +30,6 @@ namespace thread
 {
 
 void execute_task( Task & task_id );
-
-void pin_cpu( unsigned );
-void unpin_cpu();
 
 extern thread_local scheduler::WakerID current_waker_id;
 extern thread_local std::shared_ptr< WorkerThread > current_worker;
