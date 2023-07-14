@@ -105,13 +105,12 @@ public:
                 {
                     SPDLOG_TRACE("Worker: work on queue");
 
-                    Task * task;
-                    
-                    while( task = ready_queue->pop() )
+                    while( Task * task = ready_queue->pop() )
                         dispatch::thread::execute_task( *task );
 
-                    if( task = redGrapes::schedule( *this ) )
+                    if( Task * task = redGrapes::schedule( *this ) )
                         dispatch::thread::execute_task( *task );
+
                     else if( !m_stop.load(std::memory_order_consume) )
                     {
                         SPDLOG_TRACE("worker sleep");

@@ -24,11 +24,12 @@ struct DefaultScheduler : public IScheduler
 
     //! bit is true if worker available, false if worker busy
     static constexpr uint64_t bitfield_len = 64;
-    std::array< std::atomic< uint64_t >, 8> worker_state;
+    std::vector< std::atomic< uint64_t > > worker_state;
     std::vector<std::shared_ptr< dispatch::thread::WorkerThread >> threads;
 
     DefaultScheduler( size_t n_threads = std::thread::hardware_concurrency() )
         : n_workers( n_threads )
+        , worker_state( ceil_div(n_threads, bitfield_len)  )
     {
         threads.reserve( n_threads );
 
@@ -134,43 +135,82 @@ struct DefaultScheduler : public IScheduler
         return (a+b-1)/b;
     }
 
+
+    template <typename T, typename F>
+    inline std::optional< T > find_worker_in_field( unsigned j, uint64_t mask, bool expected_worker_state, F && f )
+    {
+        while( true )
+        {
+            uint64_t field = expected_worker_state ?
+                uint64_t(worker_state[j]) : ~uint64_t(worker_state[j]);
+
+            uint64_t masked_field = field & mask;
+            if( masked_field == 0 )
+                break;
+
+            // find index of first worker
+            unsigned int k = first_one_idx( masked_field );
+
+            if( k < bitfield_len )
+            {
+                unsigned int idx = j * bitfield_len + k;
+                //spdlog::info("find worker: j = {}, k = {}, idx= {}", j , k, idx);
+
+                if( std::optional<T> x = f( idx ) )
+                    return x;
+
+                // dont check this worker again
+                mask &= ~(uint64_t(1) << k);
+            }
+        }
+
+        return std::nullopt;
+    }
+    
     template <typename T, typename F>
     inline std::optional< T >
     find_worker(
         F && f,
         bool expected_worker_state,
-        unsigned start_idx,
-        unsigned end_idx
-    ) {
-        assert( end_idx <= n_workers );
+        unsigned start_worker_idx,
+        bool exclude_start = true)
+    {
+        uint64_t start_field_idx = start_worker_idx / bitfield_len;
+        uint64_t first_mask = (uint64_t(1) << (start_worker_idx%bitfield_len)) - 1;
+
+        {
+            uint64_t mask = ~first_mask;
+            if( start_field_idx == worker_state.size() - 1 && n_workers % bitfield_len != 0 )
+                mask &= (uint64_t(1) << (n_workers % bitfield_len)) - 1;
+
+            if( exclude_start )
+                mask &= ~(1 << start_worker_idx%bitfield_len);
+
+            if( auto x = find_worker_in_field<T>( start_field_idx, mask, expected_worker_state, f ) )
+                return x;
+        }
+
         for(
-            uint64_t j = start_idx / bitfield_len;
-            j <= ceil_div(end_idx, bitfield_len);
-            ++j
+            uint64_t b = 1;
+            b < ceil_div(n_workers, bitfield_len);
+            ++b
         ) {
+            uint64_t field_idx = (start_field_idx + b) % worker_state.size();
             uint64_t mask = ~0;
-            if( j == start_idx/bitfield_len )
-                mask &= ~(uint64_t(1) << (start_idx%bitfield_len)) - 1;
-            if( j == end_idx/bitfield_len )
-                mask &= (uint64_t(1) << (end_idx%bitfield_len)) - 1;
 
-            uint64_t field;
-            while((field = expected_worker_state ? uint64_t(worker_state[j]) : ~uint64_t(worker_state[j]))
-                   & mask > 0)
-            {
-                // find index of first worker
-                unsigned int k = first_one_idx( field & mask );
-                if( k < bitfield_len )
-                {
-                    unsigned int idx = j * bitfield_len + k;
+            if( field_idx == worker_state.size() - 1 && n_workers % bitfield_len != 0 )
+                mask &= (uint64_t(1) << (n_workers % bitfield_len)) - 1;
 
-                    if( std::optional<T> x = f( idx ) )
-                        return x;
+            if( auto x = find_worker_in_field<T>( field_idx, mask, expected_worker_state, f ) )
+                return x;
+        }
 
-                    // dont check this worker again
-                    mask &= ~(uint64_t(1) << k);
-                }
-            }
+        {
+            uint64_t mask = first_mask;
+            if( start_field_idx == worker_state.size() - 1 && n_workers % bitfield_len != 0 )
+                mask &= (uint64_t(1) << (n_workers % bitfield_len)) - 1;
+            if( auto x = find_worker_in_field<T>( start_field_idx, mask, expected_worker_state, f ) )
+                return x;
         }
 
         return std::nullopt;
@@ -187,16 +227,15 @@ struct DefaultScheduler : public IScheduler
 
         SPDLOG_TRACE("find worker...");
 
-        std::optional<unsigned> idx = find_worker<unsigned>(
-            [this]( unsigned idx ) -> std::optional<unsigned> {
-                if( alloc_worker( idx ) )
-                    return idx;
-                else
-                    return std::nullopt;
-            },
-            true, // find a free worker
-            0,
-            n_workers);
+        std::optional<unsigned> idx = find_worker<unsigned>([this]( unsigned idx ) -> std::optional<unsigned> {
+                                                                if( alloc_worker( idx ) )
+                                                                    return idx;
+                                                                else
+                                                                    return std::nullopt;
+                                                            },
+                                                            true, // find a free worker
+                                                            0,
+                                                            false);
 
         if( idx )
             return *idx;
@@ -211,15 +250,16 @@ struct DefaultScheduler : public IScheduler
     Task * steal_new_task( dispatch::thread::WorkerThread & worker )
     {
         std::optional<Task*> task = find_worker<Task*>(
-            [this]( unsigned idx ) -> std::optional<Task*> {
+                                                       [this, &worker]( unsigned idx ) -> std::optional<Task*> {
                 if( Task * t = this->threads[ idx ]->emplacement_queue->pop() )
+                    return t;
+                else if( Task * t = worker.emplacement_queue->pop() )
                     return t;
                 else
                     return std::nullopt;
             },
             false, // find a busy worker
-            0,
-            n_workers);
+            worker.get_worker_id());
 
         if( task )
             return *task;
@@ -233,15 +273,17 @@ struct DefaultScheduler : public IScheduler
     Task * steal_ready_task( dispatch::thread::WorkerThread & worker )
     {
         std::optional<Task*> task = find_worker<Task*>(
-                                                       [this]( unsigned idx ) -> std::optional<Task*> {
-                if( Task * t = this->threads[ idx ]->ready_queue->pop() )
+                                                       [this, &worker]( unsigned idx ) -> std::optional<Task*> {
+                                                           if( Task * t = this->threads[ idx ]->ready_queue->pop() )
                     return t;
+                                                           else if( Task * t = worker.ready_queue->pop() )
+                                                               return t;
+
                 else
                     return std::nullopt;
             },
             false, // find a busy worker
-            0,
-            n_workers);
+            worker.get_worker_id());
 
         if( task )
             return *task;
@@ -267,7 +309,7 @@ struct DefaultScheduler : public IScheduler
         }
 
         free_worker( worker_id );
-        /*
+
         if( task = steal_ready_task( worker ) )
         {
             alloc_worker( worker_id );
@@ -285,7 +327,7 @@ struct DefaultScheduler : public IScheduler
                 return task;
             }            
         }
-        */
+
         return nullptr;
     }
 
@@ -306,12 +348,13 @@ struct DefaultScheduler : public IScheduler
 
         int worker_id = find_free_worker();
         if( worker_id < 0 )
-        {            
+        {
             worker_id = next_worker.fetch_add(1) % n_workers;
-            alloc_worker(worker_id);
         }
 
         threads[ worker_id ]->ready_queue->push(&task);
+        alloc_worker(worker_id);
+
         threads[ worker_id ]->wake();
     }
 
