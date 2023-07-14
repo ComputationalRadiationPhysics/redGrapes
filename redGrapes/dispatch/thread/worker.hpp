@@ -161,8 +161,6 @@ public:
 
     void emplace_task( Task * task )
     {
-        while( ! ready );// wait until queues are allocated
-
         emplacement_queue->push( task );
         wake();
     }
@@ -177,8 +175,6 @@ public:
      */
     bool init_dependencies( Task* & t, bool claimed = true )
     {
-        while( ! ready );// wait until queues are allocated
-
         if(Task * task = emplacement_queue->pop())
         {
             SPDLOG_DEBUG("init task {}", task->task_id);
