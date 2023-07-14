@@ -172,6 +172,8 @@ struct DefaultScheduler : public IScheduler
                 }
             }
         }
+
+        return std::nullopt;
     }
 
     /*
