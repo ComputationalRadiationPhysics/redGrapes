@@ -227,6 +227,10 @@ struct DefaultScheduler : public IScheduler
 
         SPDLOG_TRACE("find worker...");
 
+        unsigned start_idx = 0;
+        if( auto w = dispatch::thread::current_worker )
+            start_idx = w->get_worker_id();
+
         std::optional<unsigned> idx = find_worker<unsigned>([this]( unsigned idx ) -> std::optional<unsigned> {
                                                                 if( alloc_worker( idx ) )
                                                                     return idx;
@@ -234,7 +238,7 @@ struct DefaultScheduler : public IScheduler
                                                                     return std::nullopt;
                                                             },
                                                             true, // find a free worker
-                                                            0,
+                                                            start_idx,
                                                             false);
 
         if( idx )
@@ -341,7 +345,7 @@ struct DefaultScheduler : public IScheduler
     void activate_task( Task & task )
     {
         //! worker id to use in case all workers are busy
-        static std::atomic< unsigned int > next_worker(0);
+        static thread_local std::atomic< unsigned int > next_worker( dispatch::thread::current_worker->get_worker_id() + 1 );
 
         TRACE_EVENT("Scheduler", "activate_task");
         SPDLOG_TRACE("DefaultScheduler::activate_task({})", task.task_id);
@@ -350,6 +354,8 @@ struct DefaultScheduler : public IScheduler
         if( worker_id < 0 )
         {
             worker_id = next_worker.fetch_add(1) % n_workers;
+            if( worker_id == dispatch::thread::current_worker->get_worker_id() )
+                worker_id = next_worker.fetch_add(1) % n_workers;
         }
 
         threads[ worker_id ]->ready_queue->push(&task);
