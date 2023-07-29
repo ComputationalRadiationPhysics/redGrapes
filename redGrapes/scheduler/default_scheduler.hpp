@@ -184,7 +184,7 @@ struct DefaultScheduler : public IScheduler
                 mask &= (uint64_t(1) << (n_workers % bitfield_len)) - 1;
 
             if( exclude_start )
-                mask &= ~(1 << start_worker_idx%bitfield_len);
+                mask &= ~(uint64_t(1) << (start_worker_idx%bitfield_len));
 
             if( auto x = find_worker_in_field<T>( start_field_idx, mask, expected_worker_state, f ) )
                 return x;
