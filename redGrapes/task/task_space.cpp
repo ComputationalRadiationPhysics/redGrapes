@@ -9,6 +9,7 @@
 #include <redGrapes/task/task.hpp>
 #include <redGrapes/task/task_space.hpp>
 #include <redGrapes/task/queue.hpp>
+#include <redGrapes/util/allocator.hpp>
 
 namespace redGrapes
 {
@@ -19,7 +20,6 @@ namespace redGrapes
     TaskSpace::TaskSpace()
         : depth(0)
         , parent(nullptr)
-        , task_storage( REDGRAPES_TASK_ALLOCATOR_CHUNKSIZE )
     {
         task_count = 0;
     }
@@ -28,7 +28,6 @@ namespace redGrapes
     TaskSpace::TaskSpace(Task * parent)
         : depth(parent->space->depth + 1)
         , parent(parent)
-        , task_storage( REDGRAPES_TASK_ALLOCATOR_CHUNKSIZE )
     {
         task_count = 0;
     }
@@ -54,8 +53,9 @@ namespace redGrapes
     {
         unsigned count = task_count.fetch_sub(1) - 1;
 
+        unsigned arena_id = task->arena_id;
         task->~Task();
-        task_storage.deallocate(&task);
+        memory::alloc->deallocate(arena_id, &task);
 
         // TODO: implement this using post-event of root-task?
         //  - event already has in_edge count

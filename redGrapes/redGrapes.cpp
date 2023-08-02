@@ -10,6 +10,7 @@
 #include <moodycamel/concurrentqueue.h>
 
 #include <redGrapes/redGrapes.hpp>
+#include <redGrapes/util/multi_arena_alloc.hpp>
 #include <redGrapes/scheduler/default_scheduler.hpp>
 
 #include <redGrapes/util/trace.hpp>
@@ -24,6 +25,12 @@ namespace redGrapes
 thread_local Task * current_task;
 thread_local std::function<void()> idle;
 
+namespace memory
+{
+std::shared_ptr< MultiArenaAlloc > alloc;
+thread_local unsigned current_arena;
+} // namespace memory
+
 std::shared_ptr< TaskSpace > top_space;
 std::shared_ptr< scheduler::IScheduler > top_scheduler;
 
@@ -37,7 +44,7 @@ std::shared_ptr<TaskSpace> current_task_space()
     {
         if( ! current_task->children )
         {
-            auto task_space = memory::alloc_shared<TaskSpace>(current_task);
+            auto task_space = std::make_shared<TaskSpace>(current_task);
             SPDLOG_TRACE("create child space = {}", (void*)task_space.get());
             current_task->children = task_space;
 
@@ -87,8 +94,11 @@ std::vector<std::reference_wrapper<Task>> backtrace()
     return bt;
 }
 
-void init( std::shared_ptr<scheduler::IScheduler> scheduler )
+void init( size_t n_threads )
 {
+    // use one arena with 8 MiB chunksize per worker
+    memory::alloc = std::make_shared< memory::MultiArenaAlloc >( 32 * 1024 * 1024, n_threads );
+
 #if REDGRAPES_ENABLE_TRACE
     perfetto::TracingInitArgs args;
     args.backends |= perfetto::kInProcessBackend;
@@ -98,14 +108,9 @@ void init( std::shared_ptr<scheduler::IScheduler> scheduler )
     tracing_session = StartTracing();
 #endif
 
-    top_space = memory::alloc_shared<TaskSpace>();
-    top_scheduler = scheduler;
+    top_space = std::make_shared<TaskSpace>();
+    top_scheduler = std::make_shared<scheduler::DefaultScheduler>(n_threads);
     top_scheduler->start();
-}
-
-void init( size_t n_threads )
-{
-    init(memory::alloc_shared<scheduler::DefaultScheduler>(n_threads));
 }
 
 /*! wait until all tasks in the current task space finished

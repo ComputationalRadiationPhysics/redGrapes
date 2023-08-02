@@ -15,6 +15,7 @@
 #include <redGrapes/task/task.hpp>
 #include <redGrapes/task/task_space.hpp>
 #include <redGrapes/util/trace.hpp>
+#include <redGrapes/util/allocator.hpp>
 #include <spdlog/spdlog.h>
 #include <type_traits>
 
@@ -101,11 +102,21 @@ struct TaskBuilder
         : TaskProperties::Builder< TaskBuilder >( *this )
         , space( current_task_space() )
     {
+        static std::atomic< unsigned int > next_worker(0);
+        unsigned worker_id = next_worker.fetch_add(1) % 64;
+        unsigned arena_id = worker_id / 64;
+
         // allocate
-        task = space->alloc_task< Impl >( );
+        redGrapes::memory::Allocator< FunTask<Impl> > alloc( arena_id );
+        task = alloc.allocate( 1 );
+
+        if( ! task )
+            throw std::runtime_error("out of memory");
 
         // construct task in-place
         new (task) FunTask< Impl > ( );
+
+        task->arena_id = arena_id;
 
         // init properties from args
         PropBuildHelper<TaskBuilder> build_helper{ *this };

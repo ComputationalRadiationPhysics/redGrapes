@@ -14,7 +14,6 @@
 #include <moodycamel/concurrentqueue.h>
 
 #include <redGrapes/scheduler/scheduler.hpp>
-#include <redGrapes/scheduler/event.hpp>
 #include <redGrapes/task/task.hpp>
 #include <redGrapes/context.hpp>
 #include <redGrapes/redGrapes.hpp>
@@ -78,6 +77,7 @@ public:
             [this]
             {
                 dispatch::thread::pin_cpu( get_worker_id() );
+                memory::current_arena = get_worker_id();
 
                 /* since we are in a worker, there should always
                  * be a task running (we always have a parent task
@@ -93,8 +93,8 @@ public:
                 current_worker = this->shared_from_this();
                 current_waker_id = this->get_waker_id();
 
-                emplacement_queue = std::make_shared< task::Queue >( 32 );
-                ready_queue = std::make_shared< task::Queue >( 32 );
+                emplacement_queue = memory::alloc_shared_bind< task::Queue >( this->id, 32 );
+                ready_queue = memory::alloc_shared_bind< task::Queue >( this->id, 32 );
 
                 ready = true;
 

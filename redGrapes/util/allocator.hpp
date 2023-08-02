@@ -1,68 +1,47 @@
 #pragma once
 
-#include <redGrapes/util/chunk_allocator.hpp>
+#include <redGrapes/util/multi_arena_alloc.hpp>
 
 namespace redGrapes
 {
 namespace memory
 {
 
-struct GlobalAlloc
-{
-    static inline NUMAChunkAllocator & get_instance()
-    {
-        static NUMAChunkAllocator chunkalloc( 0x80000 );
-        return chunkalloc;
-    }
-};
-
-namespace trait
-{
-template <typename T>
-struct alloc_config {
-    static constexpr bool dedicated = false;
-    static constexpr size_t chunk_size = 0x80000;
-};
-} // namespace trait
+extern std::shared_ptr< MultiArenaAlloc > alloc;
+extern thread_local unsigned current_arena;
 
 template < typename T >
 struct Allocator
 {
+    unsigned arena_id;
+
     typedef T value_type;
- 
-    Allocator () = default;
+
+    Allocator () : arena_id( current_arena )
+    {
+    }
+    Allocator( unsigned arena_id ) : arena_id( arena_id ) {}
 
     template< typename U >
     constexpr Allocator(Allocator<U> const&) noexcept {}
 
-    static inline NUMAChunkAllocator & get_instance()
-    {
-        if ( trait::alloc_config<T>::dedicated )
-        {
-            static NUMAChunkAllocator alloc( trait::alloc_config<T>::chunk_size );
-            return alloc;
-        }
-        else
-            return GlobalAlloc::get_instance();
-    }
-
-    static T* allocate( std::size_t n )
+    T* allocate( std::size_t n )
     {
         if (n > std::numeric_limits<std::size_t>::max() / sizeof(T))
             throw std::bad_array_new_length();
 
-        T * p = get_instance().allocate< T >( n );
+        T * p = alloc->allocate< T >( arena_id, n );
         if( p )
             return p;
         else
             throw std::bad_alloc();
     }
  
-    static void deallocate(T* p, std::size_t n) noexcept
+    void deallocate(T* p, std::size_t n) noexcept
     {
-        get_instance().deallocate< T >( p );
+        alloc->deallocate< T >( arena_id, p );
     }
-    
+
     template < typename U, typename... Args >
     void construct(U * p, Args&&... args )
     {
@@ -81,6 +60,12 @@ bool operator==(Allocator<T> const&, Allocator<U> const &) { return true; }
  
 template<typename T, typename U>
 bool operator!=(Allocator<T> const&, Allocator<U> const&) { return false; }
+
+template < typename T, typename... Args >
+std::shared_ptr<T> alloc_shared_bind( unsigned arena_id, Args&&... args )
+{
+    return std::allocate_shared< T, Allocator<T> >( Allocator<T>( arena_id ), std::forward<Args>(args)... );
+}
 
 template < typename T, typename... Args >
 std::shared_ptr<T> alloc_shared( Args&&... args )

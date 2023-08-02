@@ -40,6 +40,7 @@ struct Task :
 {
     virtual ~Task() {}
 
+    unsigned arena_id;
     std::atomic_int removal_countdown;
 
     Task()

@@ -243,7 +243,7 @@ private:
             chunk_alloc.deallocate( superchunk, superchunk_capacity );
         }
 
-        ChunkedList( size_t chunk_size = 256 )
+        ChunkedList( size_t chunk_size = 16 )
             : chunk_size( chunk_size )
             , next_item_id( 0 )
             , size_( 0 )
@@ -258,7 +258,7 @@ private:
         ChunkedList( ChunkedList && other ) = default;
 
         ChunkedList( ChunkedList const& other )
-            : ChunkedList()
+            : ChunkedList( other.chunk_size )
         {
             SPDLOG_TRACE("copy construct ChunkedList!!");
             reserve( other.size() );

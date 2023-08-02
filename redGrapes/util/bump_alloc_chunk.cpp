@@ -7,7 +7,7 @@
 
 #include <cstdlib>
 #include <atomic>
-#include <redGrapes/util/chunk_allocator.hpp>
+#include <redGrapes/util/bump_alloc_chunk.hpp>
 #include <cstring>
 
 namespace redGrapes
@@ -15,31 +15,31 @@ namespace redGrapes
 namespace memory
 {
 
-Chunk::Chunk( size_t capacity )
+BumpAllocChunk::BumpAllocChunk( size_t capacity )
     : capacity( capacity )
     , base( (uintptr_t) aligned_alloc(0x80000, capacity) )
 {
     reset();
 }
 
-Chunk::~Chunk()
+BumpAllocChunk::~BumpAllocChunk()
 {
-    free( (void*)base );
+    //    free( (void*)base );
 }
 
-bool Chunk::empty() const
+bool BumpAllocChunk::empty() const
 {
     return (count == 0);
 }
 
-void Chunk::reset()
+void BumpAllocChunk::reset()
 {
     offset = 0;
     count = 0;
     memset((void*)base, 0, capacity);
 }
 
-void * Chunk::m_alloc( size_t n_bytes )
+void * BumpAllocChunk::m_alloc( size_t n_bytes )
 {
     std::ptrdiff_t old_offset = offset.fetch_add(n_bytes);
     if( old_offset + n_bytes <= capacity )
@@ -51,12 +51,12 @@ void * Chunk::m_alloc( size_t n_bytes )
         return nullptr;
 }
 
-unsigned Chunk::m_free( void * )
+unsigned BumpAllocChunk::m_free( void * )
 {
     return count.fetch_sub(1) - 1;
 }
 
-bool Chunk::contains( void * ptr ) const
+bool BumpAllocChunk::contains( void * ptr ) const
 {
     return (uintptr_t)ptr >= (uintptr_t)base && (uintptr_t)ptr < (uintptr_t)(base + capacity);
 }

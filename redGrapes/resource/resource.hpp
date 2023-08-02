@@ -308,15 +308,15 @@ protected:
 
     Resource( std::shared_ptr<ResourceBase > base )
         : ResourceBase( base )
-    {}
+    {
+    }
 
   public:
     Resource()
     {
         static unsigned i = 0;
-        dispatch::thread::pin_cpu( i++ % 64 );
-        base = std::make_shared< ResourceBase >();
-        dispatch::thread::unpin_cpu();
+        unsigned arena_id = i++ % 64;
+        base = redGrapes::memory::alloc_shared_bind< ResourceBase >( arena_id );
     }
 
     /**
@@ -329,9 +329,8 @@ protected:
     ResourceAccess
     make_access( AccessPolicy pol ) const
     {
-        dispatch::thread::pin_cpu( base->id % 64 );
-        auto a = std::make_shared<Access>( base, pol );
-        dispatch::thread::unpin_cpu();
+        unsigned arena_id = base->id % 64;
+        auto a = redGrapes::memory::alloc_shared_bind< Access >( arena_id, base, pol );
         return ResourceAccess( a );
     }
 }; // class Resource

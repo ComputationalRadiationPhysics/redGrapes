@@ -27,8 +27,6 @@ namespace redGrapes
  */
 struct TaskSpace : std::enable_shared_from_this<TaskSpace>
 {
-    /* task storage */
-    memory::ChunkAllocator task_storage;
     std::atomic< unsigned long > task_count;
 
     unsigned depth;
@@ -47,28 +45,6 @@ struct TaskSpace : std::enable_shared_from_this<TaskSpace>
 
     virtual bool is_serial( Task& a, Task& b );
     virtual bool is_superset( Task& a, Task& b );
-
-    /* Construct a new task in this task space
-     *
-     * Note: for each task space there is at most one thread calling
-     * this function
-     *
-     * @param f callable functor to execute in this task
-     * @param prop Task-Properties (including resource-
-     *             access descriptions)
-     *
-     * @return: reference to new task
-     */
-    template < typename F >
-    FunTask<F> * alloc_task( )
-    {
-        // allocate memory
-        FunTask<F> * task = task_storage.allocate<FunTask<F>>();
-        if( ! task )
-            throw std::runtime_error("out of memory");
-
-        return task;
-    }
 
     void free_task( Task * task );
     void submit( Task * task );

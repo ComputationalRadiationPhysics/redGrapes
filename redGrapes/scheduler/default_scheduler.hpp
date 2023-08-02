@@ -35,10 +35,7 @@ struct DefaultScheduler : public IScheduler
 
         for( size_t i = 0; i < n_threads; ++i )
         {
-            dispatch::thread::pin_cpu( i );
-            auto worker = std::make_shared< dispatch::thread::WorkerThread >( i );
-            dispatch::thread::unpin_cpu();
-
+            auto worker = memory::alloc_shared_bind< dispatch::thread::WorkerThread >( i, i );
             threads.emplace_back( worker );
         }
 
