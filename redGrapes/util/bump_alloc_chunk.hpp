@@ -12,12 +12,18 @@
 #include <memory>
 #include <optional>
 
+#include <hwloc.h>
+
 namespace redGrapes
 {
+
+extern hwloc_topology_t topology;
+
 namespace memory
 {
 
-/* A chunk of memory, inside of which bump allocation is used
+/* A chunk of memory, inside of which bump allocation is used.
+ * The data will start immediately after this management object
  */
 struct BumpAllocChunk
 {
@@ -34,25 +40,23 @@ struct BumpAllocChunk
 
     bool contains( void * ) const;
 
-private:
+    uintptr_t get_baseptr() const;
+
+    // reference to previously filled chunks,
+    std::atomic< BumpAllocChunk * > prev;
+
+    // max. size of chunk in bytes
+    size_t const capacity;
+
     // next address that will be allocated
     std::atomic_ptrdiff_t offset;
 
-    // max. size of chunk in bytes
-    size_t capacity;
-
-    // start address of chunk
-    uintptr_t base;
-
     // number of allocations
     std::atomic<unsigned> count;
-
-public:
-    // reference to previously filled chunks,
-    std::shared_ptr< BumpAllocChunk > prev;
 };
 
-
+BumpAllocChunk * alloc_chunk( hwloc_obj_t const & obj, size_t capacity );
+void free_chunk( hwloc_obj_t const & obj, BumpAllocChunk * chunk );
 
 } // namespace memory
 } // namespace redGrapes

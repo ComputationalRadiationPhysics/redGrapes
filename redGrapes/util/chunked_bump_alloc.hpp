@@ -25,16 +25,26 @@ namespace memory
 
 struct ChunkedBumpAlloc
 {
-    size_t chunk_size;
-    std::shared_ptr< BumpAllocChunk > head;
+    size_t const chunk_size;
+    hwloc_obj_t const obj;
 
-    ChunkedBumpAlloc( size_t chunk_size )
-        : head( std::make_shared<BumpAllocChunk>(chunk_size) )
+    std::atomic< BumpAllocChunk * > head;
+
+    ChunkedBumpAlloc( hwloc_obj_t obj, size_t chunk_size )
+        : obj( obj )
         , chunk_size( chunk_size )
+        , head( alloc_chunk( obj, chunk_size ) )
     {
     }
 
-    inline size_t roundup_to_poweroftwo( size_t s )
+    ChunkedBumpAlloc( ChunkedBumpAlloc && other )
+        : obj( other.obj )
+        , chunk_size( other.chunk_size )
+        , head( other.head.load() )
+    {        
+    }
+
+    inline static size_t roundup_to_poweroftwo( size_t s )
     {
         s--;
         s |= s >> 0x1;
@@ -54,19 +64,21 @@ struct ChunkedBumpAlloc
         s = roundup_to_poweroftwo(s);
 
         // try to alloc in current chunk
-        T * item = (T*) head->m_alloc( s );
+        T * item = (T*) head.load()->m_alloc( s );
 
         // chunk is full
         if( !item )
         {
             // create new chunk & try again
             {
-                auto new_chunk = std::make_shared<BumpAllocChunk>( chunk_size );
-                new_chunk->prev = head;
-                std::swap(head, new_chunk);
+                BumpAllocChunk * old_chunk = head.load();
+                BumpAllocChunk * new_chunk = alloc_chunk( obj, chunk_size );
+                new_chunk->prev = old_chunk;
+
+                head.compare_exchange_strong( old_chunk, new_chunk );
             }
 
-            item = (T*) head->m_alloc( s );
+            item = (T*) head.load()->m_alloc( s );
         }
 
         return item;
@@ -75,24 +87,30 @@ struct ChunkedBumpAlloc
     template <typename T>
     void deallocate( T * ptr )
     {
-        std::shared_ptr< BumpAllocChunk > next;
-        std::shared_ptr< BumpAllocChunk > cur = head;
+        BumpAllocChunk * next = nullptr;
+        BumpAllocChunk * cur = head.load();
 
         while( cur )
         {
             if( cur->contains((void*)ptr) )
             {
+                // if no allocations remain in this chunk
+                // and this chunk is not the latest one,
+                // remove this chunk
                 if( cur->m_free((void*)ptr) == 0 && next )
                 {
-                    // erase chunk
-                    next->prev = cur->prev;
+                    // erase from linked list
+                    next->prev.compare_exchange_strong( cur, cur->prev );
+
+                    // free memory
+                    free_chunk( obj, cur );
                 }
                 break;
             }
             else
             {
                 next = cur;
-                cur = cur->prev;
+                cur = cur->prev.load();
             }
         }
     }

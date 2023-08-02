@@ -18,38 +18,40 @@
 #include <redGrapes/dispatch/thread/local.hpp>
 #include <redGrapes/dispatch/thread/cpuset.hpp>
 
+#include <hwloc.h>
+
 namespace redGrapes
 {
+
+extern hwloc_topology_t topology;
+
 namespace memory
 {
 
 struct MultiArenaAlloc
 {
-    std::vector< std::unique_ptr<ChunkedBumpAlloc> > arenas;
+    std::vector< ChunkedBumpAlloc > arenas;
     
     MultiArenaAlloc( unsigned chunk_size = 0x8000, unsigned n_arenas = 1 )
     {
-        arenas.reserve(n_arenas);
         for(unsigned i = 0; i < n_arenas; ++i)
         {
-            dispatch::thread::pin_cpu( i );
-            arenas.push_back( std::make_unique< ChunkedBumpAlloc >(chunk_size) );
+            hwloc_obj_t obj = hwloc_get_obj_by_type(topology, HWLOC_OBJ_PU, i);
+            arenas.emplace_back( obj, chunk_size );
         }
-
-        dispatch::thread::unpin_cpu();
     }
 
     template <typename T>
     T * allocate( unsigned arena_idx, std::size_t n = 1 )
     {
-        T * ptr = arenas[arena_idx % arenas.size()]->template allocate<T>( n );
+        T * ptr = arenas[arena_idx % arenas.size()].template allocate<T>( n );
         return ptr;
     }
 
     template <typename T>
     void deallocate( unsigned arena_idx, T * ptr )
     {
-        arenas[arena_idx % arenas.size()]->template deallocate<T>( ptr );
+        arenas[arena_idx % arenas.size()].template deallocate<T>( ptr );
     }    
 };
 

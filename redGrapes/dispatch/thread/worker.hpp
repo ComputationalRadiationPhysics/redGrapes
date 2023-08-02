@@ -23,6 +23,9 @@
 
 namespace redGrapes
 {
+
+extern hwloc_topology_t topology;
+
 namespace dispatch
 {
 namespace thread
@@ -76,9 +79,19 @@ public:
         thread(
             [this]
             {
-                dispatch::thread::pin_cpu( get_worker_id() );
-                memory::current_arena = get_worker_id();
+                hwloc_obj_t obj = hwloc_get_obj_by_type(topology, HWLOC_OBJ_PU, this->id);
 
+                if( hwloc_set_cpubind(topology, obj->cpuset, HWLOC_CPUBIND_THREAD) )
+                {
+                    char *str;
+                    int error = errno;
+                    hwloc_bitmap_asprintf(&str, obj->cpuset);
+                    printf("Couldn't bind to cpuset %s: %s\n", str, strerror(error));
+                    free(str);
+                }
+                
+                memory::current_arena = get_worker_id();
+                
                 /* since we are in a worker, there should always
                  * be a task running (we always have a parent task
                  * and therefore yield() guarantees to do

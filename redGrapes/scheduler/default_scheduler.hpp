@@ -33,6 +33,10 @@ struct DefaultScheduler : public IScheduler
     {
         threads.reserve( n_threads );
 
+        unsigned n_pus = hwloc_get_nbobjs_by_type(topology, HWLOC_OBJ_PU);
+        if( n_threads > n_pus )
+            spdlog::warn("{} worker-threads requested, but only {} PUs available!", n_threads, n_pus);
+
         for( size_t i = 0; i < n_threads; ++i )
         {
             auto worker = memory::alloc_shared_bind< dispatch::thread::WorkerThread >( i, i );

@@ -15,16 +15,40 @@ namespace redGrapes
 namespace memory
 {
 
+BumpAllocChunk * alloc_chunk( hwloc_obj_t const & obj, size_t capacity )
+{
+    size_t alloc_size = capacity + sizeof(BumpAllocChunk);
+
+    BumpAllocChunk * chunk = (BumpAllocChunk*) hwloc_alloc_membind(
+        topology, alloc_size, obj->cpuset,
+        HWLOC_MEMBIND_BIND, HWLOC_MEMBIND_THREAD
+    );
+
+    new (chunk) BumpAllocChunk( capacity );
+
+    return chunk;
+}
+
+void free_chunk( hwloc_obj_t const & obj, BumpAllocChunk * chunk )
+{
+    size_t alloc_size = chunk->capacity + sizeof(BumpAllocChunk);
+    hwloc_free( topology, (void*)chunk, alloc_size );
+}
+
+
 BumpAllocChunk::BumpAllocChunk( size_t capacity )
     : capacity( capacity )
-    , base( (uintptr_t) aligned_alloc(0x80000, capacity) )
 {
     reset();
 }
 
 BumpAllocChunk::~BumpAllocChunk()
 {
-    //    free( (void*)base );
+}
+
+uintptr_t BumpAllocChunk::get_baseptr() const
+{
+    return (uintptr_t)this + sizeof(BumpAllocChunk);
 }
 
 bool BumpAllocChunk::empty() const
@@ -36,7 +60,7 @@ void BumpAllocChunk::reset()
 {
     offset = 0;
     count = 0;
-    memset((void*)base, 0, capacity);
+    memset((void*)get_baseptr(), 0, capacity);
 }
 
 void * BumpAllocChunk::m_alloc( size_t n_bytes )
@@ -45,7 +69,7 @@ void * BumpAllocChunk::m_alloc( size_t n_bytes )
     if( old_offset + n_bytes <= capacity )
     {
         count.fetch_add(1);
-        return (void*)(base + old_offset);
+        return (void*)(get_baseptr() + old_offset);
     }
     else
         return nullptr;
@@ -58,7 +82,7 @@ unsigned BumpAllocChunk::m_free( void * )
 
 bool BumpAllocChunk::contains( void * ptr ) const
 {
-    return (uintptr_t)ptr >= (uintptr_t)base && (uintptr_t)ptr < (uintptr_t)(base + capacity);
+    return (uintptr_t)ptr >= (uintptr_t)get_baseptr() && (uintptr_t)ptr < (uintptr_t)(get_baseptr() + capacity);
 }
 
 } // namespace memory

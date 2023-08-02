@@ -38,6 +38,8 @@ std::shared_ptr< scheduler::IScheduler > top_scheduler;
 std::shared_ptr< perfetto::TracingSession > tracing_session;
 #endif
 
+hwloc_topology_t topology;
+
 std::shared_ptr<TaskSpace> current_task_space()
 {
     if( current_task )
@@ -96,8 +98,12 @@ std::vector<std::reference_wrapper<Task>> backtrace()
 
 void init( size_t n_threads )
 {
+    hwloc_topology_init(&topology);
+    hwloc_topology_load(topology);
+
     // use one arena with 8 MiB chunksize per worker
-    memory::alloc = std::make_shared< memory::MultiArenaAlloc >( 32 * 1024 * 1024, n_threads );
+    size_t chunk_size = 8 * 1024 * 1024 - sizeof(memory::BumpAllocChunk);
+    memory::alloc = std::make_shared< memory::MultiArenaAlloc >( chunk_size, n_threads );
 
 #if REDGRAPES_ENABLE_TRACE
     perfetto::TracingInitArgs args;
@@ -128,6 +134,8 @@ void finalize()
     top_scheduler.reset();
     top_space.reset();
 
+    hwloc_topology_destroy(topology);
+    
 #if REDGRAPES_ENABLE_TRACE
     StopTracing( tracing_session );
 #endif
