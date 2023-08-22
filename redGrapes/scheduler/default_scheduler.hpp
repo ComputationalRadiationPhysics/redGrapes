@@ -346,8 +346,8 @@ struct DefaultScheduler : public IScheduler
 
     void emplace_task( Task & task )
     {
-        static std::atomic< unsigned int > next_worker(0);
-        auto & worker = threads[ next_worker.fetch_add(1) % n_workers ];
+        unsigned worker_id = task->arena_id % n_workers;
+        auto & worker = threads[ worker_id ];
         worker->emplace_task( &task );
     }
 
