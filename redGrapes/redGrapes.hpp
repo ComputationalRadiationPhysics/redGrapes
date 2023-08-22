@@ -102,12 +102,8 @@ struct TaskBuilder
         : TaskProperties::Builder< TaskBuilder >( *this )
         , space( current_task_space() )
     {
-        static std::atomic< unsigned int > next_worker(0);
-        unsigned worker_id = next_worker.fetch_add(1) % 64;
-        unsigned arena_id = worker_id / 64;
-
         // allocate
-        redGrapes::memory::Allocator< FunTask<Impl> > alloc( arena_id );
+        redGrapes::memory::Allocator< FunTask<Impl> > alloc;
         task = alloc.allocate( 1 );
 
         if( ! task )
@@ -116,7 +112,7 @@ struct TaskBuilder
         // construct task in-place
         new (task) FunTask< Impl > ( );
 
-        task->arena_id = arena_id;
+        task->arena_id = memory::current_arena;
 
         // init properties from args
         PropBuildHelper<TaskBuilder> build_helper{ *this };
@@ -190,6 +186,10 @@ struct TaskBuilder
 template<typename Callable, typename... Args>
 inline auto emplace_task(Callable&& f, Args&&... args)
 {
+    static std::atomic< unsigned int > next_worker(0);
+    unsigned worker_id = next_worker.fetch_add(1) % 64;
+    memory::current_arena = worker_id;
+
     return std::move(TaskBuilder< Callable, Args... >( std::move(f), std::forward<Args>(args)... ));
 }
 

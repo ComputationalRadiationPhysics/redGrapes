@@ -34,6 +34,8 @@ struct MultiArenaAlloc
     
     MultiArenaAlloc( unsigned chunk_size = 0x8000, unsigned n_arenas = 1 )
     {
+        arenas.reserve(64);
+
         for(unsigned i = 0; i < n_arenas; ++i)
         {
             hwloc_obj_t obj = hwloc_get_obj_by_type(topology, HWLOC_OBJ_PU, i);
