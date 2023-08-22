@@ -229,18 +229,20 @@ struct DefaultScheduler : public IScheduler
         SPDLOG_TRACE("find worker...");
 
         unsigned start_idx = 0;
-        if( auto w = dispatch::thread::current_worker )
+        if(auto w = dispatch::thread::current_worker)
             start_idx = w->get_worker_id();
 
-        std::optional<unsigned> idx = find_worker<unsigned>([this]( unsigned idx ) -> std::optional<unsigned> {
-                                                                if( alloc_worker( idx ) )
-                                                                    return idx;
-                                                                else
-                                                                    return std::nullopt;
-                                                            },
-                                                            true, // find a free worker
-                                                            start_idx,
-                                                            false);
+        std::optional<unsigned> idx = find_worker<unsigned>(
+            [this](unsigned idx) -> std::optional<unsigned>
+            {
+                if(alloc_worker(idx))
+                    return idx;
+                else
+                    return std::nullopt;
+            },
+            true, // find a free worker
+            start_idx,
+            false);
 
         if( idx )
             return *idx;
@@ -255,10 +257,11 @@ struct DefaultScheduler : public IScheduler
     Task * steal_new_task( dispatch::thread::WorkerThread & worker )
     {
         std::optional<Task*> task = find_worker<Task*>(
-                                                       [this, &worker]( unsigned idx ) -> std::optional<Task*> {
-                if( Task * t = this->threads[ idx ]->emplacement_queue->pop() )
+            [this, &worker](unsigned idx) -> std::optional<Task*>
+            {
+                if(Task* t = this->threads[idx]->emplacement_queue->pop())
                     return t;
-                else if( Task * t = worker.emplacement_queue->pop() )
+                else if(Task* t = worker.emplacement_queue->pop())
                     return t;
                 else
                     return std::nullopt;
@@ -266,7 +269,7 @@ struct DefaultScheduler : public IScheduler
             false, // find a busy worker
             worker.get_worker_id());
 
-        if( task )
+        if(task)
             return *task;
         else
             return nullptr;
@@ -278,11 +281,12 @@ struct DefaultScheduler : public IScheduler
     Task * steal_ready_task( dispatch::thread::WorkerThread & worker )
     {
         std::optional<Task*> task = find_worker<Task*>(
-                                                       [this, &worker]( unsigned idx ) -> std::optional<Task*> {
-                                                           if( Task * t = this->threads[ idx ]->ready_queue->pop() )
+            [this, &worker](unsigned idx) -> std::optional<Task*>
+            {
+                if(Task* t = this->threads[idx]->ready_queue->pop())
                     return t;
-                                                           else if( Task * t = worker.ready_queue->pop() )
-                                                               return t;
+                else if(Task* t = worker.ready_queue->pop())
+                    return t;
 
                 else
                     return std::nullopt;
@@ -306,7 +310,6 @@ struct DefaultScheduler : public IScheduler
         SPDLOG_INFO("schedule worker {}", worker_id);
         
         Task * task = nullptr;
-
         while( worker.init_dependencies( task, true ) )
         {
             if( task )
