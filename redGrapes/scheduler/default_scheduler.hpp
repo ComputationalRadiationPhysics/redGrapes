@@ -315,6 +315,12 @@ struct DefaultScheduler : public IScheduler
 
         free_worker( worker_id );
 
+        #ifndef ENABLE_WORKSTEALING
+        #define ENABLE_WORKSTEALING 1
+        #endif
+        
+        #if ENABLE_WORKSTEALING
+
         if( task = steal_ready_task( worker ) )
         {
             alloc_worker( worker_id );
@@ -332,6 +338,8 @@ struct DefaultScheduler : public IScheduler
                 return task;
             }            
         }
+
+        #endif
 
         return nullptr;
     }
