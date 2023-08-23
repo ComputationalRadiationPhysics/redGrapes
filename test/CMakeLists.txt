@@ -97,7 +97,8 @@ set(TEST_SOURCES
     task_space.cpp
     chunked_list.cpp
     random_graph.cpp
-    scheduler.cpp)
+    scheduler.cpp
+    cv.cpp)
 
 set(TEST_TARGET redGrapes_test)
 
