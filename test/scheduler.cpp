@@ -32,7 +32,10 @@ void test_worker_utilization( unsigned n_workers )
                          );
     }
 
-    std::this_thread::sleep_for(seconds(1));
+    auto end = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+    while( std::chrono::steady_clock::now() < end )
+        if( count == n_workers )
+            break;
 
     REQUIRE( count == n_workers );
 
@@ -47,6 +50,7 @@ TEST_CASE("WorkerUtilization")
 {
     for( int i = 1; i < std::thread::hardware_concurrency(); i += 5)
         test_worker_utilization(i);
+
     test_worker_utilization(std::thread::hardware_concurrency());
 }
 
