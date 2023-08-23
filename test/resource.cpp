@@ -2,6 +2,7 @@
 
 #include <redGrapes/resource/resource.hpp>
 #include <redGrapes/resource/ioresource.hpp>
+#include <redGrapes/redGrapes.hpp>
 
 struct Access
 {
@@ -37,6 +38,7 @@ struct fmt::formatter<Access>
 
 TEST_CASE("Resource ID")
 {
+    redGrapes::init(1);
     redGrapes::Resource< Access > a, b;
 
     // same resource
@@ -50,10 +52,12 @@ TEST_CASE("Resource ID")
     // different resource
     REQUIRE( redGrapes::ResourceAccess::is_serial( a.make_access(Access{}), b.make_access(Access{}) ) == false );
     REQUIRE( redGrapes::ResourceAccess::is_serial( b.make_access(Access{}), a.make_access(Access{}) ) == false );
+    redGrapes::finalize();
 }
 
 TEST_CASE("IOResource")
 {
+    redGrapes::init(1);
     redGrapes::IOResource<int> a, b;
 
     REQUIRE( redGrapes::ResourceAccess::is_serial(a.read(), a.read()) == false );
@@ -75,5 +79,7 @@ TEST_CASE("IOResource")
     REQUIRE( redGrapes::ResourceAccess::is_serial(b.read(), a.write()) == false );
     REQUIRE( redGrapes::ResourceAccess::is_serial(b.write(), a.read()) == false );
     REQUIRE( redGrapes::ResourceAccess::is_serial(b.write(), a.write()) == false );
+
+    redGrapes::finalize();
 }
 

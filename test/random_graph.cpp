@@ -39,7 +39,7 @@ void hash(unsigned task_id,
 std::chrono::microseconds task_duration(2);
 unsigned n_resources = 16;
 unsigned n_tasks = 128;
-unsigned n_threads = 1;
+unsigned n_threads = 4;
 unsigned min_dependencies = 0;
 unsigned max_dependencies = 5;
 std::mt19937 gen;

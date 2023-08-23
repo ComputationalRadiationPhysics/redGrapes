@@ -2,10 +2,12 @@
 #include <catch2/benchmark/catch_benchmark.hpp>
 #include <thread>
 
+#include <redGrapes/redGrapes.hpp>
 #include <redGrapes/util/chunked_list.hpp>
 
 TEST_CASE("ChunkedList singlethreaded")
 {
+    redGrapes::init(1);
     redGrapes::ChunkedList< unsigned > l( 32 );
 
     // initialy empty
@@ -91,10 +93,13 @@ TEST_CASE("ChunkedList singlethreaded")
             i--;
         }
     }
+
+    redGrapes::finalize();
 }
 
 TEST_CASE("ChunkedList: push || push")
 {
+    redGrapes::init(1);
     redGrapes::ChunkedList< int > l( 8 );
 
     unsigned end = 20000;
@@ -126,10 +131,13 @@ TEST_CASE("ChunkedList: push || push")
 
     REQUIRE( expect1 == mid );
     REQUIRE( expect2 == end );
+
+    redGrapes::finalize();
 }
 
 TEST_CASE("ChunkedList: remove || remove")
 {
+    redGrapes::init(1);
     redGrapes::ChunkedList< int > l( 8 );
     for( int i = 0; i < 20000; ++i )
         l.push(i);
@@ -152,10 +160,13 @@ TEST_CASE("ChunkedList: remove || remove")
     // empty iterator
     for( int x : l )
         REQUIRE(false);
+
+    redGrapes::finalize();
 }
 
 TEST_CASE("ChunkedList: push || remove")
 {
+    redGrapes::init(1);
     redGrapes::ChunkedList< int > l( 8 );
 
     // start with 10k elements
@@ -184,10 +195,13 @@ TEST_CASE("ChunkedList: push || remove")
         REQUIRE( x == expected++ );
 
     REQUIRE( expected == 20000 );
+
+    redGrapes::finalize();
 }
 
 TEST_CASE("ChunkedList: push || iter")
 {
+    redGrapes::init(1);
     redGrapes::ChunkedList< int > l( 8 );
 
     // start with 10k elements
@@ -211,10 +225,12 @@ TEST_CASE("ChunkedList: push || iter")
 
     t1.join();
     t2.join();
+    redGrapes::finalize();
 }
 
 TEST_CASE("ChunkedList: remove || iter")
 {
+    redGrapes::init(1);
     redGrapes::ChunkedList< int > l( 8 );
 
     // start with 10k elements
@@ -239,5 +255,7 @@ TEST_CASE("ChunkedList: remove || iter")
 
     t1.join();
     t2.join();
+
+    redGrapes::finalize();
 }
 
