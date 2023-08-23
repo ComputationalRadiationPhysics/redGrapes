@@ -16,10 +16,6 @@
 #include <redGrapes/task/queue.hpp>
 #include <redGrapes/dispatch/thread/cpuset.hpp>
 
-#ifndef REDGRAPES_TASK_ALLOCATOR_CHUNKSIZE
-#define REDGRAPES_TASK_ALLOCATOR_CHUNKSIZE 0x800000
-#endif
-
 namespace redGrapes
 {
 
