@@ -23,7 +23,10 @@ struct Allocator
     Allocator( unsigned arena_id ) : arena_id( arena_id ) {}
 
     template< typename U >
-    constexpr Allocator(Allocator<U> const&) noexcept {}
+    constexpr Allocator(Allocator<U> const& other) noexcept
+        : arena_id( other.arena_id )
+    {
+    }
 
     T* allocate( std::size_t n )
     {
