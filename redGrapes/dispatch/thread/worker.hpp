@@ -64,8 +64,8 @@ public:
     CondVar cv;
 
 public:
-    std::shared_ptr< task::Queue > emplacement_queue;
-    std::shared_ptr< task::Queue > ready_queue;
+    task::Queue emplacement_queue;
+    task::Queue ready_queue;
     std::thread thread;
 
     unsigned id;
@@ -76,6 +76,8 @@ public:
         m_stop( false ),
         id( id ),
         ready( false ),
+        emplacement_queue( 32 ),
+        ready_queue( 32 ),
         thread(
             [this]
             {
@@ -89,9 +91,7 @@ public:
                     printf("Couldn't bind to cpuset %s: %s\n", str, strerror(error));
                     free(str);
                 }
-                
-                memory::current_arena = get_worker_id();
-                
+
                 /* since we are in a worker, there should always
                  * be a task running (we always have a parent task
                  * and therefore yield() guarantees to do
@@ -105,9 +105,7 @@ public:
 
                 current_worker = this->shared_from_this();
                 current_waker_id = this->get_waker_id();
-
-                emplacement_queue = memory::alloc_shared_bind< task::Queue >( this->id, 32 );
-                ready_queue = memory::alloc_shared_bind< task::Queue >( this->id, 32 );
+                memory::current_arena = get_worker_id();
 
                 ready = true;
 
@@ -118,7 +116,7 @@ public:
                 {
                     SPDLOG_TRACE("Worker: work on queue");
 
-                    while( Task * task = ready_queue->pop() )
+                    while( Task * task = ready_queue.pop() )
                         dispatch::thread::execute_task( *task );
 
                     if( Task * task = redGrapes::schedule( *this ) )
@@ -173,7 +171,7 @@ public:
 
     void emplace_task( Task * task )
     {
-        emplacement_queue->push( task );
+        emplacement_queue.push( task );
         wake();
     }
 
@@ -187,7 +185,7 @@ public:
      */
     bool init_dependencies( Task* & t, bool claimed = true )
     {
-        if(Task * task = emplacement_queue->pop())
+        if(Task * task = emplacement_queue.pop())
         {
             SPDLOG_DEBUG("init task {}", task->task_id);
 

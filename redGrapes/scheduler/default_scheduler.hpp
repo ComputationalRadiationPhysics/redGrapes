@@ -259,9 +259,9 @@ struct DefaultScheduler : public IScheduler
         std::optional<Task*> task = find_worker<Task*>(
             [this, &worker](unsigned idx) -> std::optional<Task*>
             {
-                if(Task* t = this->threads[idx]->emplacement_queue->pop())
+                if(Task* t = this->threads[idx]->emplacement_queue.pop())
                     return t;
-                else if(Task* t = worker.emplacement_queue->pop())
+                else if(Task* t = worker.emplacement_queue.pop())
                     return t;
                 else
                     return std::nullopt;
@@ -283,9 +283,9 @@ struct DefaultScheduler : public IScheduler
         std::optional<Task*> task = find_worker<Task*>(
             [this, &worker](unsigned idx) -> std::optional<Task*>
             {
-                if(Task* t = this->threads[idx]->ready_queue->pop())
+                if(Task* t = this->threads[idx]->ready_queue.pop())
                     return t;
-                else if(Task* t = worker.ready_queue->pop())
+                else if(Task* t = worker.ready_queue.pop())
                     return t;
 
                 else
@@ -370,7 +370,7 @@ struct DefaultScheduler : public IScheduler
                 worker_id = next_worker.fetch_add(1) % n_workers;
         }
 
-        threads[ worker_id ]->ready_queue->push(&task);
+        threads[ worker_id ]->ready_queue.push(&task);
         alloc_worker(worker_id);
 
         threads[ worker_id ]->wake();
