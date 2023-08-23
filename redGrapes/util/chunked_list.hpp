@@ -84,7 +84,6 @@ namespace redGrapes
 template < typename T >
 struct ChunkedList
 {
-private:
     size_t const chunk_size;
 
     struct Item
@@ -174,6 +173,8 @@ private:
     
     using Chunk = Item *;
 
+private:
+
     std::atomic< uint16_t > superchunk_size;
     std::atomic< uint16_t > superchunk_capacity;
     Chunk * superchunk;
@@ -243,12 +244,26 @@ private:
             chunk_alloc.deallocate( superchunk, superchunk_capacity );
         }
 
-        ChunkedList( size_t chunk_size = 16 )
-            : chunk_size( chunk_size )
+    ChunkedList( size_t chunk_size = 16 )
+        : ChunkedList(
+              memory::Allocator< Item >(),
+              memory::Allocator< Chunk >(),
+              chunk_size
+        )
+    {}
+
+        ChunkedList(
+            memory::Allocator< Item > item_alloc,
+            memory::Allocator< Chunk > chunk_alloc,
+            size_t chunk_size = 16
+        )
+            : item_alloc( item_alloc )
+            , chunk_alloc( chunk_alloc )
+            , chunk_size( chunk_size )
             , next_item_id( 0 )
             , size_( 0 )
             , superchunk_size( 0 )
-            , superchunk_capacity( 16 )
+            , superchunk_capacity( 8 )
         {
             superchunk = chunk_alloc.allocate( superchunk_capacity );
             for( int i = 0; i < superchunk_capacity; ++i )
@@ -258,7 +273,7 @@ private:
         ChunkedList( ChunkedList && other ) = default;
 
         ChunkedList( ChunkedList const& other )
-            : ChunkedList( other.chunk_size )
+            : ChunkedList( other.item_alloc, other.chunk_alloc, other.chunk_size )
         {
             SPDLOG_TRACE("copy construct ChunkedList!!");
             reserve( other.size() );

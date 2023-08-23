@@ -11,6 +11,7 @@
 
 namespace redGrapes
 {
+struct Task;
 
 unsigned int ResourceBase::generateID()
 {
@@ -21,7 +22,11 @@ unsigned int ResourceBase::generateID()
 ResourceBase::ResourceBase()
     : id( generateID() )
     , scope_level( scope_depth() )
-    , users( REDGRAPES_RUL_CHUNKSIZE )
+    , users(
+        memory::Allocator< typename ChunkedList<Task*>::Item >( get_arena_id() ),
+        memory::Allocator< typename ChunkedList<Task*>::Chunk >( get_arena_id() ),
+        REDGRAPES_RUL_CHUNKSIZE
+    )
 {}
 
 } // namespace redGrapes

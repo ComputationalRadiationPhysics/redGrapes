@@ -55,6 +55,12 @@ public:
      * Create a new resource with an unused ID.
      */
     ResourceBase();
+
+    inline unsigned get_arena_id() const
+    {
+        // FIXME: use number of PUs/arenas
+        return id % 64;
+    }
 };
 
 template <typename AccessPolicy>
@@ -328,8 +334,7 @@ protected:
     ResourceAccess
     make_access( AccessPolicy pol ) const
     {
-        unsigned arena_id = base->id % 64;
-        auto a = redGrapes::memory::alloc_shared_bind< Access >( arena_id, base, pol );
+        auto a = redGrapes::memory::alloc_shared_bind< Access >( base->get_arena_id(), base, pol );
         return ResourceAccess( a );
     }
 }; // class Resource
