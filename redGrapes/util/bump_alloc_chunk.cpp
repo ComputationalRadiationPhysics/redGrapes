@@ -9,6 +9,7 @@
 #include <atomic>
 #include <redGrapes/util/bump_alloc_chunk.hpp>
 #include <cstring>
+#include <redGrapes/dispatch/thread/worker.hpp>
 
 namespace redGrapes
 {
@@ -18,13 +19,19 @@ namespace memory
 BumpAllocChunk * alloc_chunk( hwloc_obj_t const & obj, size_t capacity )
 {
     size_t alloc_size = capacity + sizeof(BumpAllocChunk);
-
+    
     BumpAllocChunk * chunk = (BumpAllocChunk*) hwloc_alloc_membind(
         topology, alloc_size, obj->cpuset,
-        HWLOC_MEMBIND_BIND, HWLOC_MEMBIND_THREAD
+        HWLOC_MEMBIND_BIND, HWLOC_MEMBIND_NOCPUBIND
     );
-
     new (chunk) BumpAllocChunk( capacity );
+
+    hwloc_set_cpubind(topology, obj->cpuset, HWLOC_CPUBIND_THREAD);
+
+    chunk->reset();
+
+    if( redGrapes::dispatch::thread::current_worker )
+        redGrapes::dispatch::thread::current_worker->cpubind();
 
     return chunk;
 }
@@ -35,12 +42,11 @@ void free_chunk( hwloc_obj_t const & obj, BumpAllocChunk * chunk )
     hwloc_free( topology, (void*)chunk, alloc_size );
 }
 
-
 BumpAllocChunk::BumpAllocChunk( size_t capacity )
     : capacity( capacity )
-{
-    reset();
-}
+    , offset(0)
+    , count(0)
+{}
 
 BumpAllocChunk::~BumpAllocChunk()
 {
