@@ -357,7 +357,8 @@ struct DefaultScheduler : public IScheduler
     void activate_task( Task & task )
     {
         //! worker id to use in case all workers are busy
-        static thread_local std::atomic< unsigned int > next_worker( dispatch::thread::current_worker->get_worker_id() + 1 );
+        static thread_local std::atomic< unsigned int > next_worker(dispatch::thread::current_worker ?
+                                                                    dispatch::thread::current_worker->get_worker_id() + 1 : 0);
 
         TRACE_EVENT("Scheduler", "activate_task");
         SPDLOG_TRACE("DefaultScheduler::activate_task({})", task.task_id);
