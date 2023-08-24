@@ -81,16 +81,8 @@ public:
         thread(
             [this]
             {
-                hwloc_obj_t obj = hwloc_get_obj_by_type(topology, HWLOC_OBJ_PU, this->id);
-
-                if( hwloc_set_cpubind(topology, obj->cpuset, HWLOC_CPUBIND_THREAD) )
-                {
-                    char *str;
-                    int error = errno;
-                    hwloc_bitmap_asprintf(&str, obj->cpuset);
-                    printf("Couldn't bind to cpuset %s: %s\n", str, strerror(error));
-                    free(str);
-                }
+                this->cpubind();
+                this->membind();
 
                 /* since we are in a worker, there should always
                  * be a task running (we always have a parent task
@@ -138,6 +130,27 @@ public:
 
     ~WorkerThread()
     {
+    }
+
+    void cpubind()
+    {
+        hwloc_obj_t obj = hwloc_get_obj_by_type(topology, HWLOC_OBJ_PU, this->id);
+
+        if( hwloc_set_cpubind(topology, obj->cpuset, HWLOC_CPUBIND_THREAD) )
+        {
+            char *str;
+            int error = errno;
+            hwloc_bitmap_asprintf(&str, obj->cpuset);
+            printf("Couldn't bind to cpuset %s: %s\n", str, strerror(error));
+            free(str);
+        }
+    }
+
+    void membind()
+    {
+        hwloc_obj_t obj = hwloc_get_obj_by_type(topology, HWLOC_OBJ_PU, this->id);
+
+        hwloc_set_membind(topology, obj->cpuset, HWLOC_MEMBIND_BIND, HWLOC_MEMBIND_THREAD );
     }
 
     inline unsigned get_worker_id()
