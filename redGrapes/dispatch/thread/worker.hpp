@@ -136,12 +136,12 @@ public:
     {
         hwloc_obj_t obj = hwloc_get_obj_by_type(topology, HWLOC_OBJ_PU, this->id);
 
-        if( hwloc_set_cpubind(topology, obj->cpuset, HWLOC_CPUBIND_THREAD) )
+        if( hwloc_set_cpubind(topology, obj->cpuset, HWLOC_CPUBIND_THREAD | HWLOC_CPUBIND_STRICT) )
         {
             char *str;
             int error = errno;
             hwloc_bitmap_asprintf(&str, obj->cpuset);
-            printf("Couldn't bind to cpuset %s: %s\n", str, strerror(error));
+            spdlog::warn("Couldn't cpubind to cpuset {}: {}\n", str, strerror(error));
             free(str);
         }
     }
@@ -150,7 +150,14 @@ public:
     {
         hwloc_obj_t obj = hwloc_get_obj_by_type(topology, HWLOC_OBJ_PU, this->id);
 
-        hwloc_set_membind(topology, obj->cpuset, HWLOC_MEMBIND_BIND, HWLOC_MEMBIND_THREAD );
+        if( hwloc_set_membind(topology, obj->cpuset, HWLOC_MEMBIND_BIND, HWLOC_MEMBIND_THREAD | HWLOC_MEMBIND_STRICT ) )
+        {
+            char *str;
+            int error = errno;
+            hwloc_bitmap_asprintf(&str, obj->cpuset);
+            spdlog::warn("Couldn't membind to cpuset {}: {}\n", str, strerror(error));
+            free(str);
+        }
     }
 
     inline unsigned get_worker_id()

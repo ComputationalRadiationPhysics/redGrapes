@@ -187,6 +187,8 @@ template<typename Callable, typename... Args>
 inline auto emplace_task(Callable&& f, Args&&... args)
 {
     static std::atomic< unsigned int > next_worker(0);
+
+    // Fixme: hardcoded 64
     unsigned worker_id = next_worker.fetch_add(1) % 64;
     memory::current_arena = worker_id;
 

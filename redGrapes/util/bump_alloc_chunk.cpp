@@ -19,11 +19,18 @@ namespace memory
 BumpAllocChunk * alloc_chunk( hwloc_obj_t const & obj, size_t capacity )
 {
     size_t alloc_size = capacity + sizeof(BumpAllocChunk);
-    
+
     BumpAllocChunk * chunk = (BumpAllocChunk*) hwloc_alloc_membind(
         topology, alloc_size, obj->cpuset,
-        HWLOC_MEMBIND_BIND, HWLOC_MEMBIND_NOCPUBIND
+        HWLOC_MEMBIND_BIND, HWLOC_MEMBIND_NOCPUBIND | HWLOC_MEMBIND_STRICT
     );
+
+    if( chunk == 0 )
+    {
+        int error = errno;
+        spdlog::error("chunk allocation failed: {}\n", strerror(error));
+    }
+
     new (chunk) BumpAllocChunk( capacity );
 
     hwloc_set_cpubind(topology, obj->cpuset, HWLOC_CPUBIND_THREAD);
