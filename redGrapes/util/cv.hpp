@@ -19,13 +19,15 @@ struct PhantomLock
 
 struct CondVar
 {
-    std::atomic<bool> wait_flag;
+    std::atomic<bool> should_wait;
     std::condition_variable_any cv;
 
     std::atomic_flag busy;
 
+    std::mutex m;
+
     CondVar()
-        : wait_flag( true )
+        : should_wait( true )
     {
     }
 
@@ -33,31 +35,40 @@ struct CondVar
     {
         unsigned count = 0;
 
-        while( wait_flag.load(std::memory_order_acquire) )
+        while( should_wait.load(std::memory_order_acquire) )
         {
+#if 1
             if( ++count > REDGRAPES_CONDVAR_TIMEOUT )
             {
-                busy.clear(std::memory_order_release);
+                //busy.clear(std::memory_order_release);
 
-                PhantomLock m;
-                std::unique_lock< PhantomLock > l( m );
-                cv.wait( l );
+                if( should_wait )
+                {
+                    
+                    std::unique_lock< std::mutex > l( m );
 
-                busy.test_and_set();
-                count = 0;
+                    if( should_wait )
+                        cv.wait( l );
+                }
             }
+#endif
         }
 
-        wait_flag.store(true);
+        //        busy.test_and_set();
+        count = 0;
+        should_wait.store(true);
     }
 
     inline bool notify()
     {
         bool w = true;
-        wait_flag.compare_exchange_strong(w, false, std::memory_order_release);
+        should_wait.compare_exchange_strong(w, false, std::memory_order_release);
 
-        if( ! busy.test_and_set(std::memory_order_acquire) )
-            cv.notify_one();
+        //if( ! busy.test_and_set(std::memory_order_acquire) )
+        {
+            std::unique_lock< std::mutex > l( m );
+            cv.notify_all();
+        }
 
         return w;
     }
