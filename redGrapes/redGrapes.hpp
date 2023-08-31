@@ -13,6 +13,7 @@
 #include <redGrapes/scheduler/event.hpp>
 #include <redGrapes/task/future.hpp>
 #include <redGrapes/task/task.hpp>
+#include <redGrapes/task/task_builder.hpp>
 #include <redGrapes/task/task_space.hpp>
 #include <redGrapes/util/trace.hpp>
 #include <redGrapes/util/allocator.hpp>
@@ -21,36 +22,6 @@
 
 namespace redGrapes
 {
-
-    /* HELPERS */
-
-    std::shared_ptr<TaskSpace> current_task_space();
-    void update_active_task_spaces();
-    Task * schedule( dispatch::thread::WorkerThread & worker );
-
-    template<typename... Args>
-    static inline void pass(Args&&...)
-    {
-    }
-
-    template <typename B>
-    struct PropBuildHelper
-    {
-        typename TaskProperties::Builder<B>& builder;
-
-        template<typename T>
-        inline int build(T const& x)
-        {
-            trait::BuildProperties<T>::build(builder, x);
-            return 0;
-        }
-
-        void foo()
-        {
-        }
-    };
-
-
     /* USER INTERFACE */
     void init(std::shared_ptr<scheduler::IScheduler> scheduler);
     void init(size_t n_threads = std::thread::hardware_concurrency());
@@ -69,7 +40,6 @@ namespace redGrapes
     //! get backtrace from currently running task
     std::vector<std::reference_wrapper<Task>> backtrace();
 
-
     /*! Create an event on which the termination of the current task depends.
      *  A task must currently be running.
      *
@@ -77,99 +47,6 @@ namespace redGrapes
      *         nullopt if there is no task running currently
      */
     std::optional<scheduler::EventPtr> create_event();
-
-template < typename Callable, typename... Args >
-struct TaskBuilder
-    : TaskProperties::Builder< TaskBuilder<Callable, Args...> >
-{
-    struct BindArgs
-    {
-        inline auto operator() ( Callable&& f, Args&&... args )
-        {
-            return std::move([f=std::move(f), args...]() mutable {
-                return f(std::forward<Args>(args)...);
-            });
-        }
-    };
-
-    using Impl = typename std::result_of< BindArgs(Callable, Args...) >::type;
-    using Result = typename std::result_of< Callable(Args...)>::type;
-
-    std::shared_ptr< TaskSpace > space;
-    FunTask< Impl > * task;
-
-    TaskBuilder( Callable&& f, Args&&... args )
-        : TaskProperties::Builder< TaskBuilder >( *this )
-        , space( current_task_space() )
-    {
-        // allocate
-        redGrapes::memory::Allocator< FunTask<Impl> > alloc;
-        task = alloc.allocate( 1 );
-
-        if( ! task )
-            throw std::runtime_error("out of memory");
-
-        // construct task in-place
-        new (task) FunTask< Impl > ( );
-
-        task->arena_id = memory::current_arena;
-
-        // init properties from args
-        PropBuildHelper<TaskBuilder> build_helper{ *this };
-        pass(build_helper.template build<Args>(std::forward<Args>(args))...);
-        build_helper.foo();
-
-        // init id
-        this->init_id();
-
-        // set impl
-        task->impl.emplace(BindArgs{}( std::move(f), std::forward<Args>(args)... ));
-    }
-
-    TaskBuilder( TaskBuilder & other )
-        : TaskProperties::Builder< TaskBuilder >( *this )
-        , space( other.space )
-        , task( other.task )
-    {
-        other.task = nullptr;
-    }
-
-    TaskBuilder( TaskBuilder && other )
-        : TaskProperties::Builder< TaskBuilder >( *this )
-        , space( std::move(other.space) )
-        , task( std::move(other.task) )
-    {
-        other.task = nullptr;
-    }
-
-    ~TaskBuilder()
-    {
-        if( task )
-            submit();
-    }
-
-    TaskBuilder & enable_stack_switching()
-    {
-        task->enable_stack_switching = true;
-        return *this;
-    }
-
-    auto submit()
-    {
-        Task * t = task;
-        task = nullptr;
-
-        SPDLOG_TRACE("submit task {}", (TaskProperties const &)*t);
-        space->submit( t );
-        
-        return std::move(Future<Result>( *t ));
-    }
-
-    auto get()
-    {
-        return submit().get();
-    }
-};
 
 /*! create a new task, as child of the currently running task (if there is one)
  *
