@@ -51,36 +51,41 @@ private:
      * executing the jobs in its queue
      * and request rescheduling if empty
      */
-    std::atomic_bool m_start;
+    std::atomic_bool m_start{ false };
     
     /*! if true, the thread shall stop
      * instead of waiting when it is out of jobs
      */
-    std::atomic_bool m_stop;
+    std::atomic_bool m_stop{ false };
+
 public:
-    std::atomic_bool ready;
+    unsigned id;
+
+    std::atomic<unsigned> task_count{ 0 };
+
+    std::atomic_bool ready{false};
 
     //! condition variable for waiting if queue is empty
     CondVar cv;
 
-public:
-    task::Queue emplacement_queue;
-    task::Queue ready_queue;
-    std::thread thread;
+    static constexpr size_t queue_capacity = 32;
 
-    unsigned id;
+public:
+    task::Queue emplacement_queue{ queue_capacity };
+    task::Queue ready_queue{ queue_capacity };
+    std::thread thread;
 
 public:
     WorkerThread( unsigned id ) :
-        m_start( false ),
-        m_stop( false ),
         id( id ),
-        ready( false ),
-        emplacement_queue( 32 ),
-        ready_queue( 32 ),
         thread(
             [this]
             {
+                ready = true;
+
+                while( ! m_start.load(std::memory_order_consume) )
+                    cv.wait();
+
                 this->cpubind();
                 this->membind();
 
@@ -98,11 +103,6 @@ public:
                 current_worker = this->shared_from_this();
                 current_waker_id = this->get_waker_id();
                 memory::current_arena = get_worker_id();
-
-                ready = true;
-
-                while( ! m_start.load(std::memory_order_consume) )
-                    cv.wait();
 
                 while( ! m_stop.load(std::memory_order_consume) )
                 {
