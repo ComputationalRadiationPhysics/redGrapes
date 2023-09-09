@@ -38,13 +38,13 @@ target_link_libraries(redGrapes PUBLIC ${CMAKE_THREAD_LIBS_INIT})
 target_link_libraries(redGrapes PUBLIC ${Boost_LIBRARIES})
 target_link_libraries(redGrapes PUBLIC fmt::fmt)
 target_link_libraries(redGrapes PUBLIC spdlog::spdlog)
+target_link_libraries(redGrapes PUBLIC hwloc)
 
 set(redGrapes_INCLUDE_DIRS ${redGrapes_CONFIG_INCLUDE_DIR} ${CMAKE_CURRENT_LIST_DIR})
 set(redGrapes_INCLUDE_DIRS ${redGrapes_INCLUDE_DIRS} "${CMAKE_CURRENT_LIST_DIR}/share/thirdParty/akrzemi/optional/include")
 set(redGrapes_INCLUDE_DIRS ${redGrapes_INCLUDE_DIRS} "${CMAKE_CURRENT_LIST_DIR}/share/thirdParty/cameron314/concurrentqueue/include")
 
-set(redGrapes_LIBRARIES ${Boost_LIBRARIES} fmt::fmt spdlog::spdlog ${CMAKE_THREAD_LIBS_INIT})
-
+set(redGrapes_LIBRARIES ${Boost_LIBRARIES} fmt::fmt spdlog::spdlog ${CMAKE_THREAD_LIBS_INIT} hwloc)
 
 option(redGrapes_ENABLE_PERFETTO "Enable tracing support with perfetto" OFF)
 
