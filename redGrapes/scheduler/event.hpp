@@ -95,7 +95,7 @@ struct Event
     std::atomic_uint16_t state;
 
     //! waker that is waiting for this event
-    WakerID waker_id;
+    WakerId waker_id;
 
     //! the set of subsequent events
     ChunkedList< EventPtr > followers;

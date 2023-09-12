@@ -10,6 +10,7 @@
 #include <mutex>
 #include <redGrapes/task/task.hpp>
 #include <redGrapes/util/allocator.hpp>
+#include <moodycamel/concurrentqueue.h>
 
 namespace redGrapes
 {

@@ -1,4 +1,4 @@
-/* Copyright 2021-2022 Michael Sippel
+/* Copyright 2021-2023 Michael Sippel
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -62,10 +62,7 @@ namespace redGrapes
         //  -> never have current_task = nullptr
         //spdlog::info("kill task... {} remaining", count);
         if( count == 0 )
-        {
-            //spdlog::info("last task, wake all");
-            top_scheduler->wake_all_workers();
-        }
+            top_scheduler->wake_all();
     }
 
     void TaskSpace::submit( Task * task )

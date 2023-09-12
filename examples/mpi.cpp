@@ -40,14 +40,18 @@ int main()
 {
     //spdlog::set_pattern("[thread %t] %^[%l]%$ %v");
     //spdlog::set_level( spdlog::level::trace );
+
     /*
     int prov;
     MPI_Init_thread( nullptr, nullptr, MPI_THREAD_MULTIPLE, &prov );
     assert( prov == MPI_THREAD_MULTIPLE );
 */
+
     MPI_Init( nullptr, nullptr );
 
-    auto default_scheduler = std::make_shared<rg::scheduler::DefaultScheduler>( 2 );
+    rg::init_allocator(4);
+
+    auto default_scheduler = std::make_shared<rg::scheduler::DefaultScheduler>();
     auto mpi_request_pool = std::make_shared<rg::dispatch::mpi::RequestPool>();
     auto mpi_fifo = std::make_shared<rg::scheduler::FIFO>();
 
@@ -60,11 +64,11 @@ int main()
                 rg::dispatch::thread::execute_task( *task );
         };
 
-    rg::init(
-        rg::scheduler::make_tag_match_scheduler( )
+    rg::init(4,
+        rg::scheduler::make_tag_match_scheduler()
             .add({}, default_scheduler)
             .add({ SCHED_MPI }, mpi_fifo));
-
+    
     // initialize MPI config
     rg::IOResource< MPIConfig > mpi_config;
     rg::emplace_task(

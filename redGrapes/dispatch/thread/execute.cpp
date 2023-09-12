@@ -1,4 +1,4 @@
-/* Copyright 2022 Michael Sippel
+/* Copyright 2022-2023 Michael Sippel
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -21,7 +21,7 @@ namespace dispatch
 namespace thread
 {
 
-thread_local scheduler::WakerID current_waker_id;
+thread_local scheduler::WakerId current_waker_id;
 thread_local std::shared_ptr< WorkerThread > current_worker;
 
 void execute_task( Task & task )

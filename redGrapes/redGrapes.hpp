@@ -7,9 +7,9 @@
 
 #pragma once
 
+
+#include <redGrapes/scheduler/default_scheduler.hpp>
 #include <redGrapes/context.hpp>
-#include <redGrapes/dispatch/dispatcher.hpp>
-#include <redGrapes/scheduler/scheduler.hpp>
 #include <redGrapes/scheduler/event.hpp>
 #include <redGrapes/task/future.hpp>
 #include <redGrapes/task/task.hpp>
@@ -17,36 +17,40 @@
 #include <redGrapes/task/task_space.hpp>
 #include <redGrapes/util/trace.hpp>
 #include <redGrapes/util/allocator.hpp>
+#include <redGrapes/dispatch/dispatcher.hpp>
+#include <redGrapes/scheduler/scheduler.hpp>
+
 #include <spdlog/spdlog.h>
 #include <type_traits>
 
 namespace redGrapes
 {
-    /* USER INTERFACE */
-    void init(std::shared_ptr<scheduler::IScheduler> scheduler);
-    void init(size_t n_threads = std::thread::hardware_concurrency());
 
-    void finalize();
+void init_allocator( size_t n_arenas );
+void init( size_t n_workers, std::shared_ptr<scheduler::IScheduler> scheduler );
+void init( size_t n_workers = std::thread::hardware_concurrency() );
 
-    //! wait until all tasks in the current task space finished
-    void barrier();
+void finalize();
 
-    //! pause the currently running task at least until event is reached
-    void yield(scheduler::EventPtr event);
+//! wait until all tasks in the current task space finished
+void barrier();
 
-    //! apply a patch to the properties of the currently running task
-    void update_properties(typename TaskProperties::Patch const& patch);
+//! pause the currently running task at least until event is reached
+void yield(scheduler::EventPtr event);
 
-    //! get backtrace from currently running task
-    std::vector<std::reference_wrapper<Task>> backtrace();
+//! apply a patch to the properties of the currently running task
+void update_properties(typename TaskProperties::Patch const& patch);
 
-    /*! Create an event on which the termination of the current task depends.
-     *  A task must currently be running.
-     *
-     * @return Handle to flag the event with `reach_event` later.
-     *         nullopt if there is no task running currently
-     */
-    std::optional<scheduler::EventPtr> create_event();
+//! get backtrace from currently running task
+std::vector<std::reference_wrapper<Task>> backtrace();
+
+/*! Create an event on which the termination of the current task depends.
+ *  A task must currently be running.
+ *
+ * @return Handle to flag the event with `reach_event` later.
+ *         nullopt if there is no task running currently
+ */
+std::optional<scheduler::EventPtr> create_event();
 
 /*! create a new task, as child of the currently running task (if there is one)
  *
@@ -65,9 +69,10 @@ inline auto emplace_task(Callable&& f, Args&&... args)
 {
     static std::atomic< unsigned int > next_worker(0);
 
-    // Fixme: hardcoded 64
-    unsigned worker_id = next_worker.fetch_add(1) % 64;
+    dispatch::thread::WorkerId worker_id = next_worker.fetch_add(1) % worker_pool->size();
     memory::current_arena = worker_id;
+
+    SPDLOG_INFO("emplace task to worker {}", worker_id);
 
     return std::move(TaskBuilder< Callable, Args... >( std::move(f), std::forward<Args>(args)... ));
 }

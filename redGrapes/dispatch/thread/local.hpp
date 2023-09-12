@@ -17,7 +17,7 @@ namespace thread
 
 struct WorkerThread;
 
-extern thread_local scheduler::WakerID current_waker_id;
+extern thread_local scheduler::WakerId current_waker_id;
 extern thread_local std::shared_ptr< WorkerThread > current_worker;
 
 } // namespace thread

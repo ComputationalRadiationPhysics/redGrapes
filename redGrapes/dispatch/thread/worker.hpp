@@ -1,4 +1,4 @@
-/* Copyright 2020 Michael Sippel
+/* Copyright 2020-2023 Michael Sippel
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -13,13 +13,9 @@
 #include <memory>
 #include <moodycamel/concurrentqueue.h>
 
-#include <redGrapes/scheduler/scheduler.hpp>
-#include <redGrapes/task/task.hpp>
-#include <redGrapes/context.hpp>
-#include <redGrapes/redGrapes.hpp>
+#include <redGrapes/task/queue.hpp>
 #include <redGrapes/util/cv.hpp>
 #include <redGrapes/util/trace.hpp>
-#include <redGrapes/dispatch/thread/cpuset.hpp>
 
 namespace redGrapes
 {
@@ -31,9 +27,18 @@ namespace dispatch
 namespace thread
 {
 
+using WorkerId = unsigned;
+enum WorkerState {
+    BUSY = 0,
+    AVAILABLE = 1
+};
+
+
+
+
 void execute_task( Task & task_id );
 
-extern thread_local scheduler::WakerID current_waker_id;
+extern thread_local scheduler::WakerId current_waker_id;
 extern thread_local std::shared_ptr< WorkerThread > current_worker;
 
 /*!
@@ -45,6 +50,7 @@ extern thread_local std::shared_ptr< WorkerThread > current_worker;
 struct WorkerThread : std::enable_shared_from_this<WorkerThread>
 {
 private:
+    WorkerId id;
 
     /*!
      * if true, the thread shall start
@@ -58,12 +64,8 @@ private:
      */
     std::atomic_bool m_stop{ false };
 
-public:
-    unsigned id;
 
     std::atomic<unsigned> task_count{ 0 };
-
-    std::atomic_bool ready{false};
 
     //! condition variable for waiting if queue is empty
     CondVar cv;
@@ -75,126 +77,39 @@ public:
     task::Queue ready_queue{ queue_capacity };
     std::thread thread;
 
-public:
-    WorkerThread( unsigned id ) :
-        id( id ),
-        thread(
-            [this]
-            {
-                ready = true;
 
-                while( ! m_start.load(std::memory_order_consume) )
-                    cv.wait();
+    WorkerThread( WorkerId id );
 
-                this->cpubind();
-                this->membind();
+    inline unsigned get_worker_id() { return id; }
+    inline scheduler::WakerId get_waker_id() { return id + 1; }
+    inline bool wake() { return cv.notify(); }
 
-                /* since we are in a worker, there should always
-                 * be a task running (we always have a parent task
-                 * and therefore yield() guarantees to do
-                 * a context-switch instead of idling
-                 */
-                redGrapes::idle =
-                    [this]
-                    {
-                        throw std::runtime_error("idle in worker thread!");
-                    };
+    void start();
+    void stop();
 
-                current_worker = this->shared_from_this();
-                current_waker_id = this->get_waker_id();
-                memory::current_arena = get_worker_id();
+    void cpubind();
+    void membind();
 
-                while( ! m_stop.load(std::memory_order_consume) )
-                {
-                    SPDLOG_TRACE("Worker: work on queue");
-
-                    while( Task * task = ready_queue.pop() )
-                        dispatch::thread::execute_task( *task );
-
-                    if( Task * task = redGrapes::schedule( *this ) )
-                        dispatch::thread::execute_task( *task );
-
-                    else if( !m_stop.load(std::memory_order_consume) )
-                    {
-                        SPDLOG_TRACE("worker sleep");
-                        //TRACE_EVENT("Worker", "sleep");
-                        cv.wait();
-                    }
-                }
-
-                SPDLOG_TRACE("Worker Finished!");
-            }
-        )
-    {
-    }
-
-    ~WorkerThread()
-    {
-    }
-
-    void cpubind()
-    {
-        hwloc_obj_t obj = hwloc_get_obj_by_type(topology, HWLOC_OBJ_PU, this->id);
-
-        if( hwloc_set_cpubind(topology, obj->cpuset, HWLOC_CPUBIND_THREAD | HWLOC_CPUBIND_STRICT) )
-        {
-            char *str;
-            int error = errno;
-            hwloc_bitmap_asprintf(&str, obj->cpuset);
-            spdlog::warn("Couldn't cpubind to cpuset {}: {}\n", str, strerror(error));
-            free(str);
-        }
-    }
-
-    void membind()
-    {
-        hwloc_obj_t obj = hwloc_get_obj_by_type(topology, HWLOC_OBJ_PU, this->id);
-
-        if( hwloc_set_membind(topology, obj->cpuset, HWLOC_MEMBIND_BIND, HWLOC_MEMBIND_THREAD | HWLOC_MEMBIND_STRICT ) )
-        {
-            char *str;
-            int error = errno;
-            hwloc_bitmap_asprintf(&str, obj->cpuset);
-            spdlog::warn("Couldn't membind to cpuset {}: {}\n", str, strerror(error));
-            free(str);
-        }
-    }
-
-    inline unsigned get_worker_id()
-    {
-        return id;
-    }
-    
-    inline scheduler::WakerID get_waker_id()
-    {
-        return id + 1;
-    }
-
-    inline bool wake()
-    {
-        return cv.notify();
-    }
-
-    void start()
-    {
-        m_start.store(true, std::memory_order_release);
-        wake();
-    }
-
-    void stop()
-    {
-        SPDLOG_TRACE("Worker::stop()");
-        m_stop.store(true, std::memory_order_release);
-        wake();
-        thread.join();
-    }
-
-    void emplace_task( Task * task )
+    /* adds a new task to the emplacement queue
+     * and wakes up thread to kickstart execution
+     */
+    inline void emplace_task( Task * task )
     {
         emplacement_queue.push( task );
         wake();
     }
 
+private:
+
+    /* repeatedly try to find and execute tasks
+     * until stop-flag is triggered by stop()
+     */
+    void work_loop();
+
+    /* find a task that shall be executed next
+     */
+    Task * gather_task();
+    
     /*! take a task from the emplacement queue and initialize it,
      * @param t is set to the task if the new task is ready,
      * @param t is set to nullptr if the new task is blocked.
@@ -203,27 +118,7 @@ public:
      *
      * @return false if queue is empty
      */
-    bool init_dependencies( Task* & t, bool claimed = true )
-    {
-        if(Task * task = emplacement_queue.pop())
-        {
-            SPDLOG_DEBUG("init task {}", task->task_id);
-
-            task->pre_event.up();
-            task->init_graph();
-
-            if( task->get_pre_event().notify( claimed ) )
-                t = task;
-            else
-            {
-                t = nullptr;
-            }
-
-            return true;
-        }
-        else
-            return false;
-    }
+    bool init_dependencies( Task* & t, bool claimed = true );
 };
 
 } // namespace thread

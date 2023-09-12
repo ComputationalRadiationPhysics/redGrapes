@@ -18,6 +18,7 @@ int square (int x)
 
 int main()
 {
+    spdlog::set_level(spdlog::level::trace);
     redGrapes::init(1);
     
     fmt::print(

@@ -26,21 +26,13 @@ struct WorkerThread;
 namespace scheduler
 {
 
-using WakerID = int16_t;
+using WakerId = int16_t;
 
 /*! Scheduler Interface
  */
 struct IScheduler
 {
     virtual ~IScheduler()
-    {
-    }
-
-    virtual void start()
-    {
-    }
-
-    virtual void stop()
     {
     }
 
@@ -59,20 +51,13 @@ struct IScheduler
     virtual void activate_task( Task & task ) {}
 
     //! give worker work if available
-    virtual Task * schedule( dispatch::thread::WorkerThread & worker )
+    virtual Task * steal_task( dispatch::thread::WorkerThread & worker )
     {
         return nullptr;
     }
 
-    virtual bool wake( WakerID id = 0 )
-    {
-        return false;
-    }
-    
-    virtual void wake_all_workers()
-    {}
-
-    virtual bool wake_one_worker()
+    virtual void wake_all() {}
+    virtual bool wake( WakerId id = 0 )
     {
         return false;
     }

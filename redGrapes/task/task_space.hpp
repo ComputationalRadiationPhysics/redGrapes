@@ -19,7 +19,7 @@
 namespace redGrapes
 {
 
-/*!
+/*! TaskSpace handles sub-taskspaces of child tasks
  */
 struct TaskSpace : std::enable_shared_from_this<TaskSpace>
 {
@@ -42,8 +42,11 @@ struct TaskSpace : std::enable_shared_from_this<TaskSpace>
     virtual bool is_serial( Task& a, Task& b );
     virtual bool is_superset( Task& a, Task& b );
 
-    void free_task( Task * task );
+    // add a new task to the task-space
     void submit( Task * task );
+
+    // remove task from task-space
+    void free_task( Task * task );
 
     bool empty() const;
 };

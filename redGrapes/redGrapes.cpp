@@ -7,11 +7,14 @@
 
 #include <optional>
 #include <functional>
+#include <memory>
 #include <moodycamel/concurrentqueue.h>
 
-#include <redGrapes/redGrapes.hpp>
 #include <redGrapes/util/multi_arena_alloc.hpp>
-#include <redGrapes/scheduler/default_scheduler.hpp>
+#include <redGrapes/dispatch/thread/worker_pool.hpp>
+#include <redGrapes/scheduler/scheduler.hpp>
+
+#include <redGrapes/redGrapes.hpp>
 
 #include <redGrapes/util/trace.hpp>
 
@@ -32,6 +35,7 @@ thread_local unsigned current_arena;
 } // namespace memory
 
 std::shared_ptr< TaskSpace > top_space;
+std::shared_ptr< dispatch::thread::WorkerPool > worker_pool;
 std::shared_ptr< scheduler::IScheduler > top_scheduler;
 
 #if REDGRAPES_ENABLE_TRACE
@@ -96,14 +100,14 @@ std::vector<std::reference_wrapper<Task>> backtrace()
     return bt;
 }
 
-void init( size_t n_threads )
+void init_allocator( size_t n_arenas )
 {
     hwloc_topology_init(&topology);
     hwloc_topology_load(topology);
 
     // use one arena with 8 MiB chunksize per worker
     size_t chunk_size = 8 * 1024 * 1024 - sizeof(memory::BumpAllocChunk);
-    memory::alloc = std::make_shared< memory::MultiArenaAlloc >( chunk_size, n_threads );
+    memory::alloc = std::make_shared< memory::MultiArenaAlloc >( chunk_size, n_arenas );
 
 #if REDGRAPES_ENABLE_TRACE
     perfetto::TracingInitArgs args;
@@ -113,10 +117,22 @@ void init( size_t n_threads )
 
     tracing_session = StartTracing();
 #endif
+}
 
+void init( size_t n_workers, std::shared_ptr<scheduler::IScheduler> scheduler)
+{
     top_space = std::make_shared<TaskSpace>();
-    top_scheduler = std::make_shared<scheduler::DefaultScheduler>(n_threads);
-    top_scheduler->start();
+    worker_pool = std::make_shared<dispatch::thread::WorkerPool>( n_workers );
+
+    top_scheduler = scheduler;
+
+    worker_pool->start();
+}
+
+void init( size_t n_workers )
+{
+    init_allocator( n_workers );
+    init(n_workers, std::make_shared<scheduler::DefaultScheduler>());
 }
 
 /*! wait until all tasks in the current task space finished
@@ -130,7 +146,8 @@ void barrier()
 void finalize()
 {
     barrier();
-    top_scheduler->stop();
+    worker_pool->stop();
+
     top_scheduler.reset();
     top_space.reset();
 
@@ -155,17 +172,6 @@ void yield( scheduler::EventPtr event )
         while( ! event->is_reached() )
             idle();
     }
-}
-
-Task * schedule( dispatch::thread::WorkerThread & worker )
-{
-    auto sched = top_scheduler;
-    auto space = top_space;
-
-    if( sched && space )
-        return sched->schedule(worker);
-
-    return nullptr;
 }
 
 //! apply a patch to the properties of the currently running task

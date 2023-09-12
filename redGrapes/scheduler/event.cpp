@@ -12,14 +12,13 @@
 #include <memory>
 #include <spdlog/spdlog.h>
 
+#include <redGrapes/redGrapes.hpp>
 #include <redGrapes/task/task.hpp>
 #include <redGrapes/task/property/id.hpp>
 #include <redGrapes/task/task_space.hpp>
-
 #include <redGrapes/scheduler/scheduler.hpp>
 #include <redGrapes/scheduler/event.hpp>
 #include <redGrapes/context.hpp>
-#include <redGrapes/redGrapes.hpp>
 #include <redGrapes/util/trace.hpp>
 
 namespace redGrapes
