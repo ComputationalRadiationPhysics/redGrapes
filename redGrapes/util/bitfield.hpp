@@ -60,7 +60,7 @@ struct AtomicBitfield
     inline bool get( unsigned idx )
     {
         __INDEX_CALC(idx,chunk_idx,k,mask)
-        state[chunk_idx] & mask;
+        return state[chunk_idx] & mask;
     }
 
     /* searches for a bit which is of state `expected_value`
