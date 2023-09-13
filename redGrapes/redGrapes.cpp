@@ -100,15 +100,16 @@ std::vector<std::reference_wrapper<Task>> backtrace()
     return bt;
 }
 
-void init_allocator( size_t n_arenas )
+void init_allocator( size_t n_arenas, size_t chunk_size )
 {
     hwloc_topology_init(&topology);
     hwloc_topology_load(topology);
 
-    // use one arena with 8 MiB chunksize per worker
-    size_t chunk_size = 8 * 1024 * 1024 - sizeof(memory::BumpAllocChunk);
-    memory::alloc = std::make_shared< memory::MultiArenaAlloc >( chunk_size, n_arenas );
+    memory::alloc = std::make_shared< memory::MultiArenaAlloc >( chunk_size - sizeof(memory::BumpAllocChunk), n_arenas );
+}
 
+void init_tracing()
+{
 #if REDGRAPES_ENABLE_TRACE
     perfetto::TracingInitArgs args;
     args.backends |= perfetto::kInProcessBackend;
@@ -116,23 +117,42 @@ void init_allocator( size_t n_arenas )
     perfetto::TrackEvent::Register();
 
     tracing_session = StartTracing();
-#endif
+#endif    
+}
+
+void cpubind_mainthread()
+{
+    size_t n_pus = hwloc_get_nbobjs_by_type(topology, HWLOC_OBJ_PU );
+    hwloc_obj_t obj = hwloc_get_obj_by_type(topology, HWLOC_OBJ_PU, 1 );
+
+    if( hwloc_set_cpubind(topology, obj->cpuset, HWLOC_CPUBIND_THREAD | HWLOC_CPUBIND_STRICT) )    {
+        char *str;
+        int error = errno;
+        hwloc_bitmap_asprintf(&str, obj->cpuset);
+        spdlog::warn("Couldn't cpubind to cpuset {}: {}\n", str, strerror(error));
+        free(str);
+    }    
 }
 
 void init( size_t n_workers, std::shared_ptr<scheduler::IScheduler> scheduler)
 {
+    init_tracing();
+
     top_space = std::make_shared<TaskSpace>();
     worker_pool = std::make_shared<dispatch::thread::WorkerPool>( n_workers );
-
     top_scheduler = scheduler;
 
     worker_pool->start();
+
+    /* bind main thread to
+     */
+    cpubind_mainthread();
 }
 
 void init( size_t n_workers )
 {
     init_allocator( n_workers );
-    init(n_workers, std::make_shared<scheduler::DefaultScheduler>());
+    init( n_workers, std::make_shared<scheduler::DefaultScheduler>());
 }
 
 /*! wait until all tasks in the current task space finished

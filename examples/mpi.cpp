@@ -38,8 +38,8 @@ struct MPIConfig
 
 int main()
 {
-    //spdlog::set_pattern("[thread %t] %^[%l]%$ %v");
-    //spdlog::set_level( spdlog::level::trace );
+    spdlog::set_pattern("[thread %t] %^[%l]%$ %v");
+    spdlog::set_level( spdlog::level::trace );
 
     /*
     int prov;
@@ -49,7 +49,7 @@ int main()
 
     MPI_Init( nullptr, nullptr );
 
-    rg::init_allocator(4);
+    rg::init_allocator( 4 );
 
     auto default_scheduler = std::make_shared<rg::scheduler::DefaultScheduler>();
     auto mpi_request_pool = std::make_shared<rg::dispatch::mpi::RequestPool>();
@@ -99,7 +99,7 @@ int main()
         mpi_config.read()
     );
 
-    for(size_t i = 0; i < 100; ++i)
+    for(size_t i = 0; i < 1; ++i)
     {
         int next = (current + 1) % 2;
 

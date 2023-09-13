@@ -10,6 +10,7 @@
 #include <redGrapes/util/bump_alloc_chunk.hpp>
 #include <cstring>
 #include <redGrapes/dispatch/thread/worker.hpp>
+#include <redGrapes/redGrapes.hpp>
 
 namespace redGrapes
 {
@@ -39,6 +40,8 @@ BumpAllocChunk * alloc_chunk( hwloc_obj_t const & obj, size_t capacity )
 
     if( redGrapes::dispatch::thread::current_worker )
         redGrapes::dispatch::thread::current_worker->cpubind();
+    else
+        cpubind_mainthread();
 
     return chunk;
 }

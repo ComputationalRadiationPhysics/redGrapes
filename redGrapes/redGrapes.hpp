@@ -26,8 +26,10 @@
 namespace redGrapes
 {
 
-void init_allocator( size_t n_arenas );
-void init( size_t n_workers, std::shared_ptr<scheduler::IScheduler> scheduler );
+void init_allocator( size_t n_arenas=1, size_t chunk_size = 8*1024*1024 );
+void init_tracing();
+void cpubind_mainthread();
+void init( size_t n_workers, std::shared_ptr<scheduler::IScheduler> scheduler);
 void init( size_t n_workers = std::thread::hardware_concurrency() );
 
 void finalize();
