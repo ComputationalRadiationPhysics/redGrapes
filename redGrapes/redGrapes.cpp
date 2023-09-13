@@ -28,6 +28,8 @@ namespace redGrapes
 thread_local Task * current_task;
 thread_local std::function<void()> idle;
 
+thread_local unsigned next_worker = 0;
+
 namespace memory
 {
 std::shared_ptr< MultiArenaAlloc > alloc;

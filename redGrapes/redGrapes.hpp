@@ -67,14 +67,12 @@ std::optional<scheduler::EventPtr> create_event();
  * @return future from f's result
  */
 template<typename Callable, typename... Args>
-inline auto emplace_task(Callable&& f, Args&&... args)
+auto emplace_task(Callable&& f, Args&&... args)
 {
-    static std::atomic< unsigned int > next_worker(0);
-
-    dispatch::thread::WorkerId worker_id = next_worker.fetch_add(1) % worker_pool->size();
+    dispatch::thread::WorkerId worker_id = next_worker++ % worker_pool->size();
     memory::current_arena = worker_id;
 
-    SPDLOG_INFO("emplace task to worker {}", worker_id);
+    SPDLOG_INFO("emplace task to worker {} next_worker={}", worker_id, next_worker);
 
     return std::move(TaskBuilder< Callable, Args... >( std::move(f), std::forward<Args>(args)... ));
 }

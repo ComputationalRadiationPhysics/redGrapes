@@ -45,7 +45,6 @@ namespace redGrapes
     bool TaskSpace::empty() const
     {
         unsigned tc = task_count.load();
-        SPDLOG_TRACE("({}) empty? task count = {}", (void*)this, tc);
         return tc == 0;
     }
 
