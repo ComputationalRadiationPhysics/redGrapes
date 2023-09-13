@@ -28,12 +28,21 @@ struct DefaultScheduler : public IScheduler
 
     DefaultScheduler()
     {
-        // if not configured otherwise,
-        // the main thread will simply wait
+        /* if not configured otherwise,
+         * the main thread will simply wait
+         */
         redGrapes::idle =
             [this]
             {
                 SPDLOG_TRACE("DefaultScheduler::idle()");
+
+                /* the main thread shall not do any busy waiting
+                 * and always sleep right away in order to
+                 * not block any worker threads (those however should
+                 * busy-wait to improve latency)
+                 */
+                cv.timeout = 0;
+                
                 cv.wait();
             };
     }
