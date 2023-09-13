@@ -127,25 +127,21 @@ namespace scheduler
                 this->add_scheduler(supported_tags, s);
             }
 
-            void start()
-            {
-                for(auto const& s : sub_schedulers)
-                    s.s->start();
-            }
-
-            void stop()
-            {
-                for(auto const& s : sub_schedulers)
-                    s.s->stop();
-            }
-
-            Task * schedule( dispatch::thread::WorkerThread & worker )
+            Task * steal_task( dispatch::thread::WorkerThread & worker )
             {
                 for( auto& s : sub_schedulers )
-		  if( Task * t = s.s->schedule( worker ) )
+		  if( Task * t = s.s->steal_task( worker ) )
 		    return t;
 
 		return nullptr;                
+            }
+
+            void emplace_task( Task & task )
+            {
+                if(auto sub_scheduler = get_matching_scheduler(task.required_scheduler_tags))
+                    return (*sub_scheduler)->emplace_task(task);
+                else
+                    throw std::runtime_error("no scheduler found for task");                
             }
 
             void activate_task(Task & task)
@@ -175,16 +171,16 @@ namespace scheduler
                     throw std::runtime_error("no scheduler found for task");
             }
 
-            void wake_all_workers()
+            void wake_all()
             {
                 for(auto const& s : sub_schedulers)
-                    s.s->wake_all_workers();
+                    s.s->wake_all();
             }
 
-            bool wake_one_worker()
+            bool wake( WakerId waker_id )
             {
                 for(auto const& s : sub_schedulers)
-                    if( s.s->wake_one_worker() )
+                    if( s.s->wake( waker_id ) )
                         return true;
 
                 return false;
