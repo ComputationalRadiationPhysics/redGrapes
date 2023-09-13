@@ -72,7 +72,8 @@ void WorkerThread::run()
 
 void WorkerThread::cpubind()
 {
-    hwloc_obj_t obj = hwloc_get_obj_by_type(topology, HWLOC_OBJ_PU, this->id);
+    size_t n_pus = hwloc_get_nbobjs_by_type(topology, HWLOC_OBJ_PU);
+    hwloc_obj_t obj = hwloc_get_obj_by_type(topology, HWLOC_OBJ_PU, (2*id + (2*id)/n_pus)%n_pus);
 
     if( hwloc_set_cpubind(topology, obj->cpuset, HWLOC_CPUBIND_THREAD | HWLOC_CPUBIND_STRICT) )
     {
@@ -81,13 +82,13 @@ void WorkerThread::cpubind()
         hwloc_bitmap_asprintf(&str, obj->cpuset);
         spdlog::warn("Couldn't cpubind to cpuset {}: {}\n", str, strerror(error));
         free(str);
-    }    
+    }
 }
 
 void WorkerThread::membind()
 {
-    hwloc_obj_t obj = hwloc_get_obj_by_type(topology, HWLOC_OBJ_PU, this->id);
-
+    size_t n_pus = hwloc_get_nbobjs_by_type(topology, HWLOC_OBJ_PU);
+    hwloc_obj_t obj = hwloc_get_obj_by_type(topology, HWLOC_OBJ_PU, (2*id + (2*id)/n_pus)%n_pus);
     if( hwloc_set_membind(topology, obj->cpuset, HWLOC_MEMBIND_BIND, HWLOC_MEMBIND_THREAD | HWLOC_MEMBIND_STRICT ) )
     {
         char *str;
@@ -95,7 +96,7 @@ void WorkerThread::membind()
         hwloc_bitmap_asprintf(&str, obj->cpuset);
         spdlog::warn("Couldn't membind to cpuset {}: {}\n", str, strerror(error));
         free(str);
-    }    
+    }
 }
 
 void WorkerThread::work_loop()
