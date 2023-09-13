@@ -80,7 +80,7 @@ public:
 
     WorkerThread( WorkerId id );
 
-    inline unsigned get_worker_id() { return id; }
+    inline WorkerId get_worker_id() { return id; }
     inline scheduler::WakerId get_waker_id() { return id + 1; }
     inline bool wake() { return cv.notify(); }
 
@@ -100,7 +100,10 @@ public:
     }
 
 private:
-
+    /* function the thread will execute
+     */
+    void run();
+    
     /* repeatedly try to find and execute tasks
      * until stop-flag is triggered by stop()
      */

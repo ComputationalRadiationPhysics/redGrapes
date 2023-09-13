@@ -17,41 +17,7 @@ namespace thread
 
 WorkerThread::WorkerThread( WorkerId worker_id )
     : id( worker_id ),
-      thread(
-             [this] {
-                 /* setup membind- & cpubind policies using hwloc
-                  */
-                 this->cpubind();
-                 this->membind();
-
-                 /* since we are in a worker, there should always
-                  * be a task running (we always have a parent task
-                  * and therefore yield() guarantees to do
-                  * a context-switch instead of idling
-                  */
-                 redGrapes::idle = [this] {
-                     throw std::runtime_error("idle in worker thread!");
-                 };
-
-                 /* wait for start-flag to be triggerd in order
-                  * to avoid premature access to `shared_from_this`
-                  */
-                 while( ! m_start.load(std::memory_order_consume) )
-                     cv.wait();
-
-                 /* initialize thread-local variables
-                  */
-                 current_worker = this->shared_from_this();
-                 current_waker_id = this->get_waker_id();
-                 memory::current_arena = this->get_worker_id();
-
-                 /* execute tasks until stop()
-                  */
-                 this->work_loop();
-
-                 SPDLOG_TRACE("Worker Finished!");
-             }
-             )
+      thread([this] { this->run(); })
 {    
 }
 
@@ -67,6 +33,41 @@ void WorkerThread::stop()
     m_stop.store(true, std::memory_order_release);
     wake();
     thread.join();
+}
+
+void WorkerThread::run()
+{
+    /* setup membind- & cpubind policies using hwloc
+     */
+    this->cpubind();
+    this->membind();
+
+    /* since we are in a worker, there should always
+     * be a task running (we always have a parent task
+     * and therefore yield() guarantees to do
+     * a context-switch instead of idling
+     */
+    redGrapes::idle = [this] {
+        throw std::runtime_error("idle in worker thread!");
+    };
+
+    /* wait for start-flag to be triggerd in order
+     * to avoid premature access to `shared_from_this`
+     */
+    while( ! m_start.load(std::memory_order_consume) )
+        cv.wait();
+
+    /* initialize thread-local variables
+     */
+    current_worker = this->shared_from_this();
+    current_waker_id = this->get_waker_id();
+    memory::current_arena = this->get_worker_id();
+
+    /* execute tasks until stop()
+     */
+    this->work_loop();
+
+    SPDLOG_TRACE("Worker Finished!");    
 }
 
 void WorkerThread::cpubind()
