@@ -67,7 +67,7 @@ struct ResultTask : Task
         return &result_data;
     }
 
-    virtual Result run_result() {}
+    virtual Result run_result() = 0;
 
     void run() final
     {
