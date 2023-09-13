@@ -73,7 +73,7 @@ void WorkerThread::run()
 void WorkerThread::cpubind()
 {
     size_t n_pus = hwloc_get_nbobjs_by_type(topology, HWLOC_OBJ_PU);
-    hwloc_obj_t obj = hwloc_get_obj_by_type(topology, HWLOC_OBJ_PU, (2*id + (2*id)/n_pus)%n_pus);
+    hwloc_obj_t obj = hwloc_get_obj_by_type(topology, HWLOC_OBJ_PU, id%n_pus);
 
     if( hwloc_set_cpubind(topology, obj->cpuset, HWLOC_CPUBIND_THREAD | HWLOC_CPUBIND_STRICT) )
     {
@@ -88,7 +88,7 @@ void WorkerThread::cpubind()
 void WorkerThread::membind()
 {
     size_t n_pus = hwloc_get_nbobjs_by_type(topology, HWLOC_OBJ_PU);
-    hwloc_obj_t obj = hwloc_get_obj_by_type(topology, HWLOC_OBJ_PU, (2*id + (2*id)/n_pus)%n_pus);
+    hwloc_obj_t obj = hwloc_get_obj_by_type(topology, HWLOC_OBJ_PU, id%n_pus);
     if( hwloc_set_membind(topology, obj->cpuset, HWLOC_MEMBIND_BIND, HWLOC_MEMBIND_THREAD | HWLOC_MEMBIND_STRICT ) )
     {
         char *str;

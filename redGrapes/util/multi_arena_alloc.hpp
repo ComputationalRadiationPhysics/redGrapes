@@ -39,7 +39,7 @@ struct MultiArenaAlloc
 
         for(unsigned i = 0; i < n_arenas; ++i)
         {
-            hwloc_obj_t obj = hwloc_get_obj_by_type(topology, HWLOC_OBJ_PU, (2*i + (2*i)/n_arenas)%n_pus);
+            hwloc_obj_t obj = hwloc_get_obj_by_type(topology, HWLOC_OBJ_PU, i%n_pus);
             arenas.emplace_back( obj, chunk_size );
         }
     }

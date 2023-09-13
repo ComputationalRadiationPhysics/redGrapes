@@ -122,15 +122,17 @@ void init_tracing()
 #endif    
 }
 
+
+
 void cpubind_mainthread()
 {
-    size_t n_pus = hwloc_get_nbobjs_by_type(topology, HWLOC_OBJ_PU );
-    hwloc_obj_t obj = hwloc_get_obj_by_type(topology, HWLOC_OBJ_PU, 1 );
+    static hwloc_cpuset_t cpuset = hwloc_bitmap_alloc();
+    hwloc_bitmap_fill( cpuset );
 
-    if( hwloc_set_cpubind(topology, obj->cpuset, HWLOC_CPUBIND_THREAD | HWLOC_CPUBIND_STRICT) )    {
+    if( hwloc_set_cpubind(topology, cpuset, HWLOC_CPUBIND_THREAD | HWLOC_CPUBIND_STRICT) )    {
         char *str;
         int error = errno;
-        hwloc_bitmap_asprintf(&str, obj->cpuset);
+        hwloc_bitmap_asprintf(&str, cpuset);
         spdlog::warn("Couldn't cpubind to cpuset {}: {}\n", str, strerror(error));
         free(str);
     }    
