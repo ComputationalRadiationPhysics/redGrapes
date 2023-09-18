@@ -1,6 +1,5 @@
 #include  <redGrapes/scheduler/tag_match.hpp>
 #include  <redGrapes/scheduler/default_scheduler.hpp>
-#include  <redGrapes/scheduler/fifo.hpp>
 
 #include <redGrapes/redGrapes.hpp>
 
@@ -45,7 +44,7 @@ int main()
     int prov;
     MPI_Init_thread( nullptr, nullptr, MPI_THREAD_MULTIPLE, &prov );
     assert( prov == MPI_THREAD_MULTIPLE );
-*/
+    */
 
     MPI_Init( nullptr, nullptr );
 
@@ -53,21 +52,31 @@ int main()
 
     auto default_scheduler = std::make_shared<rg::scheduler::DefaultScheduler>();
     auto mpi_request_pool = std::make_shared<rg::dispatch::mpi::RequestPool>();
-    auto mpi_fifo = std::make_shared<rg::scheduler::FIFO>();
+    auto mpi_worker = std::make_shared<rg::dispatch::thread::Worker>(5);
 
     // initialize main thread to execute tasks from the mpi-queue and poll
     rg::idle =
-        [mpi_fifo, mpi_request_pool]
+        [mpi_worker, mpi_request_pool]
         {
             mpi_request_pool->poll();
-            if( auto task = mpi_fifo->get_job() )
-                rg::dispatch::thread::execute_task( *task );
+
+            redGrapes::Task * task;
+
+            if( task = mpi_worker->ready_queue.pop() )
+                redGrapes::dispatch::thread::execute_task( *task );
+
+            while( mpi_worker->init_dependencies( task, true ) )
+                if( task )
+                {
+                    redGrapes::dispatch::thread::execute_task( *task );
+                    break;
+                }
         };
 
     rg::init(4,
         rg::scheduler::make_tag_match_scheduler()
             .add({}, default_scheduler)
-            .add({ SCHED_MPI }, mpi_fifo));
+            .add({ SCHED_MPI }, mpi_worker));
     
     // initialize MPI config
     rg::IOResource< MPIConfig > mpi_config;

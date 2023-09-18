@@ -19,7 +19,7 @@ namespace dispatch
 {
 namespace thread
 {
-struct WorkerThread;
+struct Worker;
 }
 }
 
@@ -51,7 +51,7 @@ struct IScheduler
     virtual void activate_task( Task & task ) {}
 
     //! give worker work if available
-    virtual Task * steal_task( dispatch::thread::WorkerThread & worker )
+    virtual Task * steal_task( dispatch::thread::Worker & worker )
     {
         return nullptr;
     }

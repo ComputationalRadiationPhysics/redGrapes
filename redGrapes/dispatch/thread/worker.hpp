@@ -34,7 +34,7 @@ enum WorkerState {
 };
 
 
-
+struct WorkerThread;
 
 void execute_task( Task & task_id );
 
@@ -47,9 +47,10 @@ extern thread_local std::shared_ptr< WorkerThread > current_worker;
  *
  * Sleeps when no jobs are available.
  */
-struct WorkerThread : std::enable_shared_from_this<WorkerThread>
+struct Worker
+    : redGrapes::scheduler::IScheduler
 {
-private:
+    //private:
     WorkerId id;
 
     /*!
@@ -75,34 +76,33 @@ private:
 public:
     task::Queue emplacement_queue{ queue_capacity };
     task::Queue ready_queue{ queue_capacity };
-    std::thread thread;
 
-
-    WorkerThread( WorkerId id );
+    Worker( WorkerId id );
+    virtual ~Worker();
 
     inline WorkerId get_worker_id() { return id; }
     inline scheduler::WakerId get_waker_id() { return id + 1; }
     inline bool wake() { return cv.notify(); }
 
-    void start();
-    void stop();
-
-    void cpubind();
-    void membind();
+    virtual void start();
+    virtual void stop();
 
     /* adds a new task to the emplacement queue
      * and wakes up thread to kickstart execution
      */
-    inline void emplace_task( Task * task )
+    void emplace_task( Task & task )
     {
-        emplacement_queue.push( task );
+        emplacement_queue.push( &task );
         wake();
     }
 
-private:
-    /* function the thread will execute
-     */
-    void run();
+    void activate_task( Task & task )
+    {
+        ready_queue.push( &task );
+        wake();
+    }
+
+    //private:
     
     /* repeatedly try to find and execute tasks
      * until stop-flag is triggered by stop()
@@ -122,6 +122,25 @@ private:
      * @return false if queue is empty
      */
     bool init_dependencies( Task* & t, bool claimed = true );
+};
+
+struct WorkerThread
+    : Worker
+    , std::enable_shared_from_this<WorkerThread>
+{
+    std::thread thread;
+
+    WorkerThread( WorkerId worker_id );
+    ~WorkerThread();
+
+    void stop();
+    
+    /* function the thread will execute
+     */
+    void run();
+    
+    void cpubind();
+    void membind();
 };
 
 } // namespace thread

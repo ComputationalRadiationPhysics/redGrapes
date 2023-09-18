@@ -16,22 +16,40 @@ namespace thread
 {
 
 WorkerThread::WorkerThread( WorkerId worker_id )
-    : id( worker_id ),
+    : Worker( worker_id ),
       thread([this] { this->run(); })
+{
+}
+
+WorkerThread::~WorkerThread()
+{
+
+}
+
+Worker::Worker( WorkerId worker_id )
+    : id( worker_id )
 {    
 }
 
-void WorkerThread::start()
+Worker::~Worker()
+{}
+
+void Worker::start()
 {
     m_start.store(true, std::memory_order_release);
     wake();
 }
 
-void WorkerThread::stop()
+void Worker::stop()
 {
     SPDLOG_TRACE("Worker::stop()");
     m_stop.store(true, std::memory_order_release);
     wake();
+}
+
+void WorkerThread::stop()
+{
+    Worker::stop();
     thread.join();
 }
 
@@ -99,7 +117,7 @@ void WorkerThread::membind()
     }
 }
 
-void WorkerThread::work_loop()
+void Worker::work_loop()
 {
     SPDLOG_TRACE("Worker {} start work_loop()", id);
     while( ! m_stop.load(std::memory_order_consume) )
@@ -118,7 +136,7 @@ void WorkerThread::work_loop()
     SPDLOG_TRACE("Worker {} end work_loop()", id);
 }
 
-Task * WorkerThread::gather_task()
+Task * Worker::gather_task()
 {
     Task * task = nullptr;
 
@@ -163,7 +181,7 @@ Task * WorkerThread::gather_task()
     return task;
 }
 
-bool WorkerThread::init_dependencies( Task* & t, bool claimed )
+bool Worker::init_dependencies( Task* & t, bool claimed )
 {
     if(Task * task = emplacement_queue.pop())
     {

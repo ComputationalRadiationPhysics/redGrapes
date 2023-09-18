@@ -127,7 +127,7 @@ namespace scheduler
                 this->add_scheduler(supported_tags, s);
             }
 
-            Task * steal_task( dispatch::thread::WorkerThread & worker )
+            Task * steal_task( dispatch::thread::Worker & worker )
             {
                 for( auto& s : sub_schedulers )
 		  if( Task * t = s.s->steal_task( worker ) )

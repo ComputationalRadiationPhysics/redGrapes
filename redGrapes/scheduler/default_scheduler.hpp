@@ -54,7 +54,7 @@ struct DefaultScheduler : public IScheduler
         // todo: properly store affinity information in task
         dispatch::thread::WorkerId worker_id = task->arena_id % worker_pool->size();
 
-        worker_pool->get_worker(worker_id).emplace_task( &task );
+        worker_pool->get_worker(worker_id).emplace_task( task );
     }
 
     /* send this already existing,
@@ -87,7 +87,7 @@ struct DefaultScheduler : public IScheduler
      * task-graph in the emplacement queues of other workers
      * and removes it from there
      */
-    Task * steal_new_task( dispatch::thread::WorkerThread & worker )
+    Task * steal_new_task( dispatch::thread::Worker & worker )
     {
         std::optional<Task*> task = worker_pool->probe_worker_by_state<Task*>(
             [&worker](unsigned idx) -> std::optional<Task*>
@@ -118,7 +118,7 @@ struct DefaultScheduler : public IScheduler
     /* tries to find a ready task in any queue of other workers
      * and removes it from the queue
      */
-    Task * steal_ready_task( dispatch::thread::WorkerThread & worker )
+    Task * steal_ready_task( dispatch::thread::Worker & worker )
     {
         std::optional<Task*> task = worker_pool->probe_worker_by_state<Task*>(
             [&worker](unsigned idx) -> std::optional<Task*>
@@ -148,7 +148,7 @@ struct DefaultScheduler : public IScheduler
 
     // give worker a ready task if available
     // @return task if a new task was found, nullptr otherwise
-    Task * steal_task( dispatch::thread::WorkerThread & worker )
+    Task * steal_task( dispatch::thread::Worker & worker )
     {
         unsigned worker_id = worker.get_worker_id();
 
