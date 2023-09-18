@@ -128,7 +128,7 @@ void Worker::work_loop()
             dispatch::thread::execute_task( *task );
         }
 
-        worker_pool->set_worker_state( id, dispatch::thread::WorkerState::BUSY );
+        worker_pool->set_worker_state( id, dispatch::thread::WorkerState::AVAILABLE );
             
         if( !m_stop.load(std::memory_order_consume) )
             cv.wait();
