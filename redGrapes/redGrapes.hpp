@@ -69,11 +69,17 @@ std::optional<scheduler::EventPtr> create_event();
 template<typename Callable, typename... Args>
 auto emplace_task(Callable&& f, Args&&... args)
 {
-    dispatch::thread::WorkerId worker_id = 2*next_worker + ( 2*next_worker / worker_pool->size() ) % worker_pool->size();
+    dispatch::thread::WorkerId worker_id =
+	    // linear
+//	    next_worker % worker_pool->size()
+
+	    // interleaved
+	    2*next_worker % worker_pool->size() + ((2*next_worker) / worker_pool->size())%2;
+
     next_worker++;
     memory::current_arena = worker_id;
 
-    SPDLOG_INFO("emplace task to worker {} next_worker={}", worker_id, next_worker);
+    SPDLOG_TRACE("emplace task to worker {} next_worker={}", worker_id, next_worker);
 
     return std::move(TaskBuilder< Callable, Args... >( std::move(f), std::forward<Args>(args)... ));
 }
