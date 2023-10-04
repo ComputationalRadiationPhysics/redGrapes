@@ -25,14 +25,12 @@ namespace redGrapes
 {
 
 /*!
- * TODO: Name?
- * ALRARAC - Allocation & Lock Reducing Append/Remove Array Container
- * LARAC- Lock- & Allocation-Reducing Array Container
+ * This container class supports two basic mutable operations, both of
+ * which can be performed **concurrently** and with nearly **constant
+ * time** (really, it is linear with very low slope):
  *
- * This container class supports two basic mutable operations,
- * both of which can be performed **concurrently** and with nearly **constant time**:
- *    - *push()*: append an element at the end, returns its index
- *    - *remove()*: deletes the element given its index
+ * - *push(item)*: append an element at the end, returns its index
+ * - *remove(idx)*: deletes the element given its index
  *
  * It is implemented as two-Level pointer tree where
  * the first level is a dynamicly sized array, called *SuperChunk*.
@@ -44,8 +42,8 @@ namespace redGrapes
  *       V                              V          V
  *    [ x_1, x_2, .., x_chunk_size ] [ ... ] .. [ ... ]
  *
- * New elements can only be `push`ed to the end,
- * but can not be inserted at random position.
+ * New elements can only be `push`ed to the end.
+ * They can not be inserted at random position.
  * Depending on `chunk_size` , adding new elements
  * is performed in constant time and without allocations,
  * as long as the chunk still has capacity.
@@ -115,6 +113,11 @@ struct ChunkedList
         {
         }
 
+        void reset(T const & value)
+        {
+            storage.value = value;            
+        }
+
         T & operator=(T const & value)
         {
             if( refcount.fetch_add(1) == 0 )
@@ -127,20 +130,76 @@ struct ChunkedList
         }
     };
 
+    struct Chunk
+    {
+        /* `item_count` starts with 1 to keep the chunk at least until
+         * its full capacity is used.  This initial offset is
+         * compensated by not increasing the count when the last
+         * element is inserted.
+         */
+        std::atomic< uint16_t > item_count;
+        Item * items;
+
+        Chunk()
+            : items(nullptr)
+            , item_count(1)
+        {}
+
+        Chunk( Chunk && other )
+            :items(other.items)
+            ,item_count(other.item_count)
+        {}
+
+        Chunk & operator=(Chunk const & other)
+        {
+            items = other.items;
+            item_count = other.item_count.load();
+            return *this;
+        }
+
+        void allocate( memory::Allocator< Item > & item_alloc, size_t chunk_size )
+        {
+            items = item_alloc.allocate( chunk_size );
+            // memory is cleared by allocator
+            //memset(items, 0, sizeof(Item) * chunk_size);
+        }
+
+        void deallocate( memory::Allocator< Item > & item_alloc )
+        {
+            Item * it = items;
+            items = nullptr;
+            if( it )
+                item_alloc.deallocate( it );
+        }
+
+        void erase_item( memory::Allocator< Item > & item_alloc )
+        {
+            if( item_count.fetch_sub(1) == 1 )
+            {
+                // last element was deleted from this chunk,
+                // deallocate memory now
+                deallocate( item_alloc );
+            }
+        }
+    };
+
     struct ItemAccess
     {
     private:
         friend class ChunkedList;
 
-        bool has_item;
-        Item & item;
+        Chunk & chunk;
+        memory::Allocator< Item > item_alloc;
 
-        ItemAccess( Item & item )
-            : item(item)
+        bool has_item;
+        unsigned chunk_off;
+
+        ItemAccess( Chunk & chunk, memory::Allocator< Item > const & item_alloc, unsigned chunk_off )
+            : chunk(chunk), item_alloc(item_alloc), chunk_off(chunk_off)
         {
-            if( item.refcount > 0 )
+            if( item().refcount > 0 )
             {
-                item.refcount++;
+                item().refcount++;
                 has_item = true;
             }
             else
@@ -149,14 +208,15 @@ struct ChunkedList
 
     public:
         ItemAccess( ItemAccess const & other )
-            : ItemAccess( other.item )
+            : ItemAccess( other.chunk, other.item_alloc, other.chunk_off )
         {
         }
 
         ~ItemAccess()
         {
             if( has_item )
-                item.refcount--;
+                if( item().refcount.fetch_sub(1) == 1 )
+                    chunk.erase_item( item_alloc );
         }
 
         bool is_some() const
@@ -164,17 +224,21 @@ struct ChunkedList
             return has_item;
         }
 
+        Item & item() const
+        {
+            return chunk.items[chunk_off];
+        }
+
         T& operator* () const
         {
             assert( is_some() );
-            return item.storage.value;
+            return item().storage.value;
         }
     };
-    
-    using Chunk = Item *;
 
 private:
 
+    std::atomic< uint16_t > next_superchunk_idx;
     std::atomic< uint16_t > superchunk_size;
     std::atomic< uint16_t > superchunk_capacity;
     Chunk * superchunk;
@@ -188,19 +252,19 @@ private:
     // 
     SpinLock m;
 
-    // m is locked whenever this function is called
+    /* Allocates a new chunk and inserts a reference to it in the
+     * superchunk.
+     * If necessary, the superchunk is resized.
+     * Mutex `m` is required to be locked whenever this function is called.
+     */
     void init_chunk( )
     {
-        Item * new_chunk = item_alloc.allocate(chunk_size);
-        for( int i = 0; i < chunk_size; ++i )
-            new (&new_chunk[i]) Item;
+        unsigned chunk_idx = next_superchunk_idx.fetch_add(1);
 
-        unsigned chunk_idx = superchunk_size;
-
-        if( chunk_idx >= superchunk_capacity )
+        while( chunk_idx >= superchunk_capacity )
             resize_superchunk( superchunk_capacity + 8 );
 
-        superchunk[ chunk_idx ] = new_chunk;
+        superchunk[ chunk_idx ].allocate( item_alloc, chunk_size );
 
         superchunk_size ++;
     }
@@ -222,10 +286,13 @@ private:
         Chunk * new_superchunk = chunk_alloc.allocate( new_superchunk_capacity );
 
         for( int i = 0; i < superchunk_capacity; ++i )
-            new_superchunk[i] = superchunk[i];
+            new_superchunk[i] = std::move(superchunk[i]);
 
         for( int i = superchunk_capacity; i < new_superchunk_capacity; ++i )
-            new_superchunk[i] = nullptr;
+        {
+            new_superchunk[i].item_count = 0;
+            new_superchunk[i].items = nullptr;
+        }
 
         auto old_superchunk = superchunk;
         superchunk = new_superchunk;
@@ -238,19 +305,18 @@ private:
         ~ChunkedList()
         {
             for( unsigned i = 0; i < superchunk_size; ++i )
-                if( superchunk[i] )
-                    item_alloc.deallocate( superchunk[i], chunk_size );
+                superchunk[i].deallocate( item_alloc );
 
             chunk_alloc.deallocate( superchunk, superchunk_capacity );
         }
 
-    ChunkedList( size_t chunk_size = 16 )
-        : ChunkedList(
-              memory::Allocator< Item >(),
-              memory::Allocator< Chunk >(),
-              chunk_size
-        )
-    {}
+        ChunkedList( size_t chunk_size = 16 )
+            : ChunkedList(
+                memory::Allocator< Item >(),
+                memory::Allocator< Chunk >(),
+                chunk_size
+            )
+        {}
 
         ChunkedList(
             memory::Allocator< Item > item_alloc,
@@ -267,7 +333,7 @@ private:
         {
             superchunk = chunk_alloc.allocate( superchunk_capacity );
             for( int i = 0; i < superchunk_capacity; ++i )
-                superchunk[i] = nullptr;
+                new (&superchunk[i]) Chunk();
         }
 
         ChunkedList( ChunkedList && other ) = default;
@@ -328,8 +394,8 @@ private:
 
             assert( chunk_idx < superchunk_size );
 
-            if( superchunk[ chunk_idx ] )
-                return ItemAccess( superchunk[ chunk_idx ][ chunk_off ] );
+            if( superchunk[ chunk_idx ].items )
+                return ItemAccess( superchunk[ chunk_idx ], item_alloc, chunk_off );
             else
                 throw std::runtime_error(fmt::format("invalid index: missing chunk {}", chunk_idx));
         }
@@ -343,39 +409,45 @@ private:
 
             {
                 // TODO: reduce this critical section
-                std::unique_lock< SpinLock > l(m);
+                //std::unique_lock< SpinLock > l(m);
 
                 while( chunk_idx >= superchunk_capacity
-                       || superchunk[ chunk_idx ] == nullptr )
+                       || superchunk[ chunk_idx ].items == nullptr )
                     init_chunk();
 
-                superchunk[ chunk_idx ][ chunk_off ] = item;
                 size_ ++;
+
+                // except for the last item, every insertion increases
+                // the `item_count` of current chunk
+                if( chunk_off+1 < chunk_size )
+                    superchunk[ chunk_idx ].item_count ++;
+
+                // insert element
+                superchunk[ chunk_idx ].items[ chunk_off ].reset(item);
             }
 
             return idx;
         }
 
-        void remove(unsigned idx)
+        void remove( unsigned idx )
         {
             assert( idx < size() );
-            get(idx).item.refcount--;
+            unsigned chunk_idx = idx / chunk_size;
+            unsigned chunk_off = idx % chunk_size;
+
+            if( get(idx).item().refcount.fetch_add(1) == 1 )
+            {
+                // no further references to this item exist,
+                // delete it from superchunk
+                superchunk[ chunk_idx ].erase_item( item_alloc );
+            }
         }
 
         void erase( T item )
         {
-            for( unsigned i = 0; i < size(); ++i )
-            {
-                ItemAccess x = get(i);
-                if( x.is_some() )
-                {
-                    if( *x == item )
-                    {
-                        remove( i );
-                        //return;
-                    }
-                }
-            }
+            for( auto it = begin(); it != end(); ++it)
+                if( *it == item )
+                    remove( it.idx );
         }
 
         // TODO: can we have one iterator class for const and non-const ?

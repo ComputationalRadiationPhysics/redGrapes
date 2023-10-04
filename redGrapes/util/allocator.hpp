@@ -40,7 +40,7 @@ struct Allocator
             throw std::bad_alloc();
     }
  
-    void deallocate(T* p, std::size_t n) noexcept
+    void deallocate(T* p, std::size_t n = 0) noexcept
     {
         alloc->deallocate< T >( arena_id, p );
     }
