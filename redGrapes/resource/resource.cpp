@@ -23,8 +23,7 @@ ResourceBase::ResourceBase()
     : id( generateID() )
     , scope_level( scope_depth() )
     , users(
-        memory::Allocator< typename ChunkedList<Task*>::Item >( get_arena_id() ),
-        memory::Allocator< typename ChunkedList<Task*>::Chunk >( get_arena_id() ),
+        memory::Allocator< uint8_t >( get_arena_id() ),
         REDGRAPES_RUL_CHUNKSIZE
     )
 {}

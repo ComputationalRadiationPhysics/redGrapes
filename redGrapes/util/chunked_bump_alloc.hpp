@@ -1,4 +1,4 @@
-/* Copyright 2022 Michael Sippel
+/* Copyright 2022-2023 Michael Sippel
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -13,7 +13,9 @@
 #include <mutex>
 #include <vector>
 #include <redGrapes/util/spinlock.hpp>
+#include <redGrapes/util/hwloc_alloc.hpp>
 #include <redGrapes/util/bump_alloc_chunk.hpp>
+#include <redGrapes/util/chunklist.hpp>
 #include <redGrapes/scheduler/scheduler.hpp>
 #include <redGrapes/dispatch/thread/local.hpp>
 #include <redGrapes/dispatch/thread/cpuset.hpp>
@@ -26,21 +28,17 @@ namespace memory
 struct ChunkedBumpAlloc
 {
     size_t const chunk_size;
-    hwloc_obj_t const obj;
 
-    std::atomic< BumpAllocChunk * > head;
+    ChunkList< BumpAllocChunk, HwlocAlloc > bump_allocators;
 
     ChunkedBumpAlloc( hwloc_obj_t obj, size_t chunk_size )
-        : obj( obj )
-        , chunk_size( chunk_size )
-        , head( alloc_chunk( obj, chunk_size ) )
-    {
-    }
+        : chunk_size(chunk_size)
+        , bump_allocators( HwlocAlloc<uint8_t>(obj), sizeof(BumpAllocChunk) + chunk_size )
+    {}
 
     ChunkedBumpAlloc( ChunkedBumpAlloc && other )
-        : obj( other.obj )
-        , chunk_size( other.chunk_size )
-        , head( other.head.load() )
+        : chunk_size(other.chunk_size)
+        , bump_allocators( other.bump_allocators )
     {        
     }
 
@@ -63,54 +61,49 @@ struct ChunkedBumpAlloc
         size_t s = n * sizeof(T);
         s = roundup_to_poweroftwo(s);
 
-        // try to alloc in current chunk
-        T * item = (T*) head.load()->m_alloc( s );
-
-        // chunk is full
-        if( !item )
+        if( s <= chunk_size )
         {
-            // create new chunk & try again
-            {
-                BumpAllocChunk * old_chunk = head.load();
-                BumpAllocChunk * new_chunk = alloc_chunk( obj, chunk_size );
-                new_chunk->prev = old_chunk;
+            // try to alloc in current chunk
+            T * item = (T*) nullptr;
 
-                head.compare_exchange_strong( old_chunk, new_chunk );
+            // chunk is full, create a new one
+            while( !item )
+            {
+                auto chunk = bump_allocators.rbegin();
+
+                if( chunk != bump_allocators.rend() )
+                {
+                    item = (T*) chunk->m_alloc( s );
+                    if( !item )
+                        bump_allocators.add_chunk( chunk_size );
+                }
+                else
+                    bump_allocators.add_chunk( chunk_size );
             }
 
-            item = (T*) head.load()->m_alloc( s );
+            return item;
         }
-
-        return item;
+        else
+        {
+            spdlog::error("ChunkedBumpAlloc: requested allocation of {} bytes exceeds chunksize of {} bytes", s, chunk_size);
+            throw std::bad_alloc();
+        }
     }
 
     template <typename T>
     void deallocate( T * ptr )
     {
-        BumpAllocChunk * next = nullptr;
-        BumpAllocChunk * cur = head.load();
-
-        while( cur )
+        for( auto it = bump_allocators.rbegin(); it != bump_allocators.rend(); ++it )
         {
-            if( cur->contains((void*)ptr) )
+            if( it->contains((void*) ptr) )
             {
                 // if no allocations remain in this chunk
                 // and this chunk is not the latest one,
                 // remove this chunk
-                if( cur->m_free((void*)ptr) == 0 && next )
-                {
-                    // erase from linked list
-                    next->prev.compare_exchange_strong( cur, cur->prev );
+                if( it->m_free((void*)ptr) == 0 )
+                    bump_allocators.erase( it );
 
-                    // free memory
-                    free_chunk( obj, cur );
-                }
-                break;
-            }
-            else
-            {
-                next = cur;
-                cur = cur->prev.load();
+                return;
             }
         }
     }

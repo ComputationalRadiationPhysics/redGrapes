@@ -126,8 +126,9 @@ void init_tracing()
 
 void cpubind_mainthread()
 {
+    size_t n_pus = hwloc_get_nbobjs_by_type(topology, HWLOC_OBJ_PU);
     static hwloc_cpuset_t cpuset = hwloc_bitmap_alloc();
-    hwloc_bitmap_fill( cpuset );
+    hwloc_bitmap_set_range( cpuset, 0, n_pus-1 );
 
     if( hwloc_set_cpubind(topology, cpuset, HWLOC_CPUBIND_THREAD | HWLOC_CPUBIND_STRICT) )    {
         char *str;

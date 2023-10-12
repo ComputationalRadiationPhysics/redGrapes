@@ -38,9 +38,11 @@ void GraphProperty::init_graph()
 {
     TRACE_EVENT("Graph", "init_graph");
 
-    for( ResourceEntry & r : this->task->unique_resources )
+    spdlog::info("INIT GRAPH");
+
+    for( auto r = this->task->unique_resources.rbegin(); r != this->task->unique_resources.rend(); ++r )
     {
-        if( r.task_idx > 0 )
+        if( r->task_entry != r->resource->users.rend() )
         {
             // TODO: can this lock be avoided?
             //
@@ -50,27 +52,36 @@ void GraphProperty::init_graph()
             //   that the iterator points at an element,
             //   which will get removed AFTER iterating
             //   and BEFORE adding the dependency.
-            std::unique_lock< SpinLock > lock( r.resource->users_mutex );
+            std::unique_lock< SpinLock > lock( r->resource->users_mutex );
 
             TRACE_EVENT("Graph", "CheckPredecessors");
-            for(auto it = r.resource->users.begin_from_rev( r.task_idx-1 ); it != r.resource->users.end(); --it )
+            auto it = r->task_entry;
+
+            spdlog::info("check previous tasks for this resouce...");
+
+            if( it != r->resource->users.rend() )
             {
-                TRACE_EVENT("Graph", "Check Pred");
-                Task * preceding_task = *it;
-
-                if( preceding_task == this->space->parent )
-                    break;
-
-                if(
-                   preceding_task->space == this->space &&
-                   this->space->is_serial( *preceding_task, *this->task )
-                )
+                ++it;
+                for(; it != r->resource->users.rend(); ++it )
                 {
-                    SPDLOG_TRACE("add dependency: task {} -> task {}", preceding_task->task_id, this->task->task_id);
-                    add_dependency( *preceding_task );
+                    spdlog::info("check predecessor task");
+                    TRACE_EVENT("Graph", "Check Pred");
+                    Task * preceding_task = *it;
 
-                    if( preceding_task->has_sync_access( r.resource ) )
+                    if( preceding_task == this->space->parent )
                         break;
+
+                    if(
+                       preceding_task->space == this->space &&
+                       this->space->is_serial( *preceding_task, *this->task )
+                    )
+                    {
+                        SPDLOG_TRACE("add dependency: task {} -> task {}", preceding_task->task_id, this->task->task_id);
+                        add_dependency( *preceding_task );
+
+                        if( preceding_task->has_sync_access( r->resource ) )
+                            break;
+                    }
                 }
             }
         }
@@ -87,14 +98,14 @@ void GraphProperty::init_graph()
 void GraphProperty::delete_from_resources()
 {
     TRACE_EVENT("Graph", "delete_from_resources");
-    for( ResourceEntry r : this->task->unique_resources )
+    for( auto r = this->task->unique_resources.rbegin(); r != this->task->unique_resources.rend(); ++r )
     {
         // TODO: can this lock be avoided?
         //   corresponding lock to init_graph()
-        std::unique_lock< SpinLock > lock( r.resource->users_mutex );
+        std::unique_lock< SpinLock > lock( r->resource->users_mutex );
 
-        if( r.task_idx != -1 )
-            r.resource->users.remove( r.task_idx );
+        if( r->task_entry != r->resource->users.rend() )
+            r->resource->users.remove( r->task_entry );
     }
 }
 
@@ -116,15 +127,17 @@ void GraphProperty::update_graph( )
 {
     //std::unique_lock< SpinLock > lock( post_event.followers_mutex );
 
-    for( auto follower : post_event.followers )
+    //    for( auto follower : post_event.followers )
+    for( auto it = post_event.followers.rbegin(); it != post_event.followers.rend(); ++it )
     {
+        scheduler::EventPtr follower = *it;
         if( follower.task )
         {
             if( ! space->is_serial(*this->task, *follower.task) )
             {
                 // remove dependency
                 //follower.task->in_edges.erase(std::find(std::begin(follower.task->in_edges), std::end(follower.task->in_edges), this));
-                post_event.followers.erase(follower);
+                post_event.followers.erase( follower );
 
                 follower.notify();
             }

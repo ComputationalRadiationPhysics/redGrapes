@@ -27,9 +27,9 @@ namespace scheduler
 {
 
 Event::Event()
-  : state(1)
-  , waker_id(-1)
-  , followers( REDGRAPES_EVENT_FOLLOWER_LIST_CHUNKSIZE )
+    : state(1)
+    , waker_id(-1)
+    , followers( REDGRAPES_EVENT_FOLLOWER_LIST_CHUNKSIZE )
 {
 }
 
@@ -74,8 +74,8 @@ void Event::notify_followers()
 {
     TRACE_EVENT("Event", "notify_followers");
 
-    for( auto follower : followers )
-        follower.notify();
+    for( auto follower = followers.rbegin(); follower != followers.rend(); ++follower )
+        follower->notify();
 }
 
 /*! A preceding event was reached and thus an incoming edge got removed.

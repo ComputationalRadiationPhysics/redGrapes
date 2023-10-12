@@ -25,7 +25,7 @@ namespace redGrapes
 struct ResourceEntry
 {
     std::shared_ptr< ResourceBase > resource;
-    int task_idx; // index in task list of resource
+    ChunkedList< Task* >::MutBackwardIterator task_entry;
 
     bool operator==( ResourceEntry const & other ) const
     {
@@ -45,8 +45,8 @@ class ResourceUser
 
     ResourceUser( ResourceUser const& other )
         : scope_level( other.scope_level )
-        , access_list( other.access_list )
-        , unique_resources( other.unique_resources )
+        , access_list( memory::Allocator<uint8_t>(), other.access_list )
+        , unique_resources( memory::Allocator<uint8_t>(), other.unique_resources )
     {
     }
 
@@ -62,7 +62,7 @@ class ResourceUser
         this->access_list.push(ra);
         std::shared_ptr<ResourceBase> r = ra.get_resource();
         //unique_resources.erase(ResourceEntry{ r, -1 });
-        unique_resources.push(ResourceEntry{ r, -1 });
+        unique_resources.push(ResourceEntry{ r, r->users.rend() });
     }
 
     void rm_resource_access( ResourceAccess ra )
@@ -72,21 +72,21 @@ class ResourceUser
 
     void build_unique_resource_list()
     {
-        for( auto & ra : access_list )
+        for( auto ra = access_list.rbegin(); ra != access_list.rend(); ++ra )
         {
-            std::shared_ptr<ResourceBase> r = ra.get_resource();
-            unique_resources.erase(ResourceEntry{ r, -1 });
-            unique_resources.push(ResourceEntry{ r, -1 });
+            std::shared_ptr<ResourceBase> r = ra->get_resource();
+            unique_resources.erase(ResourceEntry{ r, r->users.rend() });
+            unique_resources.push(ResourceEntry{ r, r->users.rend() });
         }
     }
 
     bool has_sync_access( std::shared_ptr< ResourceBase > res )
     {
-        for( auto & ra : access_list )
+        for( auto ra = access_list.rbegin(); ra != access_list.rend(); ++ra )
         {
             if(
-               ra.get_resource() == res &&
-               ra.is_synchronizing()
+               ra->get_resource() == res &&
+               ra->is_synchronizing()
             )
                 return true;
         }
@@ -97,11 +97,11 @@ class ResourceUser
     is_serial( ResourceUser const & a, ResourceUser const & b )
     {
         TRACE_EVENT("ResourceUser", "is_serial");
-        for ( ResourceAccess const & ra : a.access_list )
-            for ( ResourceAccess const & rb : b.access_list )
+        for( auto ra = a.access_list.crbegin(); ra != a.access_list.crend(); ++ra )
+            for( auto rb = b.access_list.crbegin(); rb != b.access_list.crend(); ++rb )
             {
                 TRACE_EVENT("ResourceUser", "RA::is_serial");
-                if ( ResourceAccess::is_serial( ra, rb ) )
+                if ( ResourceAccess::is_serial( *ra, *rb ) )
                     return true;
             }
         return false;
@@ -111,14 +111,14 @@ class ResourceUser
     is_superset_of( ResourceUser const & a ) const
     {
         TRACE_EVENT("ResourceUser", "is_superset");
-        for ( ResourceAccess const & ra : a.access_list )
+        for( auto ra = a.access_list.rbegin(); ra != a.access_list.rend(); ++ra )
         {
             bool found = false;
-            for ( ResourceAccess const & r : this->access_list )
-                if ( r.is_superset_of( ra ) )
+            for( auto r = access_list.rbegin(); r != access_list.rend(); ++r )
+                if ( r->is_superset_of( *ra ) )
                     found = true;
 
-            if ( !found && ra.scope_level() <= scope_level )
+            if ( !found && ra->scope_level() <= scope_level )
                 // a introduced a new resource
                 return false;
         }
@@ -158,10 +158,10 @@ struct fmt::formatter<
         auto out = ctx.out();
         out = fmt::format_to( out, "[" );
 
-        for( auto it = r.access_list.begin(); it != r.access_list.end(); )
+        for( auto it = r.access_list.rbegin(); it != r.access_list.rend(); )
         {
             out = fmt::format_to( out, "{}", *it );
-            if( ++it != r.access_list.end() )
+            if( ++it != r.access_list.rend() )
                 out = fmt::format_to( out, "," );
         }
 

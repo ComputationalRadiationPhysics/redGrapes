@@ -74,8 +74,8 @@ namespace redGrapes
         if( parent )
             assert( this->is_superset(*parent, *task) );
 
-        for( ResourceEntry & r : task->unique_resources )
-            r.task_idx = r.resource->users.push( task );
+        for( auto r = task->unique_resources.rbegin(); r != task->unique_resources.rend(); ++r )
+            r->task_entry = r->resource->users.push( task );
 
         top_scheduler->emplace_task( *task );
     }

@@ -17,41 +17,6 @@ namespace redGrapes
 namespace memory
 {
 
-BumpAllocChunk * alloc_chunk( hwloc_obj_t const & obj, size_t capacity )
-{
-    size_t alloc_size = capacity + sizeof(BumpAllocChunk);
-
-    BumpAllocChunk * chunk = (BumpAllocChunk*) hwloc_alloc_membind(
-        topology, alloc_size, obj->cpuset,
-        HWLOC_MEMBIND_BIND, HWLOC_MEMBIND_NOCPUBIND | HWLOC_MEMBIND_STRICT
-    );
-
-    if( chunk == 0 )
-    {
-        int error = errno;
-        spdlog::error("chunk allocation failed: {}\n", strerror(error));
-    }
-
-    new (chunk) BumpAllocChunk( capacity );
-
-    hwloc_set_cpubind(topology, obj->cpuset, HWLOC_CPUBIND_THREAD);
-
-    chunk->reset();
-
-    if( redGrapes::dispatch::thread::current_worker )
-        redGrapes::dispatch::thread::current_worker->cpubind();
-    else
-        cpubind_mainthread();
-
-    return chunk;
-}
-
-void free_chunk( hwloc_obj_t const & obj, BumpAllocChunk * chunk )
-{
-    size_t alloc_size = chunk->capacity + sizeof(BumpAllocChunk);
-    hwloc_free( topology, (void*)chunk, alloc_size );
-}
-
 BumpAllocChunk::BumpAllocChunk( size_t capacity )
     : capacity( capacity )
     , offset(0)
