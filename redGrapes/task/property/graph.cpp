@@ -37,9 +37,6 @@ scheduler::EventPtr GraphProperty::make_event()
 void GraphProperty::init_graph()
 {
     TRACE_EVENT("Graph", "init_graph");
-
-    spdlog::info("INIT GRAPH");
-
     for( auto r = this->task->unique_resources.rbegin(); r != this->task->unique_resources.rend(); ++r )
     {
         if( r->task_entry != r->resource->users.rend() )
@@ -57,14 +54,9 @@ void GraphProperty::init_graph()
             TRACE_EVENT("Graph", "CheckPredecessors");
             auto it = r->task_entry;
 
-            spdlog::info("check previous tasks for this resouce...");
-
-            if( it != r->resource->users.rend() )
-            {
-                ++it;
+             ++it;
                 for(; it != r->resource->users.rend(); ++it )
                 {
-                    spdlog::info("check predecessor task");
                     TRACE_EVENT("Graph", "Check Pred");
                     Task * preceding_task = *it;
 
@@ -76,13 +68,11 @@ void GraphProperty::init_graph()
                        this->space->is_serial( *preceding_task, *this->task )
                     )
                     {
-                        SPDLOG_TRACE("add dependency: task {} -> task {}", preceding_task->task_id, this->task->task_id);
                         add_dependency( *preceding_task );
 
                         if( preceding_task->has_sync_access( r->resource ) )
                             break;
                     }
-                }
             }
         }
     }

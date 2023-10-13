@@ -113,8 +113,8 @@ public:
             c,
             [this, alloc_size]( Chunk * c ){
                 this->alloc.deallocate( (uint8_t*)c, alloc_size );
-            }
-            //alloc 
+            },
+            alloc 
         );
 
         append_chunk( new_chunk );

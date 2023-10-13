@@ -53,16 +53,11 @@ struct HwlocAlloc
 
 
         // touch memory
-        /*
+        hwloc_cpuset_t last_cpuset;
+        hwloc_get_cpubind(topology, last_cpuset, HWLOC_CPUBIND_THREAD);
         hwloc_set_cpubind(topology, obj->cpuset, HWLOC_CPUBIND_THREAD);
-
         memset( ptr, 0, alloc_size );
-
-        if( redGrapes::dispatch::thread::current_worker )
-            redGrapes::dispatch::thread::current_worker->cpubind();
-        else
-            cpubind_mainthread();
-        */
+        hwloc_set_cpubind(topology, last_cpuset, HWLOC_CPUBIND_THREAD);
     }
 
     void deallocate( T * p, std::size_t n = 0 ) noexcept
