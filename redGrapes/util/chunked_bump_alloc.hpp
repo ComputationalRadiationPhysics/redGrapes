@@ -32,14 +32,20 @@ struct ChunkedBumpAlloc
     ChunkList< BumpAllocChunk, HwlocAlloc > bump_allocators;
 
     ChunkedBumpAlloc( hwloc_obj_t obj, size_t chunk_size )
-        : chunk_size(chunk_size)
-        , bump_allocators( HwlocAlloc<uint8_t>(obj), sizeof(BumpAllocChunk) + chunk_size )
-    {}
+        : chunk_size( chunk_size )
+        , bump_allocators( HwlocAlloc<uint8_t>(obj), chunk_size )
+    {
+        assert( chunk_size > sizeof(BumpAllocChunk) );
+    }
 
     ChunkedBumpAlloc( ChunkedBumpAlloc && other )
         : chunk_size(other.chunk_size)
-        , bump_allocators( other.bump_allocators )
-    {        
+        , bump_allocators(other.bump_allocators)
+    { 
+    }
+
+    ~ChunkedBumpAlloc()
+    {
     }
 
     inline static size_t roundup_to_poweroftwo( size_t s )
@@ -58,10 +64,13 @@ struct ChunkedBumpAlloc
     template <typename T>
     T * allocate( std::size_t n = 1 )
     {
-        size_t s = n * sizeof(T);
-        s = roundup_to_poweroftwo(s);
+        size_t alloc_size = n * sizeof(T);
+        alloc_size = roundup_to_poweroftwo( alloc_size );
 
-        if( s <= chunk_size )
+        size_t const chunk_capacity = chunk_size - sizeof(BumpAllocChunk);
+
+
+        if( alloc_size < chunk_capacity )
         {
             // try to alloc in current chunk
             T * item = (T*) nullptr;
@@ -73,19 +82,19 @@ struct ChunkedBumpAlloc
 
                 if( chunk != bump_allocators.rend() )
                 {
-                    item = (T*) chunk->m_alloc( s );
+                    item = (T*) chunk->m_alloc( alloc_size );
                     if( !item )
-                        bump_allocators.add_chunk( chunk_size );
+                        bump_allocators.add_chunk( chunk_capacity );
                 }
                 else
-                    bump_allocators.add_chunk( chunk_size );
+                    bump_allocators.add_chunk( chunk_capacity );
             }
 
             return item;
         }
         else
         {
-            spdlog::error("ChunkedBumpAlloc: requested allocation of {} bytes exceeds chunksize of {} bytes", s, chunk_size);
+            spdlog::error("ChunkedBumpAlloc: requested allocation of {} bytes exceeds chunk capacity of {} bytes", alloc_size, chunk_capacity);
             throw std::bad_alloc();
         }
     }
@@ -93,6 +102,7 @@ struct ChunkedBumpAlloc
     template <typename T>
     void deallocate( T * ptr )
     {
+        auto prev = bump_allocators.rbegin();
         for( auto it = bump_allocators.rbegin(); it != bump_allocators.rend(); ++it )
         {
             if( it->contains((void*) ptr) )
@@ -101,10 +111,14 @@ struct ChunkedBumpAlloc
                 // and this chunk is not the latest one,
                 // remove this chunk
                 if( it->m_free((void*)ptr) == 0 )
+                {
                     bump_allocators.erase( it );
+                    prev.optimize();
+                }
 
                 return;
             }
+            prev = it;
         }
     }
 };

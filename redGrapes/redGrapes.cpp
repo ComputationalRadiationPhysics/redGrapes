@@ -11,6 +11,7 @@
 #include <moodycamel/concurrentqueue.h>
 
 #include <redGrapes/util/multi_arena_alloc.hpp>
+#include <redGrapes/util/allocator.hpp>
 #include <redGrapes/dispatch/thread/worker_pool.hpp>
 #include <redGrapes/scheduler/scheduler.hpp>
 
@@ -107,7 +108,15 @@ void init_allocator( size_t n_arenas, size_t chunk_size )
     hwloc_topology_init(&topology);
     hwloc_topology_load(topology);
 
-    memory::alloc = std::make_shared< memory::MultiArenaAlloc >( chunk_size - sizeof(memory::BumpAllocChunk), n_arenas );
+    memory::alloc = std::make_shared< memory::MultiArenaAlloc >( chunk_size, n_arenas );
+}
+
+void finalize_allocator()
+{
+    SPDLOG_TRACE("finalize allocator");
+    memory::alloc.reset();
+
+    hwloc_topology_destroy(topology);
 }
 
 void init_tracing()
@@ -119,10 +128,15 @@ void init_tracing()
     perfetto::TrackEvent::Register();
 
     tracing_session = StartTracing();
-#endif    
+#endif
 }
 
-
+void finalize_tracing()
+{ 
+#if REDGRAPES_ENABLE_TRACE
+    StopTracing( tracing_session );
+#endif
+}
 
 void cpubind_mainthread()
 {
@@ -139,7 +153,7 @@ void cpubind_mainthread()
     }    
 }
 
-void init( size_t n_workers, std::shared_ptr<scheduler::IScheduler> scheduler)
+void init( size_t n_workers, std::shared_ptr<scheduler::IScheduler> scheduler )
 {
     init_tracing();
 
@@ -164,6 +178,8 @@ void init( size_t n_workers )
  */
 void barrier()
 {
+    SPDLOG_TRACE("barrier");
+
     while( ! top_space->empty() )
         idle();
 }
@@ -174,13 +190,12 @@ void finalize()
     worker_pool->stop();
 
     top_scheduler.reset();
+    worker_pool.reset();
     top_space.reset();
 
-    hwloc_topology_destroy(topology);
-    
-#if REDGRAPES_ENABLE_TRACE
-    StopTracing( tracing_session );
-#endif
+    finalize_allocator();
+
+    finalize_tracing();
 }
 
 //! pause the currently running task at least until event is reached

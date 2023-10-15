@@ -40,6 +40,10 @@ struct BumpAllocChunk
 
     uintptr_t get_baseptr() const;
 
+    /* std::atomic< uintptr_t > next_addr;
+     * uintptr_t limit;
+     */
+
     // max. size of chunk in bytes
     size_t const capacity;
 
@@ -47,31 +51,8 @@ struct BumpAllocChunk
     std::atomic_ptrdiff_t offset;
 
     // number of allocations
-    std::atomic<unsigned> count;    
+    std::atomic<unsigned> count;
 };
-
-template < template <typename> typename Allocator >
-BumpAllocChunk * alloc_chunk( Allocator< uint8_t > & alloc, size_t capacity )
-{
-    size_t alloc_size = capacity + sizeof(BumpAllocChunk);
-    BumpAllocChunk * chunk = (BumpAllocChunk*) alloc.allocate( alloc_size );
-
-    if( chunk == 0 )
-    {
-        int error = errno;
-        spdlog::error("chunk allocation failed: {}\n", strerror(error));
-    }
-
-    new (chunk) BumpAllocChunk( capacity );
-
-    return chunk;
-}
-
-template < template <typename> typename Allocator >
-void free_chunk( Allocator< uint8_t > & alloc, BumpAllocChunk * chunk )
-{
-    alloc.deallocate( chunk );
-}
 
 } // namespace memory
 } // namespace redGrapes

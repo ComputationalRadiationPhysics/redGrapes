@@ -8,11 +8,14 @@
 #pragma once
 
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
+#include <fmt/format.h>
 #include <memory>
 #include <optional>
 
 #include <hwloc.h>
+#include <redGrapes/util/spinlock.hpp>
 #include <spdlog/spdlog.h>
 
 namespace redGrapes
@@ -38,7 +41,7 @@ template <
 >
 struct ChunkList
 {
-private:
+//private:
     struct Chunk
     {
         bool volatile deleted;
@@ -52,10 +55,11 @@ private:
 
         ~Chunk()
         {
+/*
             if( !deleted )
                 spdlog::error("dropping chunk which was never deleted");
-
-            assert( deleted );
+*/
+//            assert( deleted );
 
             get()->~ChunkData();
         }
@@ -73,51 +77,91 @@ private:
          */
         void skip_deleted_prev()
         {
-            while( prev && prev->deleted )
-                prev = prev->prev;
-        }
+            auto p = std::atomic_load( &prev );
+            while( p && p->deleted )
+            {
+                std::atomic_store( &prev, std::atomic_load(&p->prev) );
+                p = std::atomic_load( &prev );           }
+            }
 
         ChunkData * get() const
         {
-            if( !deleted )
+//            if( !deleted )
                 return (ChunkData*)((uintptr_t)this + sizeof(Chunk));
-            else
-                throw std::runtime_error("ChunkList: get() on deleted chunk");
+//            else
+//               throw std::runtime_error("ChunkList: get() on deleted chunk");
         }
     };
 
-private:
     Allocator< uint8_t > alloc;
     std::shared_ptr< Chunk > head;
     size_t const chunk_size;
+
+    /* keeps a single, predefined pointer
+     * and frees it on deallocate.
+     */
+    template <typename T>
+    struct StaticAlloc
+    {
+        typedef T value_type;
+
+        Allocator< T > alloc;
+        T * ptr;
+
+        StaticAlloc( Allocator<uint8_t> alloc, size_t n_bytes )
+            : alloc(alloc)
+            , ptr( (T*)alloc.allocate( n_bytes ) )
+        {}
+
+        template<typename U>
+        constexpr StaticAlloc( StaticAlloc<U> const & other ) noexcept
+            : alloc(other.alloc)
+            , ptr((T*)other.ptr)
+        {}
+
+        T * allocate( size_t n ) noexcept
+        {
+            return ptr;
+        }
+
+        void deallocate( T * _p, std::size_t _n ) noexcept
+        {
+            alloc.deallocate( ptr, 1 );
+        }
+    };
 
 public:
     ChunkList( Allocator< uint8_t > alloc, size_t chunk_size )
         : alloc( alloc )
         , head( nullptr )
         , chunk_size( chunk_size )
-    {}
+    {
+       assert( chunk_size > sizeof(Chunk) + 128 );
+    }
 
     /* initializes a new chunk
      */
     template < typename... Args >
     void add_chunk( Args&&... args )
     {
-        size_t const alloc_size = sizeof(Chunk) + chunk_size;
+        size_t const shared_ptr_size = 128;
+        size_t const chunk_capacity = chunk_size - sizeof(Chunk) - shared_ptr_size;
 
-        Chunk * c = (Chunk *) alloc.allocate( alloc_size );
-
-        new ( c ) Chunk ( std::forward<Args>(args)... );
-
-        std::shared_ptr< Chunk > new_chunk(
-            c,
-            [this, alloc_size]( Chunk * c ){
-                this->alloc.deallocate( (uint8_t*)c, alloc_size );
-            },
-            alloc 
+        /* we are relying on std::allocate_shared
+         * to do one *single* allocation which contains:
+         * - shared_ptr control block
+         * - chunk control block
+         * - chunk data
+         * whereby chunk data is not included by sizeof(Chunk),
+         * but reserved by StaticAlloc.
+         * This works because shared_ptr control block lies at lower address.
+         */
+        append_chunk(
+            std::allocate_shared< Chunk >(
+                StaticAlloc<void>( alloc, chunk_size ),
+                std::forward<Args>(args)...
+            )
         );
-
-        append_chunk( new_chunk );
     }
 
     /* atomically appends a floating chunk to this list
@@ -127,8 +171,8 @@ public:
         bool append_successful = false;
         while( ! append_successful )
         {
-            std::shared_ptr< Chunk > old_head = head;
-            new_head->prev = old_head;
+            std::shared_ptr< Chunk > old_head = std::atomic_load( &head );
+            std::atomic_store( &new_head->prev, old_head );
             append_successful = std::atomic_compare_exchange_strong<Chunk>( &head, &old_head, new_head );
         }
     }
@@ -172,7 +216,13 @@ public:
         {
             return *c->get();
         }
-        
+
+        void optimize()
+        {
+            if(c)
+                c->skip_deleted_prev();
+        }
+
         BackwardIterator& operator++()
         {
             if( c )
@@ -193,7 +243,7 @@ public:
      */
     MutBackwardIterator rbegin() const
     {
-        return MutBackwardIterator{ head };
+        return MutBackwardIterator{ std::atomic_load(&head) };
     }
 
     MutBackwardIterator rend() const
@@ -203,7 +253,7 @@ public:
 
     ConstBackwardIterator crbegin() const
     {
-        return ConstBackwardIterator{ head };
+        return ConstBackwardIterator{ std::atomic_load(&head) };
     }
 
     ConstBackwardIterator crend() const

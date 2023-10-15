@@ -54,7 +54,8 @@ namespace redGrapes
 
         unsigned arena_id = task->arena_id;
         task->~Task();
-        memory::alloc->deallocate(arena_id, &task);
+
+        memory::alloc->deallocate( arena_id, task );
 
         // TODO: implement this using post-event of root-task?
         //  - event already has in_edge count
@@ -75,7 +76,9 @@ namespace redGrapes
             assert( this->is_superset(*parent, *task) );
 
         for( auto r = task->unique_resources.rbegin(); r != task->unique_resources.rend(); ++r )
+        {
             r->task_entry = r->resource->users.push( task );
+        }
 
         top_scheduler->emplace_task( *task );
     }

@@ -37,6 +37,8 @@ struct HwlocAlloc
     {
         size_t alloc_size = sizeof(T) * n;
 
+        SPDLOG_TRACE("hwloc_alloc {} bytes", n);
+
         void * ptr = hwloc_alloc_membind(
             topology, alloc_size, obj->cpuset,
             HWLOC_MEMBIND_BIND, HWLOC_MEMBIND_NOCPUBIND | HWLOC_MEMBIND_STRICT
@@ -51,7 +53,6 @@ struct HwlocAlloc
             throw std::bad_alloc();
         }
 
-
         // touch memory
         hwloc_cpuset_t last_cpuset;
         hwloc_get_cpubind(topology, last_cpuset, HWLOC_CPUBIND_THREAD);
@@ -62,6 +63,7 @@ struct HwlocAlloc
 
     void deallocate( T * p, std::size_t n = 0 ) noexcept
     {
+        SPDLOG_TRACE("hwloc free");
         hwloc_free( topology, (void*)p, sizeof(T)*n );
     }
 };

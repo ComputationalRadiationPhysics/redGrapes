@@ -134,8 +134,25 @@ struct GraphProperty
      * The precedence graph containing the task is assumed to be locked.
      */
     void init_graph();
+
+    /*!
+     * Abstractly adds a dependeny from preceding task to this,
+     * by setting up an edge from the post-event of the
+     * preceding task to the pre-event of this task.
+     * Additionally, an edge to the post-event of the parent is added.
+     */
     void add_dependency( Task & preceding_task );
+
+    /*!
+     * checks all incoming edges if they are still required and
+     * removes them if possible.
+     */
     void update_graph();
+
+    /*!
+     * removes this task from all resource-user-lists, so from now on
+     * no new dependencies to this task will be created.
+     */
     void delete_from_resources();
 
     template < typename PropertiesBuilder >

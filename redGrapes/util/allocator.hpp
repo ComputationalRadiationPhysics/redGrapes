@@ -34,6 +34,7 @@ struct Allocator
             throw std::bad_array_new_length();
 
         T * p = alloc->allocate< T >( arena_id, n );
+
         if( p )
             return p;
         else

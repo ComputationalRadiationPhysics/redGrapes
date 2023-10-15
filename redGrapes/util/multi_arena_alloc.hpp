@@ -12,13 +12,12 @@
 #include <memory>
 #include <mutex>
 #include <vector>
-#include <redGrapes/util/spinlock.hpp>
 #include <redGrapes/util/chunked_bump_alloc.hpp>
-#include <redGrapes/scheduler/scheduler.hpp>
 #include <redGrapes/dispatch/thread/local.hpp>
-#include <redGrapes/dispatch/thread/cpuset.hpp>
-
 #include <hwloc.h>
+
+
+#include <boost/core/demangle.hpp>
 
 namespace redGrapes
 {
@@ -47,6 +46,7 @@ struct MultiArenaAlloc
     template <typename T>
     T * allocate( unsigned arena_idx, std::size_t n = 1 )
     {
+        SPDLOG_TRACE("allocate {} times {} on arena {}", n, boost::core::demangle(typeid(T).name()), arena_idx);
         T * ptr = arenas[arena_idx % arenas.size()].template allocate<T>( n );
         return ptr;
     }
@@ -54,6 +54,7 @@ struct MultiArenaAlloc
     template <typename T>
     void deallocate( unsigned arena_idx, T * ptr )
     {
+        SPDLOG_INFO("DEallocate {} on arena {}", boost::core::demangle(typeid(T).name()), arena_idx);
         arenas[arena_idx % arenas.size()].template deallocate<T>( ptr );
     }    
 };

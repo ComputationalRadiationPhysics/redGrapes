@@ -29,22 +29,14 @@ namespace redGrapes
 {
 
 /*!
- * This container class supports two basic mutable operations, both of
- * which can be performed **concurrently** and with nearly **constant
- * time** (really, it is linear with very low slope):
+ * This container class supports two basic mutable, iterator-stable operations,
+ * both of which can be performed **concurrently** an in nearly **constant time**:
  *
  * - *push(item)*: append an element at the end, returns its index
  * - *remove(idx)*: deletes the element given its index
  *
- * It is implemented as two-Level pointer tree where
- * the first level is a dynamicly sized array, called *SuperChunk*.
- * This *SuperChunk* references a growing number of *Chunks*,
- * a staticly-sized array each.
- *
- *    [ ChkPtr_1, ChkPtr_2, .., ChkPtr_chunk_count ]
- *        |           |_________________     |_____
- *       V                              V          V
- *    [ x_1, x_2, .., x_chunk_size ] [ ... ] .. [ ... ]
+ * It is implemented as atomic linked list of chunks,
+ * which are fixed size arrays of elements.
  *
  * New elements can only be `push`ed to the end.
  * They can not be inserted at random position.
@@ -54,21 +46,16 @@ namespace redGrapes
  * Only one of chunk_size many calls of push() require
  * memory allocation.
  *
- * Elements are removed in constant time and
- * removed elements are skipped by the iterators,
+ * Elements are removed in constant time.
+ * Removed elements are skipped by the iterators,
  * however their memory is still occupied
  * until all elements of the chunk are removed.
+ * The instances of items are kept alive until all
+ * iterators referencing that item have released the
+ * ownership. Then the element-destructor is called.
  *
- * Iteration can be started at a specific index and
- * proceed in forward direction (++) aswell as reversed (--).
- *
- * Indices returned by push() can be used with begin_from() / remove().
- * These indices are static, i.e. they stay valid after other remove() operations.
- */
-
-
-
-/*
+ * Iteration can begin at a specific position that was
+ * returned by `push`.
  *
  * ## Example Usecases:
  *
@@ -159,8 +146,13 @@ struct ChunkedList
          */
         void remove()
         {
-            if( refcount.fetch_add(1) == 1 )
+            refcount_t old_refcount = refcount.fetch_sub(1);
+
+            if( old_refcount == 1 )
                 storage.value.~T();
+
+            if( old_refcount == 0 )
+                throw std::runtime_error("remove inexistent item");
         }
     };
 
@@ -185,9 +177,14 @@ struct ChunkedList
          */
         std::atomic< chunk_offset_t > last_idx{ 0 };
 
-        Chunk( size_t chunk_size )
+        Chunk( size_t n )
+            /*
+            : item_count(1)
+            , next_idx(0)
+            , last_idx(0)
+            */
         {
-            for( unsigned i= 0; i < chunk_size; ++i )
+            for( unsigned i= 0; i < n; ++i )
                 new ( &items()[i] ) Item();
         }
 
@@ -371,7 +368,7 @@ private:
     memory::ChunkList< Chunk, Allocator > chunks;
 
 public:
-    ChunkedList( size_t chunk_size = 16 )
+    ChunkedList( size_t chunk_size = 32 )
         : ChunkedList(
             Allocator< uint8_t >(),
             chunk_size
@@ -380,10 +377,15 @@ public:
 
     ChunkedList(
         Allocator< uint8_t > alloc,
-        size_t chunk_size = 64
+        size_t chunk_size = 32
     )
         : chunk_size( chunk_size )
-        , chunks( alloc, sizeof(Chunk) + sizeof(Item)*chunk_size )
+        , chunks( alloc,
+            128
+            + sizeof( typename memory::ChunkList<Chunk, Allocator>::Chunk )
+            + sizeof(Chunk)
+            + sizeof(Item)*chunk_size
+        )
     {
         assert( chunk_size < std::numeric_limits< chunk_offset_t >::max() );
     }
@@ -409,7 +411,9 @@ public:
 
                 if( chunk_off < chunk_size )
                 {
-                    chunk->item_count ++;
+                    if( chunk_off+1 < chunk_size )
+                        chunk->item_count ++;
+
                     chunk->items()[ chunk_off ] = item;
                     chunk->last_idx ++;
                     return MutBackwardIterator( chunk_size, chunk, chunk_off );
@@ -420,14 +424,15 @@ public:
         }
     }
 
-    void remove( MutBackwardIterator & pos )
+    void remove( MutBackwardIterator const & pos )
     {
-        /* first, set iter_offset, so that any iterator
-         * will skip this element from now on
-         */
-
         if( pos.is_valid_idx() )
         {
+               
+            /* first, set iter_offset, so that any iterator
+             * will skip this element from now on
+             */
+
             // first elements just goes back one step to reach last element of previous chunk
             if( pos.chunk_off == 0 )
                 pos.chunk->items()[ pos.chunk_off ].iter_offset = 1;
@@ -436,20 +441,24 @@ public:
             else
                 pos.chunk->items()[ pos.chunk_off ].iter_offset =
                     pos.chunk->items()[ pos.chunk_off - 1 ].iter_offset + 1;
+
+            /* decrement refcount once so the item will be deconstructed
+             * eventually, when all iterators drop their references
+             */
+            pos.item().remove();
+
+            /* in case all items of this chunk are deleted,
+             * delete the chunk too
+             */
+            if( pos.chunk->item_count.fetch_sub(1) == 1 )
+            {
+                spdlog::info("last item!!");
+                chunks.erase( pos.chunk );
+            }
         }
         else
             throw std::runtime_error("remove invalid position");
 
-        /* decrement refcount once so the item will be deconstructed
-         * eventually, when all iterators drop their references
-         */
-        pos.item().remove();
-
-        /* in case all items of this chunk are deleted,
-         * delete the chunk too
-         */
-        if( pos.chunk->item_count.fetch_sub(1) == 1 )
-            chunks.erase( pos.chunk );
     }
 
     void erase( T item )

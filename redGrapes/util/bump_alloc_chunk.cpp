@@ -25,6 +25,8 @@ BumpAllocChunk::BumpAllocChunk( size_t capacity )
 
 BumpAllocChunk::~BumpAllocChunk()
 {
+    if( !empty() )
+        spdlog::warn("BumpAllocChunk: {} allocations remaining not deallocated.", count.load());
 }
 
 uintptr_t BumpAllocChunk::get_baseptr() const
