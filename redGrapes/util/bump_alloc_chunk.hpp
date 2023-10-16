@@ -34,24 +34,16 @@ struct BumpAllocChunk
     void reset();
 
     void * m_alloc( size_t n_bytes );
-    unsigned m_free( void * );
+    size_t m_free( void * );
 
     bool contains( void * ) const;
 
     uintptr_t get_baseptr() const;
 
-    /* std::atomic< uintptr_t > next_addr;
-     * uintptr_t limit;
-     */
-
-    // max. size of chunk in bytes
-    size_t const capacity;
-
-    // next address that will be allocated
-    std::atomic_ptrdiff_t offset;
-
-    // number of allocations
-    std::atomic<unsigned> count;
+    std::atomic< uintptr_t > next_addr;
+    uintptr_t const lower_limit;
+    uintptr_t const upper_limit;
+    std::atomic< size_t > count;
 };
 
 } // namespace memory

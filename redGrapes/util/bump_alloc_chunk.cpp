@@ -18,20 +18,17 @@ namespace memory
 {
 
 BumpAllocChunk::BumpAllocChunk( size_t capacity )
-    : capacity( capacity )
-    , offset(0)
-    , count(0)
-{}
+    : lower_limit( (uintptr_t)this + sizeof(BumpAllocChunk) )
+    , upper_limit( lower_limit + capacity )
+    , count(1)
+{
+    next_addr = upper_limit;
+}
 
 BumpAllocChunk::~BumpAllocChunk()
 {
     if( !empty() )
         spdlog::warn("BumpAllocChunk: {} allocations remaining not deallocated.", count.load());
-}
-
-uintptr_t BumpAllocChunk::get_baseptr() const
-{
-    return (uintptr_t)this + sizeof(BumpAllocChunk);
 }
 
 bool BumpAllocChunk::empty() const
@@ -41,31 +38,32 @@ bool BumpAllocChunk::empty() const
 
 void BumpAllocChunk::reset()
 {
-    offset = 0;
+    next_addr = upper_limit;
     count = 0;
-    memset((void*)get_baseptr(), 0, capacity);
+    memset((void*) lower_limit, 0, upper_limit-lower_limit);
 }
 
 void * BumpAllocChunk::m_alloc( size_t n_bytes )
 {
-    std::ptrdiff_t old_offset = offset.fetch_add(n_bytes);
-    if( old_offset + n_bytes <= capacity )
+    uintptr_t addr = next_addr.fetch_sub( n_bytes ) - n_bytes;
+    if( addr >= lower_limit )
     {
-        count.fetch_add(1);
-        return (void*)(get_baseptr() + old_offset);
+        count ++;
+        return (void*)addr;
     }
     else
         return nullptr;
 }
 
-unsigned BumpAllocChunk::m_free( void * )
+size_t BumpAllocChunk::m_free( void * )
 {
     return count.fetch_sub(1) - 1;
 }
 
 bool BumpAllocChunk::contains( void * ptr ) const
 {
-    return (uintptr_t)ptr >= (uintptr_t)get_baseptr() && (uintptr_t)ptr < (uintptr_t)(get_baseptr() + capacity);
+    uintptr_t p = (uintptr_t)ptr;
+    return p >= lower_limit && p < upper_limit;
 }
 
 } // namespace memory

@@ -138,7 +138,18 @@ public:
         , head( nullptr )
         , chunk_size( chunk_size )
     {
-       assert( chunk_size > sizeof(Chunk) + 128 );
+       assert( chunk_size > get_controlblock_size() );
+    }
+
+    constexpr size_t get_controlblock_size()
+    {
+        size_t const shared_ptr_size = 512;
+        return sizeof(Chunk) + shared_ptr_size;
+    }
+
+    constexpr size_t get_chunk_capacity()
+    {
+        return chunk_size - get_controlblock_size();
     }
 
     /* initializes a new chunk
@@ -146,9 +157,6 @@ public:
     template < typename... Args >
     void add_chunk( Args&&... args )
     {
-        size_t const shared_ptr_size = 128;
-        size_t const chunk_capacity = chunk_size - sizeof(Chunk) - shared_ptr_size;
-
         /* we are relying on std::allocate_shared
          * to do one *single* allocation which contains:
          * - shared_ptr control block

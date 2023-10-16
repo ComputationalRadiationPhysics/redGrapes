@@ -35,7 +35,6 @@ struct ChunkedBumpAlloc
         : chunk_size( chunk_size )
         , bump_allocators( HwlocAlloc<uint8_t>(obj), chunk_size )
     {
-        assert( chunk_size > sizeof(BumpAllocChunk) );
     }
 
     ChunkedBumpAlloc( ChunkedBumpAlloc && other )
@@ -66,26 +65,36 @@ struct ChunkedBumpAlloc
     {
         size_t alloc_size = n * sizeof(T);
         alloc_size = roundup_to_poweroftwo( alloc_size );
+ 
+        size_t const chunk_capacity = bump_allocators.get_chunk_capacity();
 
-        size_t const chunk_capacity = chunk_size - sizeof(BumpAllocChunk);
-
-
-        if( alloc_size < chunk_capacity )
+        if( alloc_size <= chunk_capacity )
         {
-            // try to alloc in current chunk
             T * item = (T*) nullptr;
 
-            // chunk is full, create a new one
             while( !item )
             {
+                // try to alloc in current chunk
                 auto chunk = bump_allocators.rbegin();
 
                 if( chunk != bump_allocators.rend() )
                 {
                     item = (T*) chunk->m_alloc( alloc_size );
+                    
+                    // chunk is full, create a new one
                     if( !item )
+                    {
                         bump_allocators.add_chunk( chunk_capacity );
+
+                        /* now, that the new chunk is added,
+                         * decrease count of old block so it can be deleted
+                         * by any following `deallocate`
+                         */
+                        if( chunk->count.fetch_sub(1) == 1 )
+                            bump_allocators.erase( chunk );
+                    }
                 }
+                // no chunk exists, create a new one
                 else
                     bump_allocators.add_chunk( chunk_capacity );
             }
@@ -95,7 +104,7 @@ struct ChunkedBumpAlloc
         else
         {
             spdlog::error("ChunkedBumpAlloc: requested allocation of {} bytes exceeds chunk capacity of {} bytes", alloc_size, chunk_capacity);
-            throw std::bad_alloc();
+            return nullptr;
         }
     }
 
