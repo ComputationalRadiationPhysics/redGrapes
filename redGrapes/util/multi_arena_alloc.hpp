@@ -54,7 +54,7 @@ struct MultiArenaAlloc
     template <typename T>
     void deallocate( unsigned arena_idx, T * ptr )
     {
-        SPDLOG_INFO("DEallocate {} on arena {}", boost::core::demangle(typeid(T).name()), arena_idx);
+        SPDLOG_TRACE("DEallocate {} on arena {}", boost::core::demangle(typeid(T).name()), arena_idx);
         arenas[arena_idx % arenas.size()].template deallocate<T>( ptr );
     }    
 };

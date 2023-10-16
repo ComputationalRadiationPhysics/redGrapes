@@ -134,7 +134,7 @@ struct WorkerThread
     ~WorkerThread();
 
     void stop();
-    
+
     /* function the thread will execute
      */
     void run();

@@ -81,8 +81,9 @@ struct ChunkList
             while( p && p->deleted )
             {
                 std::atomic_store( &prev, std::atomic_load(&p->prev) );
-                p = std::atomic_load( &prev );           }
+                p = std::atomic_load( &prev );
             }
+        }
 
         ChunkData * get() const
         {
@@ -99,6 +100,7 @@ struct ChunkList
 
     /* keeps a single, predefined pointer
      * and frees it on deallocate.
+     * used to spoof the allocated size to be bigger than requested.
      */
     template <typename T>
     struct StaticAlloc
@@ -158,7 +160,7 @@ public:
          */
         append_chunk(
             std::allocate_shared< Chunk >(
-                StaticAlloc<void>( alloc, chunk_size ),
+                StaticAlloc<void>( this->alloc, chunk_size ),
                 std::forward<Args>(args)...
             )
         );

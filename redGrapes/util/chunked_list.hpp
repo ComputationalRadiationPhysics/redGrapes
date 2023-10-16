@@ -129,6 +129,10 @@ struct ChunkedList
             , storage( TrivialInit_t{} )
         {}
 
+        /* initialize value of this item.
+         * only intended for new elements,
+         * re-assigning is not allowed.
+         */
         T & operator=(T const & value)
         {
             if( refcount.fetch_add(1) == 0 )
@@ -178,11 +182,6 @@ struct ChunkedList
         std::atomic< chunk_offset_t > last_idx{ 0 };
 
         Chunk( size_t n )
-            /*
-            : item_count(1)
-            , next_idx(0)
-            , last_idx(0)
-            */
         {
             for( unsigned i= 0; i < n; ++i )
                 new ( &items()[i] ) Item();
@@ -206,11 +205,22 @@ struct ChunkedList
         typename memory::ChunkList< Chunk, Allocator >::MutBackwardIterator chunk;
 
     protected:
+        /*!
+         * checks whether the iterator points to an existing storage location.
+         * This storage location can be used, free or deleted.
+         * Only by `rend()`, and if the container is empty also `rbegin()` shall
+         * return an iterator with invalid idx.
+         */
         bool is_valid_idx() const
         {
             return ( (bool)chunk ) && ( chunk_off < chunk_size );
         }
 
+        /*!
+         * tries to acquire the element this iterator points to
+         * by incrementing the reference count, so it will not be
+         * deleted concurrently to the usage of this iterator.
+         */
         bool try_acquire()
         {
             if( is_valid_idx() )
@@ -226,6 +236,9 @@ struct ChunkedList
             return has_item;
         }
 
+        /*!
+         * release the storage location
+         */
         void release()
         {
             if( has_item )
@@ -234,6 +247,10 @@ struct ChunkedList
             has_item = false;
         }
 
+        /*!
+         * advance the position until we find a un-deleted item
+         * that is acquired successfully.
+         */
         void acquire_next_item()
         {
             while( is_valid_idx() )
@@ -244,20 +261,27 @@ struct ChunkedList
                 {
                     if( try_acquire() )
                         return;
+                    else
+                        step = 1;
                 }
+
+                if( step <= chunk_off )
+                    chunk_off -= step;
                 else
                 {
-                    if( step <= chunk_off )
-                        chunk_off -= step;
-                    else
-                    {
-                        ++chunk;
-                        chunk_off = chunk_size - 1;
-                    }
+                    ++chunk;
+                    chunk_off = chunk_size - 1;
                 }
             }
 
+            // reached the end here, set chunk-off to invalid idx
             chunk_off = std::numeric_limits< chunk_offset_t >::max();
+        }
+
+    public:
+        ItemAccess( ItemAccess const & other )
+            : ItemAccess( other.chunk_size, other.chunk, other.chunk_off )
+        {
         }
 
         ItemAccess( size_t chunk_size,
@@ -268,28 +292,29 @@ struct ChunkedList
             acquire_next_item();
         }
 
+        ~ItemAccess()
+        {
+            release();
+        }
+
+        /*! True if the iterator points to a valid storage location,
+         * and the item was successfuly locked such that it will not
+         * be deleted until this iterator is released.
+         */
+        bool is_valid() const
+        {
+            return has_item;
+        }
+
         Item & item() const
         {
             assert( is_valid_idx() );
             return chunk->items()[chunk_off];
         }
 
-    public:
-        ItemAccess( ItemAccess const & other )
-            : ItemAccess( other.chunk_size, other.chunk, other.chunk_off )
-        {
-        }
-
-        ~ItemAccess()
-        {
-            release();
-        }
-
-        bool is_valid() const
-        {
-            return has_item;
-        }
-
+        /*! Access item value
+         */
+        inline
         typename std::conditional<
             is_const,
             T const *,
@@ -297,10 +322,10 @@ struct ChunkedList
         >::type
         operator->() const
         {
-            assert( is_valid() );
             return &item().storage.value;
         }
 
+        inline
         typename std::conditional<
             is_const,
             T const &,
@@ -308,7 +333,6 @@ struct ChunkedList
         >::type
         operator* () const
         {
-            assert( is_valid() );
             return item().storage.value;
         }
     };
@@ -452,7 +476,7 @@ public:
              */
             if( pos.chunk->item_count.fetch_sub(1) == 1 )
             {
-                spdlog::info("last item!!");
+                // spdlog::info("last item!!");
                 chunks.erase( pos.chunk );
             }
         }
