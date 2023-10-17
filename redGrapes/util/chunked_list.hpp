@@ -129,6 +129,12 @@ struct ChunkedList
             , storage( TrivialInit_t{} )
         {}
 
+        ~Item()
+        {
+            if( iter_offset == 0 )
+                storage.value.~T();
+        }
+
         /* initialize value of this item.
          * only intended for new elements,
          * re-assigning is not allowed.
@@ -185,6 +191,12 @@ struct ChunkedList
         {
             for( unsigned i= 0; i < n; ++i )
                 new ( &items()[i] ) Item();
+        }
+
+        ~Chunk()
+        {
+            for( unsigned i = 0; i < last_idx; ++i )
+                items()[i].~Item();
         }
 
         Item * items()
