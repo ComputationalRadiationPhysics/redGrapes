@@ -416,10 +416,9 @@ public:
         size_t chunk_size = 32
     )
         : chunk_size( chunk_size )
-        , chunks( alloc,
-            128
-            + sizeof( typename memory::ChunkList<Chunk, Allocator>::Chunk )
-            + sizeof(Chunk)
+        , chunks(
+            alloc,
+            memory::ChunkList< Chunk, Allocator >::get_controlblock_size()
             + sizeof(Item)*chunk_size
         )
     {

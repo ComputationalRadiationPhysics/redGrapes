@@ -138,12 +138,19 @@ public:
         , head( nullptr )
         , chunk_size( chunk_size )
     {
-       assert( chunk_size > get_controlblock_size() );
+        if( chunk_size <= get_controlblock_size() )
+             spdlog::error("chunksize = {}, control block ={}", chunk_size, get_controlblock_size());
+
+        assert( chunk_size > get_controlblock_size() );
     }
 
-    constexpr size_t get_controlblock_size()
+    static constexpr size_t get_controlblock_size()
     {
+
+        /* TODO: use sizeof( ...shared_ptr_inplace_something... )
+         */
         size_t const shared_ptr_size = 512;
+                
         return sizeof(Chunk) + shared_ptr_size;
     }
 
