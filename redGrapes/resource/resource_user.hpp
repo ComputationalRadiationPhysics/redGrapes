@@ -18,6 +18,7 @@
 #include <redGrapes/context.hpp>
 #include <redGrapes/util/chunked_list.hpp>
 #include <redGrapes/util/trace.hpp>
+#include <redGrapes/context.hpp>
 
 namespace redGrapes
 {
@@ -38,8 +39,8 @@ class ResourceUser
   public:    
     ResourceUser()
         : scope_level( scope_depth() )
-        , access_list( 16 )
-        , unique_resources( 16 )
+        , access_list( 64 )
+        , unique_resources( 64 )
     {
     }
 
@@ -61,7 +62,7 @@ class ResourceUser
     {
         this->access_list.push(ra);
         std::shared_ptr<ResourceBase> r = ra.get_resource();
-        //unique_resources.erase(ResourceEntry{ r, -1 });
+        //unique_resources.erase(ResourceEntry{ r, r->users.end() });           
         unique_resources.push(ResourceEntry{ r, r->users.rend() });
     }
 

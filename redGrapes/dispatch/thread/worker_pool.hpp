@@ -6,8 +6,8 @@
  */
 #pragma once
 
+#include <memory>
 #include <redGrapes/util/bitfield.hpp>
-#include <redGrapes/dispatch/thread/worker.hpp>
 
 namespace redGrapes
 {
@@ -16,9 +16,18 @@ namespace dispatch
 namespace thread
 {
 
+using WorkerId = unsigned;
+enum WorkerState {
+    BUSY = 0,
+    AVAILABLE = 1
+};
+
+struct WorkerThread;
+
 struct WorkerPool
 {
     WorkerPool( size_t n_workers = 1 );
+    ~WorkerPool();
 
     /* get the number of workers in this pool
      */
@@ -37,6 +46,7 @@ struct WorkerPool
 
     inline WorkerThread & get_worker( WorkerId worker_id )
     {
+        assert( worker_id < size() );
         return *workers[ worker_id ];
     }
 
@@ -72,7 +82,7 @@ struct WorkerPool
     int find_free_worker();
     
 private:
-    std::vector< std::shared_ptr<dispatch::thread::WorkerThread> > workers;
+    std::vector< std::shared_ptr< dispatch::thread::WorkerThread > > workers;
     AtomicBitfield worker_state;
 };
 

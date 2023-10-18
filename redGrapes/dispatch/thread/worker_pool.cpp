@@ -6,6 +6,7 @@
  */
 #include <redGrapes/dispatch/thread/worker.hpp>
 #include <redGrapes/dispatch/thread/worker_pool.hpp>
+#include <redGrapes/util/chunked_bump_alloc.hpp>
 
 namespace redGrapes
 {
@@ -27,11 +28,18 @@ WorkerPool::WorkerPool( size_t n_workers )
     for( size_t i = 0; i < n_workers; ++i )
     {
         // allocate worker with id `i` on arena `i`,
-        auto worker = memory::alloc_shared_bind< dispatch::thread::WorkerThread >( i, i );
+        hwloc_obj_t obj = hwloc_get_obj_by_type(topology, HWLOC_OBJ_PU, i);
+        memory::HwlocAlloc< dispatch::thread::WorkerThread > hwloc_alloc( obj );
+        auto worker = std::allocate_shared< dispatch::thread::WorkerThread >( hwloc_alloc, obj, i );
         workers.emplace_back( worker );
     }
 
     redGrapes::dispatch::thread::current_waker_id = 0;
+}
+
+WorkerPool::~WorkerPool()
+{
+   SPDLOG_TRACE("~WorkerPool()");
 }
 
 void WorkerPool::start()
@@ -39,6 +47,7 @@ void WorkerPool::start()
     for( auto & worker : workers )
         worker->start();
 }
+
 void WorkerPool::stop()
 {
     for( auto & worker : workers )

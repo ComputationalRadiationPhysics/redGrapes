@@ -1,30 +1,45 @@
 #pragma once
 
-#include <redGrapes/util/multi_arena_alloc.hpp>
+#include <boost/core/demangle.hpp>
+#include <memory>
+#include <redGrapes/dispatch/thread/local.hpp>
+#include <redGrapes/dispatch/thread/worker_pool.hpp>
+#include <redGrapes/resource/access/area.hpp>
+//#include <redGrapes/context.hpp>
 
 namespace redGrapes
 {
+
+extern std::shared_ptr< dispatch::thread::WorkerPool > worker_pool;
+
 namespace memory
 {
-
-extern std::shared_ptr< MultiArenaAlloc > alloc;
 extern thread_local unsigned current_arena;
+
+struct UntypedAllocator
+{   
+    dispatch::thread::WorkerId worker_id;
+
+    UntypedAllocator( dispatch::thread::WorkerId worker_id );
+
+    void * allocate( size_t n_bytes );
+    void deallocate( void * ptr );
+};
 
 template < typename T >
 struct Allocator
 {
-    unsigned arena_id;
-
+    UntypedAllocator alloc;
     typedef T value_type;
 
-    Allocator () : arena_id( current_arena )
+    Allocator () : alloc( current_arena )
     {
     }
-    Allocator( unsigned arena_id ) : arena_id( arena_id ) {}
+    Allocator( dispatch::thread::WorkerId worker_id ) : alloc( worker_id ) {}
 
     template< typename U >
     constexpr Allocator(Allocator<U> const& other) noexcept
-        : arena_id( other.arena_id )
+        : alloc( other.alloc )
     {
     }
 
@@ -33,17 +48,13 @@ struct Allocator
         if (n > std::numeric_limits<std::size_t>::max() / sizeof(T))
             throw std::bad_array_new_length();
 
-        T * p = alloc->allocate< T >( arena_id, n );
-
-        if( p )
-            return p;
-        else
-            throw std::bad_alloc();
+        SPDLOG_TRACE("allocate {} times {}", n, boost::core::demangle(typeid(T).name()));
+        return (T*) alloc.allocate( sizeof(T) * n );
     }
  
     void deallocate(T* p, std::size_t n = 0) noexcept
     {
-        alloc->deallocate< T >( arena_id, p );
+        alloc.deallocate( (void*) p );
     }
 
     template < typename U, typename... Args >
@@ -65,12 +76,17 @@ bool operator==(Allocator<T> const&, Allocator<U> const &) { return true; }
 template<typename T, typename U>
 bool operator!=(Allocator<T> const&, Allocator<U> const&) { return false; }
 
+
+/* allocates a shared_ptr in the memory pool of a given worker
+ */
 template < typename T, typename... Args >
-std::shared_ptr<T> alloc_shared_bind( unsigned arena_id, Args&&... args )
+std::shared_ptr<T> alloc_shared_bind( dispatch::thread::WorkerId worker_id, Args&&... args )
 {
-    return std::allocate_shared< T, Allocator<T> >( Allocator<T>( arena_id ), std::forward<Args>(args)... );
+    return std::allocate_shared< T, Allocator<T> >( Allocator<T>( worker_id ), std::forward<Args>(args)... );
 }
 
+/* allocates a shared_ptr in the memory pool of the current worker
+ */
 template < typename T, typename... Args >
 std::shared_ptr<T> alloc_shared( Args&&... args )
 {

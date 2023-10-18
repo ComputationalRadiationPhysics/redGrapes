@@ -12,10 +12,14 @@
 #include <functional>
 #include <memory>
 #include <moodycamel/concurrentqueue.h>
-
-#include <redGrapes/task/queue.hpp>
+#include <hwloc.h>
 #include <redGrapes/util/cv.hpp>
+#include <redGrapes/util/hwloc_alloc.hpp>
+#include <redGrapes/util/chunked_bump_alloc.hpp>
+#include <redGrapes/task/queue.hpp>
+
 #include <redGrapes/util/trace.hpp>
+#include <redGrapes/dispatch/thread/worker_pool.hpp>
 
 namespace redGrapes
 {
@@ -26,13 +30,6 @@ namespace dispatch
 {
 namespace thread
 {
-
-using WorkerId = unsigned;
-enum WorkerState {
-    BUSY = 0,
-    AVAILABLE = 1
-};
-
 
 struct WorkerThread;
 
@@ -59,7 +56,7 @@ struct Worker
      * and request rescheduling if empty
      */
     std::atomic_bool m_start{ false };
-    
+
     /*! if true, the thread shall stop
      * instead of waiting when it is out of jobs
      */
@@ -71,13 +68,15 @@ struct Worker
     //! condition variable for waiting if queue is empty
     CondVar cv;
 
-    static constexpr size_t queue_capacity = 32;
+    static constexpr size_t queue_capacity = 128;
 
 public:
+    memory::ChunkedBumpAlloc< memory::HwlocAlloc > alloc;
+
     task::Queue emplacement_queue{ queue_capacity };
     task::Queue ready_queue{ queue_capacity };
 
-    Worker( WorkerId id );
+    Worker( hwloc_obj_t const & obj, WorkerId id );
     virtual ~Worker();
 
     inline WorkerId get_worker_id() { return id; }
@@ -112,7 +111,7 @@ public:
     /* find a task that shall be executed next
      */
     Task * gather_task();
-    
+
     /*! take a task from the emplacement queue and initialize it,
      * @param t is set to the task if the new task is ready,
      * @param t is set to nullptr if the new task is blocked.
@@ -130,7 +129,7 @@ struct WorkerThread
 {
     std::thread thread;
 
-    WorkerThread( WorkerId worker_id );
+    WorkerThread( hwloc_obj_t const & obj, WorkerId worker_id );
     ~WorkerThread();
 
     void stop();

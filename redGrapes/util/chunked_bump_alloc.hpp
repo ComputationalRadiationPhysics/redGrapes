@@ -8,9 +8,12 @@
 #pragma once
 
 #include <atomic>
+#include <boost/core/demangle.hpp>
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <redGrapes_config.hpp>
+#include <spdlog/spdlog.h>
 #include <vector>
 #include <redGrapes/util/spinlock.hpp>
 #include <redGrapes/util/hwloc_alloc.hpp>
@@ -25,15 +28,22 @@ namespace redGrapes
 namespace memory
 {
 
+/* use 64KiB as default chunksize
+ */
+#ifndef REDGRAPES_ALLOC_CHUNKSIZE
+#define REDGRAPES_ALLOC_CHUNKSIZE ( 64 * 1024 )
+#endif
+
+template < template <typename> class A = HwlocAlloc >
 struct ChunkedBumpAlloc
 {
     size_t const chunk_size;
 
-    ChunkList< BumpAllocChunk, HwlocAlloc > bump_allocators;
+    ChunkList< BumpAllocChunk, A > bump_allocators;
 
-    ChunkedBumpAlloc( hwloc_obj_t obj, size_t chunk_size )
+    ChunkedBumpAlloc( A<uint8_t> && alloc, size_t chunk_size = REDGRAPES_ALLOC_CHUNKSIZE )
         : chunk_size( chunk_size )
-        , bump_allocators( HwlocAlloc<uint8_t>(obj), chunk_size )
+        , bump_allocators( std::move(alloc), chunk_size )
     {
     }
 
@@ -45,6 +55,10 @@ struct ChunkedBumpAlloc
 
     ~ChunkedBumpAlloc()
     {
+        SPDLOG_TRACE("~ChunkedBumpAlloc()");
+        auto head = bump_allocators.rbegin();
+        if( head != bump_allocators.rend() )
+            head->count --;
     }
 
     inline static size_t roundup_to_poweroftwo( size_t s )
@@ -63,8 +77,9 @@ struct ChunkedBumpAlloc
     template <typename T>
     T * allocate( std::size_t n = 1 )
     {
-        size_t alloc_size = n * sizeof(T);
-        alloc_size = roundup_to_poweroftwo( alloc_size );
+        TRACE_EVENT("Allocator", "ChunkedBumpAlloc::allocate()");
+        size_t real_alloc_size = n * sizeof(T);
+        size_t alloc_size = roundup_to_poweroftwo( real_alloc_size );
  
         size_t const chunk_capacity = bump_allocators.get_chunk_capacity();
 
@@ -80,7 +95,7 @@ struct ChunkedBumpAlloc
                 if( chunk != bump_allocators.rend() )
                 {
                     item = (T*) chunk->m_alloc( alloc_size );
-                    
+
                     // chunk is full, create a new one
                     if( !item )
                     {
@@ -99,6 +114,7 @@ struct ChunkedBumpAlloc
                     bump_allocators.add_chunk( chunk_capacity );
             }
 
+            SPDLOG_TRACE("ChunkedBumpAlloc: alloc {},{},{},{}", (uintptr_t)item, alloc_size, real_alloc_size, boost::core::demangle(typeid(T).name()));
             return item;
         }
         else
@@ -108,19 +124,28 @@ struct ChunkedBumpAlloc
         }
     }
 
-    template <typename T>
+    template < typename T >
     void deallocate( T * ptr )
     {
+        TRACE_EVENT("Allocator", "ChunkedBumpAlloc::deallocate()");
+        SPDLOG_TRACE("ChunkedBumpAlloc[{}]: free {} ", (void*)this, (uintptr_t)ptr);
+
+        /* find the chunk that contains `ptr` and deallocate there.
+         * Additionally, delete the chunk if possible.
+         */
+
         auto prev = bump_allocators.rbegin();
         for( auto it = bump_allocators.rbegin(); it != bump_allocators.rend(); ++it )
         {
             if( it->contains((void*) ptr) )
             {
-                // if no allocations remain in this chunk
-                // and this chunk is not the latest one,
-                // remove this chunk
+                /* if no allocations remain in this chunk
+                 * and this chunk is not `head`,
+                 * remove this chunk
+                 */
                 if( it->m_free((void*)ptr) == 0 )
                 {
+                    SPDLOG_TRACE("ChunkedBumpAlloc: erase chunk {}", it->lower_limit);
                     bump_allocators.erase( it );
                     prev.optimize();
                 }
@@ -129,6 +154,8 @@ struct ChunkedBumpAlloc
             }
             prev = it;
         }
+
+        spdlog::error("try to deallocate invalid pointer ({})", (void*)ptr);
     }
 };
 

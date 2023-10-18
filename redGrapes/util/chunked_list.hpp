@@ -18,11 +18,11 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <redGrapes/util/trace.hpp>
 #include <redGrapes/util/allocator.hpp>
 #include <redGrapes/util/bump_alloc_chunk.hpp>
 #include <redGrapes/util/spinlock.hpp>
 #include <redGrapes/util/chunklist.hpp>
-#include <redGrapes/util/trace.hpp>
 #include <spdlog/spdlog.h>
 
 namespace redGrapes
@@ -404,7 +404,7 @@ private:
     memory::ChunkList< Chunk, Allocator > chunks;
 
 public:
-    ChunkedList( size_t chunk_size = 32 )
+    ChunkedList( size_t chunk_size = 16 )
         : ChunkedList(
             Allocator< uint8_t >(),
             chunk_size
@@ -412,12 +412,12 @@ public:
     {}
 
     ChunkedList(
-        Allocator< uint8_t > alloc,
-        size_t chunk_size = 32
+        Allocator< uint8_t > && alloc,
+        size_t chunk_size = 16
     )
         : chunk_size( chunk_size )
         , chunks(
-            alloc,
+            std::move(alloc),
             memory::ChunkList< Chunk, Allocator >::get_controlblock_size()
             + sizeof(Item)*chunk_size
         )
@@ -427,8 +427,8 @@ public:
 
     ChunkedList( ChunkedList && other ) = default;
 
-    ChunkedList( Allocator< uint8_t > alloc, ChunkedList const & other )
-        : ChunkedList( alloc, other.chunk_size )
+    ChunkedList( Allocator< uint8_t > && alloc, ChunkedList const & other )
+        : ChunkedList( std::move(alloc), other.chunk_size )
     {
         spdlog::error("copy construct ChunkedList!!");
     }

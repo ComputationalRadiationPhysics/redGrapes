@@ -37,7 +37,7 @@ namespace memory
  */
 template <
     typename ChunkData,
-    template <typename> typename Allocator
+    template <typename> class Allocator
 >
 struct ChunkList
 {
@@ -133,7 +133,7 @@ struct ChunkList
     };
 
 public:
-    ChunkList( Allocator< uint8_t > alloc, size_t chunk_size )
+    ChunkList( Allocator< uint8_t > && alloc, size_t chunk_size )
         : alloc( alloc )
         , head( nullptr )
         , chunk_size( chunk_size )
@@ -150,7 +150,7 @@ public:
         /* TODO: use sizeof( ...shared_ptr_inplace_something... )
          */
         size_t const shared_ptr_size = 512;
-                
+     
         return sizeof(Chunk) + shared_ptr_size;
     }
 
@@ -164,6 +164,7 @@ public:
     template < typename... Args >
     void add_chunk( Args&&... args )
     {
+        TRACE_EVENT("Allocator", "ChunkList add_chunk()");
         /* we are relying on std::allocate_shared
          * to do one *single* allocation which contains:
          * - shared_ptr control block
@@ -185,6 +186,7 @@ public:
      */
     void append_chunk( std::shared_ptr< Chunk > new_head )
     {
+        TRACE_EVENT("Allocator", "append_chunk()");
         bool append_successful = false;
         while( ! append_successful )
         {

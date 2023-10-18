@@ -10,6 +10,7 @@
 #include <redGrapes/task/task_space.hpp>
 #include <redGrapes/task/queue.hpp>
 #include <redGrapes/util/allocator.hpp>
+#include <redGrapes/dispatch/thread/worker.hpp>
 
 namespace redGrapes
 {
@@ -50,12 +51,13 @@ namespace redGrapes
 
     void TaskSpace::free_task( Task * task )
     {
+        TRACE_EVENT("TaskSpace", "free_task()");
         unsigned count = task_count.fetch_sub(1) - 1;
 
         unsigned arena_id = task->arena_id;
         task->~Task();
 
-        memory::alloc->deallocate( arena_id, task );
+        worker_pool->get_worker( arena_id ).alloc.deallocate( task );
 
         // TODO: implement this using post-event of root-task?
         //  - event already has in_edge count
@@ -67,6 +69,7 @@ namespace redGrapes
 
     void TaskSpace::submit( Task * task )
     {
+        TRACE_EVENT("TaskSpace", "submit()");
         task->space = shared_from_this();
         task->task = task;
 

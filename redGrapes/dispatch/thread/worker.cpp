@@ -5,6 +5,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
+#include <hwloc.h>
+#include <redGrapes/scheduler/scheduler.hpp>
+#include <redGrapes/util/chunked_bump_alloc.hpp>
 #include <redGrapes/dispatch/thread/worker.hpp>
 #include <redGrapes/dispatch/thread/worker_pool.hpp>
 
@@ -14,25 +17,26 @@ namespace dispatch
 {
 namespace thread
 {
-
-WorkerThread::WorkerThread( WorkerId worker_id )
-    : Worker( worker_id ),
+WorkerThread::WorkerThread( hwloc_obj_t const & obj, WorkerId worker_id )
+    : Worker( obj, worker_id ),
       thread([this] { this->run(); })
 {
 }
 
 WorkerThread::~WorkerThread()
 {
-
 }
 
-Worker::Worker( WorkerId worker_id )
-    : id( worker_id )
-{    
+Worker::Worker( hwloc_obj_t const & obj, WorkerId worker_id )
+    : alloc( obj )
+    , id( worker_id )
+{ 
 }
 
 Worker::~Worker()
-{}
+{
+    SPDLOG_TRACE("~Worker()");
+}
 
 void Worker::start()
 {
@@ -85,6 +89,8 @@ void WorkerThread::run()
      */
     this->work_loop();
 
+    current_worker.reset();
+
     SPDLOG_TRACE("Worker Finished!");    
 }
 
@@ -129,7 +135,7 @@ void Worker::work_loop()
         }
 
         worker_pool->set_worker_state( id, dispatch::thread::WorkerState::AVAILABLE );
-            
+
         if( !m_stop.load(std::memory_order_consume) )
             cv.wait();
     }
@@ -138,6 +144,7 @@ void Worker::work_loop()
 
 Task * Worker::gather_task()
 {
+    TRACE_EVENT("Worker", "gather_task()");
     Task * task = nullptr;
 
     /* STAGE 1:
@@ -171,11 +178,11 @@ Task * Worker::gather_task()
 
     /* STAGE 3:
      *
-     * after all tasks are workstealing
+     * after all tasks from own queues are consumed, try to steal tasks
      */
     SPDLOG_TRACE("Worker {}: try to steal tasks", id);
     task = top_scheduler->steal_task( *this );
-        
+
 #endif
 
     return task;
@@ -183,6 +190,7 @@ Task * Worker::gather_task()
 
 bool Worker::init_dependencies( Task* & t, bool claimed )
 {
+    TRACE_EVENT("Worker", "init_dependencies()");
     if(Task * task = emplacement_queue.pop())
     {
         SPDLOG_DEBUG("init task {}", task->task_id);

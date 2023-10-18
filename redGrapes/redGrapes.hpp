@@ -26,14 +26,11 @@
 namespace redGrapes
 {
 
-void init_allocator( size_t n_arenas=1, size_t chunk_size = 16*1024 );
-void finalize_allocator();
-
-void init_tracing();
+ void init_tracing();
 void cpubind_mainthread();
+
 void init( size_t n_workers, std::shared_ptr<scheduler::IScheduler> scheduler);
 void init( size_t n_workers = std::thread::hardware_concurrency() );
-
 void finalize();
 
 //! wait until all tasks in the current task space finished

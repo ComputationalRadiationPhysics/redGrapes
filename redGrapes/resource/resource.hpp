@@ -18,7 +18,6 @@
 #include <iostream>
 #include <functional>
 
-#include <redGrapes/context.hpp>
 #include <redGrapes/task/property/trait.hpp>
 #include <redGrapes/util/allocator.hpp>
 #include <redGrapes/util/chunked_list.hpp>

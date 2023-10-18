@@ -10,7 +10,6 @@
 #include <memory>
 #include <moodycamel/concurrentqueue.h>
 
-#include <redGrapes/util/multi_arena_alloc.hpp>
 #include <redGrapes/util/allocator.hpp>
 #include <redGrapes/dispatch/thread/worker_pool.hpp>
 #include <redGrapes/scheduler/scheduler.hpp>
@@ -33,7 +32,6 @@ thread_local unsigned next_worker = 0;
 
 namespace memory
 {
-std::shared_ptr< MultiArenaAlloc > alloc;
 thread_local unsigned current_arena;
 } // namespace memory
 
@@ -103,19 +101,14 @@ std::vector<std::reference_wrapper<Task>> backtrace()
     return bt;
 }
 
-void init_allocator( size_t n_arenas, size_t chunk_size )
+void init_hwloc()
 {
     hwloc_topology_init(&topology);
     hwloc_topology_load(topology);
-
-    memory::alloc = std::make_shared< memory::MultiArenaAlloc >( chunk_size, n_arenas );
 }
 
-void finalize_allocator()
+void finalize_hwloc()
 {
-    SPDLOG_TRACE("finalize allocator");
-    memory::alloc.reset();
-
     hwloc_topology_destroy(topology);
 }
 
@@ -157,8 +150,9 @@ void init( size_t n_workers, std::shared_ptr<scheduler::IScheduler> scheduler )
 {
     init_tracing();
 
-    top_space = std::make_shared<TaskSpace>();
     worker_pool = std::make_shared<dispatch::thread::WorkerPool>( n_workers );
+
+    top_space = std::make_shared<TaskSpace>();
     top_scheduler = scheduler;
 
     worker_pool->start();
@@ -170,7 +164,7 @@ void init( size_t n_workers, std::shared_ptr<scheduler::IScheduler> scheduler )
 
 void init( size_t n_workers )
 {
-    init_allocator( n_workers );
+    init_hwloc();
     init( n_workers, std::make_shared<scheduler::DefaultScheduler>());
 }
 
@@ -189,12 +183,14 @@ void finalize()
     barrier();
     worker_pool->stop();
 
+    SPDLOG_TRACE("reset context");
     top_scheduler.reset();
-    worker_pool.reset();
     top_space.reset();
 
-    finalize_allocator();
+    SPDLOG_TRACE("reset worker pool");    
+    worker_pool.reset();
 
+    finalize_hwloc();
     finalize_tracing();
 }
 

@@ -162,7 +162,7 @@ namespace scheduler
                 return std::nullopt;
             }
 
-            bool task_dependency_type(Task const & a, Task const & b)
+            bool task_dependency_type(Task const & a, Task & b)
             {
                 /// fixme: b or a ?
                 if(auto sub_scheduler = get_matching_scheduler(b.required_scheduler_tags))
@@ -209,7 +209,7 @@ namespace scheduler
         template<size_t T_tag_count = 64>
         auto make_tag_match_scheduler()
         {
-            return TagMatchBuilder<T_tag_count>{memory::alloc_shared<TagMatch<T_tag_count>>()};
+            return TagMatchBuilder<T_tag_count>{std::make_shared<TagMatch<T_tag_count>>()};
         }
 
 

@@ -38,8 +38,6 @@ struct BumpAllocChunk
 
     bool contains( void * ) const;
 
-    uintptr_t get_baseptr() const;
-
     std::atomic< uintptr_t > next_addr;
     uintptr_t const lower_limit;
     uintptr_t const upper_limit;

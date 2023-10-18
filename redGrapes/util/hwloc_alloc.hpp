@@ -5,9 +5,13 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
+#pragma once
+
 #include <cstdlib>
 #include <hwloc.h>
 #include <spdlog/spdlog.h>
+
+#include <redGrapes/util/trace.hpp>
 
 namespace redGrapes
 {
@@ -35,6 +39,8 @@ struct HwlocAlloc
 
     T * allocate( std::size_t n ) const
     {
+        TRACE_EVENT("Allocator", "HwlocAlloc::allocate");
+
         size_t alloc_size = sizeof(T) * n;
 
         SPDLOG_TRACE("hwloc_alloc {} bytes", n);
@@ -55,15 +61,29 @@ struct HwlocAlloc
 
         // touch memory
         hwloc_cpuset_t last_cpuset;
-        hwloc_get_cpubind(topology, last_cpuset, HWLOC_CPUBIND_THREAD);
-        hwloc_set_cpubind(topology, obj->cpuset, HWLOC_CPUBIND_THREAD);
-        memset( ptr, 0, alloc_size );
-        hwloc_set_cpubind(topology, last_cpuset, HWLOC_CPUBIND_THREAD);
+        {
+            TRACE_EVENT("rebind cpu", "Allocator");
+            hwloc_get_cpubind(topology, last_cpuset, HWLOC_CPUBIND_THREAD);
+            hwloc_set_cpubind(topology, obj->cpuset, HWLOC_CPUBIND_THREAD);
+        }
+
+        {
+            TRACE_EVENT("memset", "Allocator");
+            memset( ptr, 0, alloc_size );
+        }
+
+        {
+            TRACE_EVENT("rebind cpu", "Allocator");
+            hwloc_set_cpubind(topology, last_cpuset, HWLOC_CPUBIND_THREAD);
+        }
+
     }
 
     void deallocate( T * p, std::size_t n = 0 ) noexcept
     {
-        SPDLOG_TRACE("hwloc free");
+        TRACE_EVENT("HwlocAlloc::deallocate", "Allocator");
+
+        SPDLOG_TRACE("hwloc free {}", (uintptr_t)p);
         hwloc_free( topology, (void*)p, sizeof(T)*n );
     }
 };

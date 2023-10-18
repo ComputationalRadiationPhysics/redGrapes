@@ -9,8 +9,9 @@
 
 #include <mutex>
 #include <redGrapes/task/task.hpp>
-#include <redGrapes/util/allocator.hpp>
+//#include <redGrapes/util/allocator.hpp>
 #include <moodycamel/concurrentqueue.h>
+#include <redGrapes/util/trace.hpp>
 
 namespace redGrapes
 {
@@ -45,7 +46,7 @@ struct TaskQueueTraits
 	// but many producers, a smaller block size should be favoured. For few producers
 	// and/or many elements, a larger block size is preferred. A sane default
 	// is provided. Must be a power of 2.
-	static const size_t BLOCK_SIZE = 16;
+	static const size_t BLOCK_SIZE = 64;
 
 	// For explicit producers (i.e. when using a producer token), the block is
 	// checked for being empty by iterating through a list of flags, one per element.
@@ -77,7 +78,7 @@ struct TaskQueueTraits
 	// Enqueue operations that would cause this limit to be surpassed will fail. Note
 	// that this limit is enforced at the block level (for performance reasons), i.e.
 	// it's rounded up to the nearest block size.
-    static const size_t MAX_SUBQUEUE_SIZE = moodycamel::details::const_numeric_max<size_t>::value;
+  static const size_t MAX_SUBQUEUE_SIZE = moodycamel::details::const_numeric_max<size_t>::value;
 
 	// The number of times to spin before sleeping when waiting on a semaphore.
 	// Recommended values are on the order of 1000-10000 unless the number of
@@ -91,13 +92,14 @@ struct TaskQueueTraits
 	// Note that blocks consumed by explicit producers are only freed on destruction
 	// of the queue (not following destruction of the token) regardless of this trait.
 	static const bool RECYCLE_ALLOCATED_BLOCKS = false;
-	
+/*	
 	static inline void* malloc(size_t size) {
             return (void*) memory::Allocator< uint8_t >().allocate( size );
         }
 	static inline void free(void* ptr) {
             memory::Allocator< uint8_t >().deallocate( (uint8_t*)ptr, 1 );
         }
+            */
 };
 
 struct Queue
@@ -108,7 +110,7 @@ struct Queue
 
     std::mutex m;
 */
-    moodycamel::ConcurrentQueue< Task*, TaskQueueTraits > cq;
+    moodycamel::ConcurrentQueue< Task*/*, TaskQueueTraits */> cq;
 
     Queue();
     Queue( unsigned capacity ) :cq(capacity) {
@@ -116,10 +118,13 @@ struct Queue
 
     inline void push(Task * task)
     {
+        TRACE_EVENT("Task", "TaskQueue::push()");
         this->cq.enqueue(task);
     }
+
     inline Task * pop()
     {
+        TRACE_EVENT("Task", "TaskQueue::pop()");
         Task * t = nullptr;
         if( this->cq.try_dequeue( t ) )
             return t;
