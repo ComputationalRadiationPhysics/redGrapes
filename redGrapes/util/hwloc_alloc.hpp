@@ -43,12 +43,12 @@ struct HwlocAlloc
 
         size_t alloc_size = sizeof(T) * n;
 
-        SPDLOG_TRACE("hwloc_alloc {} bytes", n);
-
         void * ptr = hwloc_alloc_membind(
             topology, alloc_size, obj->cpuset,
             HWLOC_MEMBIND_BIND, HWLOC_MEMBIND_NOCPUBIND | HWLOC_MEMBIND_STRICT
         );
+
+        SPDLOG_TRACE("hwloc_alloc {},{}", (uintptr_t)ptr, n);
 
         if( ptr )
             return (T*)ptr;
@@ -62,18 +62,18 @@ struct HwlocAlloc
         // touch memory
         hwloc_cpuset_t last_cpuset;
         {
-            TRACE_EVENT("rebind cpu", "Allocator");
+            TRACE_EVENT("Allocator", "rebind cpu");
             hwloc_get_cpubind(topology, last_cpuset, HWLOC_CPUBIND_THREAD);
             hwloc_set_cpubind(topology, obj->cpuset, HWLOC_CPUBIND_THREAD);
         }
 
         {
-            TRACE_EVENT("memset", "Allocator");
+            TRACE_EVENT("Allocator", "memset");
             memset( ptr, 0, alloc_size );
         }
 
         {
-            TRACE_EVENT("rebind cpu", "Allocator");
+            TRACE_EVENT("Allocator", "rebind cpu");
             hwloc_set_cpubind(topology, last_cpuset, HWLOC_CPUBIND_THREAD);
         }
 
@@ -81,7 +81,7 @@ struct HwlocAlloc
 
     void deallocate( T * p, std::size_t n = 0 ) noexcept
     {
-        TRACE_EVENT("HwlocAlloc::deallocate", "Allocator");
+        TRACE_EVENT("Allocator", "HwlocAlloc::deallocate");
 
         SPDLOG_TRACE("hwloc free {}", (uintptr_t)p);
         hwloc_free( topology, (void*)p, sizeof(T)*n );

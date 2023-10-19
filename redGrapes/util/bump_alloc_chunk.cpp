@@ -17,11 +17,12 @@ namespace redGrapes
 namespace memory
 {
 
-BumpAllocChunk::BumpAllocChunk( size_t capacity )
-    : lower_limit( (uintptr_t)this + sizeof(BumpAllocChunk) )
-    , upper_limit( lower_limit + capacity )
+BumpAllocChunk::BumpAllocChunk( size_t lower_limit, size_t upper_limit )
+    : lower_limit( lower_limit )
+    , upper_limit( upper_limit )
     , count(1)
 {
+    SPDLOG_INFO("bumpallochunk: lower={}, upper={}", lower_limit, upper_limit);
     next_addr = upper_limit;
 }
 

@@ -25,7 +25,7 @@ namespace memory
  */
 struct BumpAllocChunk
 {
-    BumpAllocChunk( size_t capacity );
+    BumpAllocChunk( size_t lower_limit, size_t upper_limit );
     BumpAllocChunk( BumpAllocChunk const & ) = delete;
     BumpAllocChunk( BumpAllocChunk & ) = delete;
     ~BumpAllocChunk();

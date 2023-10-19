@@ -149,8 +149,8 @@ public:
 
         /* TODO: use sizeof( ...shared_ptr_inplace_something... )
          */
-        size_t const shared_ptr_size = 512;
-     
+        size_t const shared_ptr_size = 128;
+
         return sizeof(Chunk) + shared_ptr_size;
     }
 
@@ -161,10 +161,11 @@ public:
 
     /* initializes a new chunk
      */
-    template < typename... Args >
-    void add_chunk( Args&&... args )
+//    template < typename... Args >
+    void add_chunk()// Args&&... args )
     {
         TRACE_EVENT("Allocator", "ChunkList add_chunk()");
+
         /* we are relying on std::allocate_shared
          * to do one *single* allocation which contains:
          * - shared_ptr control block
@@ -174,10 +175,13 @@ public:
          * but reserved by StaticAlloc.
          * This works because shared_ptr control block lies at lower address.
          */
+        StaticAlloc<void> chunk_alloc( this->alloc, chunk_size );
+        uintptr_t base = (uintptr_t)chunk_alloc.ptr;
         append_chunk(
             std::allocate_shared< Chunk >(
-                StaticAlloc<void>( this->alloc, chunk_size ),
-                std::forward<Args>(args)...
+                chunk_alloc,
+                base + get_controlblock_size(),
+                base + chunk_size
             )
         );
     }

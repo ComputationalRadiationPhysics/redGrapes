@@ -9,6 +9,7 @@
 
 #include <atomic>
 #include <boost/core/demangle.hpp>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <mutex>
@@ -22,6 +23,7 @@
 #include <redGrapes/scheduler/scheduler.hpp>
 #include <redGrapes/dispatch/thread/local.hpp>
 #include <redGrapes/dispatch/thread/cpuset.hpp>
+#include <redGrapes/util/trace.hpp>
 
 namespace redGrapes
 {
@@ -78,8 +80,7 @@ struct ChunkedBumpAlloc
     T * allocate( std::size_t n = 1 )
     {
         TRACE_EVENT("Allocator", "ChunkedBumpAlloc::allocate()");
-        size_t real_alloc_size = n * sizeof(T);
-        size_t alloc_size = roundup_to_poweroftwo( real_alloc_size );
+        size_t alloc_size = roundup_to_poweroftwo( n * sizeof(T) );
  
         size_t const chunk_capacity = bump_allocators.get_chunk_capacity();
 
@@ -99,7 +100,7 @@ struct ChunkedBumpAlloc
                     // chunk is full, create a new one
                     if( !item )
                     {
-                        bump_allocators.add_chunk( chunk_capacity );
+                        bump_allocators.add_chunk();
 
                         /* now, that the new chunk is added,
                          * decrease count of old block so it can be deleted
@@ -111,10 +112,10 @@ struct ChunkedBumpAlloc
                 }
                 // no chunk exists, create a new one
                 else
-                    bump_allocators.add_chunk( chunk_capacity );
+                    bump_allocators.add_chunk();
             }
 
-            SPDLOG_TRACE("ChunkedBumpAlloc: alloc {},{},{},{}", (uintptr_t)item, alloc_size, real_alloc_size, boost::core::demangle(typeid(T).name()));
+            SPDLOG_TRACE("ChunkedBumpAlloc: alloc {},{}", (uintptr_t)item, alloc_size);
             return item;
         }
         else

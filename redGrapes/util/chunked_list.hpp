@@ -80,8 +80,6 @@ template <
 >
 struct ChunkedList
 {
-    size_t const chunk_size;
-
     using chunk_offset_t = uint16_t;
     using refcount_t = uint16_t;
 
@@ -187,8 +185,9 @@ struct ChunkedList
          */
         std::atomic< chunk_offset_t > last_idx{ 0 };
 
-        Chunk( size_t n )
+        Chunk( uintptr_t lower_limit, uintptr_t upper_limit )
         {
+            size_t n = (upper_limit - lower_limit) / sizeof(Item);
             for( unsigned i= 0; i < n; ++i )
                 new ( &items()[i] ) Item();
         }
@@ -403,25 +402,26 @@ struct ChunkedList
 private:
     memory::ChunkList< Chunk, Allocator > chunks;
 
+    size_t chunk_size;
+
 public:
-    ChunkedList( size_t chunk_size = 16 )
+    ChunkedList( size_t est_chunk_size = 32 )
         : ChunkedList(
             Allocator< uint8_t >(),
-            chunk_size
+            est_chunk_size
         )
     {}
 
     ChunkedList(
         Allocator< uint8_t > && alloc,
-        size_t chunk_size = 16
+        size_t est_chunk_size = 32
     )
-        : chunk_size( chunk_size )
-        , chunks(
+        :chunks(
             std::move(alloc),
-            memory::ChunkList< Chunk, Allocator >::get_controlblock_size()
-            + sizeof(Item)*chunk_size
+            est_chunk_size * sizeof(Item)
         )
     {
+        this->chunk_size = chunks.get_chunk_capacity() / sizeof(Item);
         assert( chunk_size < std::numeric_limits< chunk_offset_t >::max() );
     }
 
@@ -455,7 +455,7 @@ public:
                 }
             }
 
-            chunks.add_chunk( chunk_size );
+            chunks.add_chunk();
         }
     }
 

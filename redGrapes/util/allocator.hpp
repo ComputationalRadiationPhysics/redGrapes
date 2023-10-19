@@ -43,16 +43,15 @@ struct Allocator
     {
     }
 
-    T* allocate( std::size_t n )
+    inline T* allocate( std::size_t n )
     {
-        if (n > std::numeric_limits<std::size_t>::max() / sizeof(T))
-            throw std::bad_array_new_length();
+        void * ptr = alloc.allocate( sizeof(T) * n );
+        SPDLOG_TRACE("allocate {},{},{}", (uintptr_t)ptr, n*sizeof(T), boost::core::demangle(typeid(T).name()));
 
-        SPDLOG_TRACE("allocate {} times {}", n, boost::core::demangle(typeid(T).name()));
-        return (T*) alloc.allocate( sizeof(T) * n );
+        return (T*) ptr;
     }
- 
-    void deallocate(T* p, std::size_t n = 0) noexcept
+
+    inline void deallocate(T* p, std::size_t n = 0) noexcept
     {
         alloc.deallocate( (void*) p );
     }
