@@ -34,8 +34,7 @@ using TaskProperties = TaskProperties1<
 
 struct Task :
         TaskBase,
-        TaskProperties,
-        std::enable_shared_from_this<Task>
+        TaskProperties
 {
     virtual ~Task() {}
 
