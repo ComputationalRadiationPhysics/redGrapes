@@ -6,6 +6,7 @@
  */
 #include <redGrapes/dispatch/thread/worker.hpp>
 #include <redGrapes/dispatch/thread/worker_pool.hpp>
+#include <redGrapes/util/hwloc_alloc.hpp>
 #include <redGrapes/util/chunked_bump_alloc.hpp>
 
 namespace redGrapes
@@ -15,12 +16,12 @@ namespace dispatch
 namespace thread
 {
 
-WorkerPool::WorkerPool( size_t n_workers )
+WorkerPool::WorkerPool( std::shared_ptr< HwlocContext > hwloc_ctx, size_t n_workers )
     : worker_state( n_workers )
 {
     workers.reserve( n_workers );
 
-    unsigned n_pus = hwloc_get_nbobjs_by_type(topology, HWLOC_OBJ_PU);
+    unsigned n_pus = hwloc_get_nbobjs_by_type(hwloc_ctx->topology, HWLOC_OBJ_PU);
     if( n_workers > n_pus )
         spdlog::warn("{} worker-threads requested, but only {} PUs available!", n_workers, n_pus);
 
@@ -28,9 +29,9 @@ WorkerPool::WorkerPool( size_t n_workers )
     for( size_t i = 0; i < n_workers; ++i )
     {
         // allocate worker with id `i` on arena `i`,
-        hwloc_obj_t obj = hwloc_get_obj_by_type(topology, HWLOC_OBJ_PU, i);
-        memory::HwlocAlloc< dispatch::thread::WorkerThread > hwloc_alloc( obj );
-        auto worker = std::allocate_shared< dispatch::thread::WorkerThread >( hwloc_alloc, obj, i );
+        hwloc_obj_t obj = hwloc_get_obj_by_type(hwloc_ctx->topology, HWLOC_OBJ_PU, i);
+        memory::HwlocAlloc< dispatch::thread::WorkerThread > hwloc_alloc( hwloc_ctx, obj );
+        auto worker = std::allocate_shared< dispatch::thread::WorkerThread >( hwloc_alloc, hwloc_ctx, obj, i );
         workers.emplace_back( worker );
     }
 
@@ -39,7 +40,6 @@ WorkerPool::WorkerPool( size_t n_workers )
 
 WorkerPool::~WorkerPool()
 {
-   SPDLOG_TRACE("~WorkerPool()");
 }
 
 void WorkerPool::start()

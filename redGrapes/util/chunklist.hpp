@@ -161,8 +161,7 @@ public:
 
     /* initializes a new chunk
      */
-//    template < typename... Args >
-    void add_chunk()// Args&&... args )
+    void add_chunk()
     {
         TRACE_EVENT("Allocator", "ChunkList add_chunk()");
 
@@ -180,7 +179,7 @@ public:
         append_chunk(
             std::allocate_shared< Chunk >(
                 chunk_alloc,
-                base + get_controlblock_size(),
+                base + get_controlblock_size() + sizeof(ChunkData),
                 base + chunk_size
             )
         );

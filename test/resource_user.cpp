@@ -1,11 +1,14 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <redGrapes/redGrapes.hpp>
 #include <redGrapes/resource/ioresource.hpp>
 #include <redGrapes/resource/resource_user.hpp>
 
 TEST_CASE("Resource User")
 {
+    redGrapes::init();
+
     redGrapes::IOResource<int> a, b;
 
     redGrapes::ResourceUser f1({a.read()});
@@ -56,5 +59,7 @@ TEST_CASE("Resource User")
     REQUIRE( f2.is_superset_of(f3) == false );
     REQUIRE( f2.is_superset_of(f4) == false );
     REQUIRE( f2.is_superset_of(f5) == false );
+
+    redGrapes::finalize();
 }
 

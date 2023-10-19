@@ -8,7 +8,8 @@ namespace redGrapes
 
 struct Task;
 struct TaskSpace;
-
+struct HwlocContext;
+ 
 namespace dispatch {
 namespace thread{
 struct WorkerPool;
@@ -26,12 +27,13 @@ extern thread_local std::function< void () > idle;
 
 extern thread_local unsigned next_worker;
 
-
 //struct Context
+ 
 //{
+extern    std::shared_ptr< HwlocContext > hwloc_ctx;
+extern    std::shared_ptr< dispatch::thread::WorkerPool > worker_pool;
 extern    std::shared_ptr< TaskSpace > top_space;
 extern    std::shared_ptr< scheduler::IScheduler > top_scheduler;
-extern    std::shared_ptr< dispatch::thread::WorkerPool > worker_pool;
 //};
 
 //extern Context ctx;

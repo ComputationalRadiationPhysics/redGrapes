@@ -26,7 +26,7 @@
 namespace redGrapes
 {
 
- void init_tracing();
+void init_tracing();
 void cpubind_mainthread();
 
 void init( size_t n_workers, std::shared_ptr<scheduler::IScheduler> scheduler);
@@ -69,11 +69,11 @@ template<typename Callable, typename... Args>
 auto emplace_task(Callable&& f, Args&&... args)
 {
     dispatch::thread::WorkerId worker_id =
-	    // linear
-//	    next_worker % worker_pool->size()
+     // linear
+	    next_worker % worker_pool->size();
 
-	    // interleaved
-	    2*next_worker % worker_pool->size() + ((2*next_worker) / worker_pool->size())%2;
+     // interleaved
+//    2*next_worker % worker_pool->size() + ((2*next_worker) / worker_pool->size())%2;
 
     next_worker++;
     memory::current_arena = worker_id;

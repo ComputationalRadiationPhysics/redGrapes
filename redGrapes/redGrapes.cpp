@@ -35,6 +35,7 @@ namespace memory
 thread_local unsigned current_arena;
 } // namespace memory
 
+std::shared_ptr< HwlocContext > hwloc_ctx = std::make_shared< HwlocContext >();
 std::shared_ptr< TaskSpace > top_space;
 std::shared_ptr< dispatch::thread::WorkerPool > worker_pool;
 std::shared_ptr< scheduler::IScheduler > top_scheduler;
@@ -100,18 +101,7 @@ std::vector<std::reference_wrapper<Task>> backtrace()
 
     return bt;
 }
-
-void init_hwloc()
-{
-    hwloc_topology_init(&topology);
-    hwloc_topology_load(topology);
-}
-
-void finalize_hwloc()
-{
-    hwloc_topology_destroy(topology);
-}
-
+    
 void init_tracing()
 {
 #if REDGRAPES_ENABLE_TRACE
@@ -133,24 +123,25 @@ void finalize_tracing()
 
 void cpubind_mainthread()
 {
-    size_t n_pus = hwloc_get_nbobjs_by_type(topology, HWLOC_OBJ_PU);
+        /*
+    size_t n_pus = hwloc_get_nbobjs_by_type(hwloc_ctx->topology, HWLOC_OBJ_PU);
     static hwloc_cpuset_t cpuset = hwloc_bitmap_alloc();
     hwloc_bitmap_set_range( cpuset, 0, n_pus-1 );
 
-    if( hwloc_set_cpubind(topology, cpuset, HWLOC_CPUBIND_THREAD | HWLOC_CPUBIND_STRICT) )    {
+    if( hwloc_set_cpubind(hwloc_ctx->topology, cpuset, HWLOC_CPUBIND_THREAD | HWLOC_CPUBIND_STRICT) )    {
         char *str;
         int error = errno;
         hwloc_bitmap_asprintf(&str, cpuset);
         spdlog::warn("Couldn't cpubind to cpuset {}: {}\n", str, strerror(error));
         free(str);
     }    
+        */
 }
 
 void init( size_t n_workers, std::shared_ptr<scheduler::IScheduler> scheduler )
 {
     init_tracing();
-
-    worker_pool = std::make_shared<dispatch::thread::WorkerPool>( n_workers );
+    worker_pool = std::make_shared<dispatch::thread::WorkerPool>( hwloc_ctx, n_workers );
 
     top_space = std::make_shared<TaskSpace>();
     top_scheduler = scheduler;
@@ -164,7 +155,6 @@ void init( size_t n_workers, std::shared_ptr<scheduler::IScheduler> scheduler )
 
 void init( size_t n_workers )
 {
-    init_hwloc();
     init( n_workers, std::make_shared<scheduler::DefaultScheduler>());
 }
 
@@ -181,16 +171,12 @@ void barrier()
 void finalize()
 {
     barrier();
+
     worker_pool->stop();
 
-    SPDLOG_TRACE("reset context");
     top_scheduler.reset();
     top_space.reset();
 
-    SPDLOG_TRACE("reset worker pool");    
-    worker_pool.reset();
-
-    finalize_hwloc();
     finalize_tracing();
 }
 

@@ -57,7 +57,6 @@ struct ChunkedBumpAlloc
 
     ~ChunkedBumpAlloc()
     {
-        SPDLOG_TRACE("~ChunkedBumpAlloc()");
         auto head = bump_allocators.rbegin();
         if( head != bump_allocators.rend() )
             head->count --;

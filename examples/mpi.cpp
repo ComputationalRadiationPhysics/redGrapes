@@ -3,6 +3,7 @@
 
 #include <redGrapes/redGrapes.hpp>
 
+#include <redGrapes/util/hwloc_alloc.hpp>
 #include <redGrapes/resource/ioresource.hpp>
 #include <redGrapes/resource/fieldresource.hpp>
 #include <redGrapes/dispatch/mpi/request_pool.hpp>
@@ -48,11 +49,11 @@ int main()
 
     MPI_Init( nullptr, nullptr );
 
-    rg::init_allocator( 4 );
-
     auto default_scheduler = std::make_shared<rg::scheduler::DefaultScheduler>();
     auto mpi_request_pool = std::make_shared<rg::dispatch::mpi::RequestPool>();
-    auto mpi_worker = std::make_shared<rg::dispatch::thread::Worker>(5);
+
+    hwloc_obj_t obj = hwloc_get_obj_by_type( redGrapes::hwloc_ctx->topology, HWLOC_OBJ_PU, 1 );
+    auto mpi_worker = std::make_shared<rg::dispatch::thread::Worker>( redGrapes::hwloc_ctx, obj, 4 );
 
     // initialize main thread to execute tasks from the mpi-queue and poll
     rg::idle =

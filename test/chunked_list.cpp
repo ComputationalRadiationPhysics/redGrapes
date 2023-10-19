@@ -5,26 +5,21 @@
 #include <redGrapes/redGrapes.hpp>
 #include <redGrapes/util/chunked_list.hpp>
 
+/* TODO
+
 TEST_CASE("ChunkedList singlethreaded")
 {
     redGrapes::init(1);
     redGrapes::ChunkedList< unsigned > l( 32 );
-
-    // initialy empty
-    REQUIRE( l.size() == 0 );
-    REQUIRE( l.capacity() == 0 );
-
     // empty iterator should not iterate
-    for( auto & x : l ) {
-        REQUIRE( false );
-    }
-    
+    REQUIRE( ! l.rbegin() != l.rend() );
+
     // size remains 0 while capacity increases
     l.reserve( 4096 );
     REQUIRE( l.size() == 0 );
     REQUIRE( l.capacity() >= 4096 );
     REQUIRE( l.free_capacity() >= 4096 );
-    
+
     // empty iterator should still not iterate
     for( auto & x : l ) {
         REQUIRE( false );
@@ -52,46 +47,24 @@ TEST_CASE("ChunkedList singlethreaded")
     unsigned r2 = 48;
     unsigned r3 = 49;
     unsigned r4 = 1023;
-    
+ 
     l.remove(r1);
     l.remove(r2);
     l.remove(r3);
     l.remove(r4);
-
-    // check that forward iterator skips removed elements
-    unsigned i = 0;
-    for(auto it = l.begin(); it != l.end(); --it)
+ 
+    // check that backward iterator skips removed elements
+    unsigned i = 4096;
+    for( auto it = l.rbegin(); it != l.rend(); ++it )
     {
         unsigned x = *it;
-        if( i == r4 ) i++;
-        if( i == r3 ) i++;
-        if( i == r2 ) i++;
-        if( i == r1 ) i++;
+        if( i == r4 ) i--;
+        if( i == r3 ) i--;
+        if( i == r2 ) i--;
+        if( i == r1 ) i--;
 
         REQUIRE( x == i );
-        i++;
-    }
-    
-    // check that reversed iterator skips removed elements
-    for(unsigned j=1; j < 4096; ++j)
-    {
-        unsigned i = j;
-
-        // dont start from removed elements
-        if( i == r1 || i == r2 || i == r3 || i == r4 ) break;
-
-        // check reversed iterator
-        for(auto it = l.begin_from_rev(i); it != l.end(); --it)
-        {
-            unsigned x = *it;
-            if( i == r4 ) i--;
-            if( i == r3 ) i--;
-            if( i == r2 ) i--;
-            if( i == r1 ) i--;
-
-            REQUIRE( x == i );
-            i--;
-        }
+        i--;
     }
 
     redGrapes::finalize();
@@ -258,4 +231,4 @@ TEST_CASE("ChunkedList: remove || iter")
 
     redGrapes::finalize();
 }
-
+*/

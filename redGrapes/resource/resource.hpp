@@ -57,8 +57,7 @@ public:
 
     inline unsigned get_arena_id() const
     {
-        // FIXME: use number of PUs/arenas
-        return id % 64;
+        return id % worker_pool->size();
     }
 };
 
@@ -319,8 +318,8 @@ protected:
     Resource()
     {
         static unsigned i = 0;
-        unsigned arena_id = i++ % 64;
-        base = redGrapes::memory::alloc_shared_bind< ResourceBase >( arena_id );
+        dispatch::thread::WorkerId worker_id = i++ % worker_pool->size();
+        base = redGrapes::memory::alloc_shared_bind< ResourceBase >( worker_id );
     }
 
     /**

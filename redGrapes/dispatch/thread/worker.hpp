@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <exception>
 #include <thread>
 #include <atomic>
 #include <functional>
@@ -23,8 +24,6 @@
 
 namespace redGrapes
 {
-
-extern hwloc_topology_t topology;
 
 namespace dispatch
 {
@@ -72,30 +71,31 @@ struct Worker
 
 public:
     memory::ChunkedBumpAlloc< memory::HwlocAlloc > alloc;
+    std::shared_ptr< HwlocContext > hwloc_ctx;
 
     task::Queue emplacement_queue{ queue_capacity };
     task::Queue ready_queue{ queue_capacity };
 
-    Worker( hwloc_obj_t const & obj, WorkerId id );
+    Worker( std::shared_ptr<HwlocContext > hwloc_ctx, hwloc_obj_t const & obj, WorkerId id );
     virtual ~Worker();
 
     inline WorkerId get_worker_id() { return id; }
     inline scheduler::WakerId get_waker_id() { return id + 1; }
     inline bool wake() { return cv.notify(); }
 
-    virtual void start();
+    void start();
     virtual void stop();
 
     /* adds a new task to the emplacement queue
      * and wakes up thread to kickstart execution
      */
-    void emplace_task( Task & task )
+    inline void emplace_task( Task & task )
     {
         emplacement_queue.push( &task );
         wake();
     }
 
-    void activate_task( Task & task )
+    inline void activate_task( Task & task )
     {
         ready_queue.push( &task );
         wake();
@@ -129,7 +129,7 @@ struct WorkerThread
 {
     std::thread thread;
 
-    WorkerThread( hwloc_obj_t const & obj, WorkerId worker_id );
+    WorkerThread( std::shared_ptr<HwlocContext> hwloc_ctx, hwloc_obj_t const & obj, WorkerId worker_id );
     ~WorkerThread();
 
     void stop();

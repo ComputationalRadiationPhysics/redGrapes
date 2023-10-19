@@ -9,7 +9,7 @@
 
 #include <mutex>
 #include <redGrapes/task/task.hpp>
-//#include <redGrapes/util/allocator.hpp>
+#include <redGrapes/util/allocator.hpp>
 #include <moodycamel/concurrentqueue.h>
 #include <redGrapes/util/trace.hpp>
 
@@ -92,14 +92,15 @@ struct TaskQueueTraits
 	// Note that blocks consumed by explicit producers are only freed on destruction
 	// of the queue (not following destruction of the token) regardless of this trait.
 	static const bool RECYCLE_ALLOCATED_BLOCKS = false;
-/*	
+
 	static inline void* malloc(size_t size) {
-            return (void*) memory::Allocator< uint8_t >().allocate( size );
-        }
+                return std::malloc(size);
+//      return (void*) memory::Allocator< uint8_t >().allocate( size );
+  }
 	static inline void free(void* ptr) {
-            memory::Allocator< uint8_t >().deallocate( (uint8_t*)ptr, 1 );
-        }
-            */
+                std::free( ptr );
+//      memory::Allocator< uint8_t >().deallocate( (uint8_t*)ptr, 1 );
+  }
 };
 
 struct Queue
@@ -130,7 +131,6 @@ struct Queue
             return t;
         else
             return nullptr;
-
     }
 };
 

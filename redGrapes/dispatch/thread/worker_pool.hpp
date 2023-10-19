@@ -11,6 +11,8 @@
 
 namespace redGrapes
 {
+struct HwlocContext;
+  
 namespace dispatch
 {
 namespace thread
@@ -26,7 +28,7 @@ struct WorkerThread;
 
 struct WorkerPool
 {
-    WorkerPool( size_t n_workers = 1 );
+    WorkerPool( std::shared_ptr< HwlocContext > hwloc_ctx, size_t n_workers = 1 );
     ~WorkerPool();
 
     /* get the number of workers in this pool

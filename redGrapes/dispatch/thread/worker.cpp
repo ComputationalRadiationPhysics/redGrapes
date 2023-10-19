@@ -5,8 +5,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
+#include <atomic>
 #include <hwloc.h>
 #include <redGrapes/scheduler/scheduler.hpp>
+#include <redGrapes/util/hwloc_alloc.hpp>
 #include <redGrapes/util/chunked_bump_alloc.hpp>
 #include <redGrapes/dispatch/thread/worker.hpp>
 #include <redGrapes/dispatch/thread/worker_pool.hpp>
@@ -17,8 +19,8 @@ namespace dispatch
 {
 namespace thread
 {
-WorkerThread::WorkerThread( hwloc_obj_t const & obj, WorkerId worker_id )
-    : Worker( obj, worker_id ),
+WorkerThread::WorkerThread( std::shared_ptr< HwlocContext > hwloc_ctx, hwloc_obj_t const & obj, WorkerId worker_id )
+    : Worker( hwloc_ctx, obj, worker_id ),
       thread([this] { this->run(); })
 {
 }
@@ -27,15 +29,15 @@ WorkerThread::~WorkerThread()
 {
 }
 
-Worker::Worker( hwloc_obj_t const & obj, WorkerId worker_id )
-    : alloc( obj )
+Worker::Worker( std::shared_ptr<HwlocContext> hwloc_ctx, hwloc_obj_t const & obj, WorkerId worker_id )
+    : hwloc_ctx(hwloc_ctx)
+    , alloc( memory::HwlocAlloc<uint8_t>( hwloc_ctx, obj ) )
     , id( worker_id )
-{ 
+{
 }
 
 Worker::~Worker()
 {
-    SPDLOG_TRACE("~Worker()");
 }
 
 void Worker::start()
@@ -89,17 +91,17 @@ void WorkerThread::run()
      */
     this->work_loop();
 
-    current_worker.reset();
+//   current_worker.reset();
 
     SPDLOG_TRACE("Worker Finished!");    
 }
 
 void WorkerThread::cpubind()
 {
-    size_t n_pus = hwloc_get_nbobjs_by_type(topology, HWLOC_OBJ_PU);
-    hwloc_obj_t obj = hwloc_get_obj_by_type(topology, HWLOC_OBJ_PU, id%n_pus);
+    size_t n_pus = hwloc_get_nbobjs_by_type(hwloc_ctx->topology, HWLOC_OBJ_PU);
+    hwloc_obj_t obj = hwloc_get_obj_by_type(hwloc_ctx->topology, HWLOC_OBJ_PU, id%n_pus);
 
-    if( hwloc_set_cpubind(topology, obj->cpuset, HWLOC_CPUBIND_THREAD | HWLOC_CPUBIND_STRICT) )
+    if( hwloc_set_cpubind(hwloc_ctx->topology, obj->cpuset, HWLOC_CPUBIND_THREAD | HWLOC_CPUBIND_STRICT) )
     {
         char *str;
         int error = errno;
@@ -111,9 +113,9 @@ void WorkerThread::cpubind()
 
 void WorkerThread::membind()
 {
-    size_t n_pus = hwloc_get_nbobjs_by_type(topology, HWLOC_OBJ_PU);
-    hwloc_obj_t obj = hwloc_get_obj_by_type(topology, HWLOC_OBJ_PU, id%n_pus);
-    if( hwloc_set_membind(topology, obj->cpuset, HWLOC_MEMBIND_BIND, HWLOC_MEMBIND_THREAD | HWLOC_MEMBIND_STRICT ) )
+    size_t n_pus = hwloc_get_nbobjs_by_type(hwloc_ctx->topology, HWLOC_OBJ_PU);
+    hwloc_obj_t obj = hwloc_get_obj_by_type(hwloc_ctx->topology, HWLOC_OBJ_PU, id%n_pus);
+    if( hwloc_set_membind(hwloc_ctx->topology, obj->cpuset, HWLOC_MEMBIND_BIND, HWLOC_MEMBIND_THREAD | HWLOC_MEMBIND_STRICT ) )
     {
         char *str;
         int error = errno;
