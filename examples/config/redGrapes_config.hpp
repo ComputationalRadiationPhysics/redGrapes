@@ -13,9 +13,7 @@ enum SchedulerTags
     redGrapes::LabelProperty, \
     redGrapes::scheduler::SchedulingTagProperties< SchedulerTags >
 
-
-
-
+#define REDGRAPES_ALLOC_CHUNKSIZE ( 64 * 1024 )
 
 template <>
 struct fmt::formatter< SchedulerTags >

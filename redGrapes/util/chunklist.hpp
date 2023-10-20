@@ -46,21 +46,16 @@ struct ChunkList
     {
         bool volatile deleted;
         std::shared_ptr< Chunk > prev;
+        ChunkData * chunk_data;
 
         template < typename... Args >
-        Chunk( Args&&... args ) : deleted(false), prev(nullptr)
+        Chunk( uintptr_t chunk_data, Args&&... args ) : deleted(false), prev(nullptr), chunk_data((ChunkData*)chunk_data)
         {
             new ( get() ) ChunkData ( std::forward<Args>(args)... );
         }
 
         ~Chunk()
         {
-/*
-            if( !deleted )
-                spdlog::error("dropping chunk which was never deleted");
-*/
-//            assert( deleted );
-
             get()->~ChunkData();
         }
 
@@ -87,10 +82,7 @@ struct ChunkList
 
         ChunkData * get() const
         {
-//            if( !deleted )
-                return (ChunkData*)((uintptr_t)this + sizeof(Chunk));
-//            else
-//               throw std::runtime_error("ChunkList: get() on deleted chunk");
+            return chunk_data;
         }
     };
 
@@ -179,6 +171,7 @@ public:
         append_chunk(
             std::allocate_shared< Chunk >(
                 chunk_alloc,
+                base + get_controlblock_size(),
                 base + get_controlblock_size() + sizeof(ChunkData),
                 base + chunk_size
             )

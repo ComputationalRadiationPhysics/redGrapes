@@ -405,6 +405,10 @@ private:
     size_t chunk_size;
 
 public:
+    /*
+     * @param est_chunk_size gives an estimated number of elements
+     *        for each chunk, will be adjusted to make chunks aligned
+     */
     ChunkedList( size_t est_chunk_size = 32 )
         : ChunkedList(
             Allocator< uint8_t >(),
@@ -416,12 +420,13 @@ public:
         Allocator< uint8_t > && alloc,
         size_t est_chunk_size = 32
     )
-        :chunks(
+        : chunks(
             std::move(alloc),
             est_chunk_size * sizeof(Item)
         )
     {
-        this->chunk_size = chunks.get_chunk_capacity() / sizeof(Item);
+        size_t items_capacity = (chunks.get_chunk_capacity() - sizeof(Chunk));
+        this->chunk_size = items_capacity / sizeof(Item);
         assert( chunk_size < std::numeric_limits< chunk_offset_t >::max() );
     }
 

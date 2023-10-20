@@ -93,7 +93,6 @@ struct HwlocAlloc
             TRACE_EVENT("Allocator", "rebind cpu");
             hwloc_set_cpubind(hwloc_ctx->topology, last_cpuset, HWLOC_CPUBIND_THREAD);
         }
-
     }
 
     void deallocate( T * p, std::size_t n = 0 ) noexcept
