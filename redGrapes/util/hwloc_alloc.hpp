@@ -65,7 +65,7 @@ struct HwlocAlloc
             HWLOC_MEMBIND_BIND, HWLOC_MEMBIND_NOCPUBIND | HWLOC_MEMBIND_STRICT
         );
 
-        SPDLOG_TRACE("hwloc_alloc {},{}", (uintptr_t)ptr, n);
+        SPDLOG_TRACE("hwloc_alloc {},{}", (uintptr_t)ptr, alloc_size);
 
         if( ptr )
             return (T*)ptr;
