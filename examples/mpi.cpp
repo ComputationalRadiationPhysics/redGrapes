@@ -53,7 +53,8 @@ int main()
     auto mpi_request_pool = std::make_shared<rg::dispatch::mpi::RequestPool>();
 
     hwloc_obj_t obj = hwloc_get_obj_by_type( redGrapes::hwloc_ctx->topology, HWLOC_OBJ_PU, 1 );
-    auto mpi_worker = std::make_shared<rg::dispatch::thread::Worker>( redGrapes::hwloc_ctx, obj, 4 );
+    rg::memory::ChunkedBumpAlloc< rg::memory::HwlocAlloc > mpi_alloc( rg::memory::HwlocAlloc<uint8_t>( redGrapes::hwloc_ctx, obj ) );
+    auto mpi_worker = std::make_shared<rg::dispatch::thread::Worker>( mpi_alloc, redGrapes::hwloc_ctx, obj, 4 );
 
     // initialize main thread to execute tasks from the mpi-queue and poll
     rg::idle =

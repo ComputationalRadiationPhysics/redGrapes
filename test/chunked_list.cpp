@@ -5,6 +5,68 @@
 #include <redGrapes/redGrapes.hpp>
 #include <redGrapes/util/chunked_list.hpp>
 
+struct TestItem
+{
+    int id;
+
+    TestItem(int id):id(id){}
+    ~TestItem()
+    {
+        spdlog::info("destroy {}", this->id);
+    }
+};
+
+TEST_CASE("Chunked List")
+{
+    /*
+    redGrapes::init(1
+    //, 281
+    );
+
+    redGrapes::ChunkedList< TestItem > l( 2 );
+
+    {
+        auto p1 = l.push( TestItem(10) );
+        auto p2 = l.push( TestItem(20) );
+
+        {
+            auto p3 = l.push( TestItem(30) );
+            auto p4 = l.push( TestItem(40) );
+
+            l.push( TestItem(50) );
+            l.push( TestItem(60) );
+
+            for( auto it = l.rbegin(); it != l.rend(); ++it )
+                    fmt::print("v = {}\n", it->id);
+
+            fmt::print("--\n");
+
+            l.remove(p3);
+            l.remove(p4);
+
+            fmt::print("--\n");
+       }
+
+
+        for( auto it = l.rbegin(); it != l.rend(); ++it )
+            fmt::print("v = {}\n", it->id);
+            
+        fmt::print("--\n");
+        l.remove(p1);
+        l.remove(p2);
+        fmt::print("--\n");
+    }
+
+    for( auto it = l.rbegin(); it != l.rend(); ++it )
+        fmt::print("v = {}\n", it->id);
+
+    l.remove(l.rbegin());
+    l.remove(l.rbegin());
+
+    redGrapes::finalize();
+*/
+}
+
 /* TODO
 
 TEST_CASE("ChunkedList singlethreaded")

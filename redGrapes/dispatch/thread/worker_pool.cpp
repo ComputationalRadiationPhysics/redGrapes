@@ -6,8 +6,10 @@
  */
 #include <redGrapes/dispatch/thread/worker.hpp>
 #include <redGrapes/dispatch/thread/worker_pool.hpp>
+#include <redGrapes/util/allocator.hpp>
 #include <redGrapes/util/hwloc_alloc.hpp>
 #include <redGrapes/util/chunked_bump_alloc.hpp>
+#include <redGrapes_config.hpp>
 
 namespace redGrapes
 {
@@ -19,23 +21,33 @@ namespace thread
 WorkerPool::WorkerPool( std::shared_ptr< HwlocContext > hwloc_ctx, size_t n_workers )
     : worker_state( n_workers )
 {
-    workers.reserve( n_workers );
+    redGrapes::dispatch::thread::current_waker_id = 0;
+}
 
+void WorkerPool::emplace_workers( size_t n_workers )
+{
     unsigned n_pus = hwloc_get_nbobjs_by_type(hwloc_ctx->topology, HWLOC_OBJ_PU);
     if( n_workers > n_pus )
         spdlog::warn("{} worker-threads requested, but only {} PUs available!", n_workers, n_pus);
 
-    SPDLOG_INFO("create WorkerPool with {} workers", n_workers);
+    allocs.reserve( n_workers );               
+    workers.reserve( n_workers );
+
+    SPDLOG_INFO("populate WorkerPool with {} workers", n_workers);
     for( size_t i = 0; i < n_workers; ++i )
     {
         // allocate worker with id `i` on arena `i`,
         hwloc_obj_t obj = hwloc_get_obj_by_type(hwloc_ctx->topology, HWLOC_OBJ_PU, i);
-        memory::HwlocAlloc< dispatch::thread::WorkerThread > hwloc_alloc( hwloc_ctx, obj );
-        auto worker = std::allocate_shared< dispatch::thread::WorkerThread >( hwloc_alloc, hwloc_ctx, obj, i );
+        allocs.emplace_back(
+            memory::HwlocAlloc<uint8_t>( hwloc_ctx, obj ),
+            REDGRAPES_ALLOC_CHUNKSIZE
+        );
+
+        memory::current_arena = i;
+        auto worker = memory::alloc_shared_bind<WorkerThread>( i, get_alloc(i), hwloc_ctx, obj, i );
+//        auto worker = std::make_shared< WorkerThread >( get_alloc(i), hwloc_ctx, obj, i );
         workers.emplace_back( worker );
     }
-
-    redGrapes::dispatch::thread::current_waker_id = 0;
 }
 
 WorkerPool::~WorkerPool()
@@ -52,6 +64,8 @@ void WorkerPool::stop()
 {
     for( auto & worker : workers )
         worker->stop();
+
+    workers.clear();
 }
 
 int WorkerPool::find_free_worker()

@@ -54,25 +54,24 @@ void GraphProperty::init_graph()
             TRACE_EVENT("Graph", "CheckPredecessors");
             auto it = r->task_entry;
 
-             ++it;
-                for(; it != r->resource->users.rend(); ++it )
+            ++it;
+            for(; it != r->resource->users.rend(); ++it )
+            {
+                TRACE_EVENT("Graph", "Check Pred");
+                Task * preceding_task = *it;
+
+                if( preceding_task == this->space->parent )
+                    break;
+
+                if(
+                   preceding_task->space == this->space &&
+                   this->space->is_serial( *preceding_task, *this->task )
+                )
                 {
-                    TRACE_EVENT("Graph", "Check Pred");
-                    Task * preceding_task = *it;
-
-                    if( preceding_task == this->space->parent )
+                    add_dependency( *preceding_task );
+                    if( preceding_task->has_sync_access( r->resource ) )
                         break;
-
-                    if(
-                       preceding_task->space == this->space &&
-                       this->space->is_serial( *preceding_task, *this->task )
-                    )
-                    {
-                        add_dependency( *preceding_task );
-
-                        if( preceding_task->has_sync_access( r->resource ) )
-                            break;
-                    }
+                }
             }
         }
     }

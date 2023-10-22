@@ -3,12 +3,21 @@
 #include <boost/core/demangle.hpp>
 #include <memory>
 #include <redGrapes/dispatch/thread/local.hpp>
-#include <redGrapes/dispatch/thread/worker_pool.hpp>
+// #include <redGrapes/dispatch/thread/worker_pool.hpp>
 #include <redGrapes/resource/access/area.hpp>
 //#include <redGrapes/context.hpp>
 
 namespace redGrapes
 {
+
+namespace dispatch
+    {
+        namespace thread
+        {
+            using WorkerId = unsigned;
+            struct WorkerPool;
+        }
+    }
 
 extern std::shared_ptr< dispatch::thread::WorkerPool > worker_pool;
 

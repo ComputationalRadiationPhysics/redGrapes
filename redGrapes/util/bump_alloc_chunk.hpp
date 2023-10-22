@@ -34,14 +34,14 @@ struct BumpAllocChunk
     void reset();
 
     void * m_alloc( size_t n_bytes );
-    size_t m_free( void * );
+    uint16_t m_free( void * );
 
     bool contains( void * ) const;
 
     std::atomic< uintptr_t > next_addr;
     uintptr_t const lower_limit;
     uintptr_t const upper_limit;
-    std::atomic< size_t > count;
+    std::atomic< uint16_t > count;
 };
 
 } // namespace memory

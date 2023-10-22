@@ -70,13 +70,13 @@ struct Worker
     static constexpr size_t queue_capacity = 128;
 
 public:
-    memory::ChunkedBumpAlloc< memory::HwlocAlloc > alloc;
+    memory::ChunkedBumpAlloc< memory::HwlocAlloc > & alloc;
     std::shared_ptr< HwlocContext > hwloc_ctx;
 
     task::Queue emplacement_queue{ queue_capacity };
     task::Queue ready_queue{ queue_capacity };
 
-    Worker( std::shared_ptr<HwlocContext > hwloc_ctx, hwloc_obj_t const & obj, WorkerId id );
+    Worker( memory::ChunkedBumpAlloc< memory::HwlocAlloc > & alloc, std::shared_ptr<HwlocContext > hwloc_ctx, hwloc_obj_t const & obj, WorkerId id );
     virtual ~Worker();
 
     inline WorkerId get_worker_id() { return id; }
@@ -129,7 +129,7 @@ struct WorkerThread
 {
     std::thread thread;
 
-    WorkerThread( std::shared_ptr<HwlocContext> hwloc_ctx, hwloc_obj_t const & obj, WorkerId worker_id );
+    WorkerThread( memory::ChunkedBumpAlloc<memory::HwlocAlloc> & alloc, std::shared_ptr<HwlocContext> hwloc_ctx, hwloc_obj_t const & obj, WorkerId worker_id );
     ~WorkerThread();
 
     void stop();

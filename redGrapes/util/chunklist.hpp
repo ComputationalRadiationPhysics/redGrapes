@@ -49,13 +49,17 @@ struct ChunkList
         ChunkData * chunk_data;
 
         template < typename... Args >
-        Chunk( uintptr_t chunk_data, Args&&... args ) : deleted(false), prev(nullptr), chunk_data((ChunkData*)chunk_data)
+        Chunk( uintptr_t chunk_data, Args&&... args )
+                : deleted(false)
+                , prev(nullptr)
+                , chunk_data((ChunkData*)chunk_data)
         {
             new ( get() ) ChunkData ( std::forward<Args>(args)... );
         }
 
         ~Chunk()
         {
+            spdlog::info("destruct chunk {}", (void*)chunk_data);
             get()->~ChunkData();
         }
 
@@ -141,7 +145,7 @@ public:
 
         /* TODO: use sizeof( ...shared_ptr_inplace_something... )
          */
-        size_t const shared_ptr_size = 128;
+        size_t const shared_ptr_size = 512;
 
         return sizeof(Chunk) + shared_ptr_size;
     }

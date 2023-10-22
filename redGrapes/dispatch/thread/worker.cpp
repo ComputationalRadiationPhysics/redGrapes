@@ -19,9 +19,9 @@ namespace dispatch
 {
 namespace thread
 {
-WorkerThread::WorkerThread( std::shared_ptr< HwlocContext > hwloc_ctx, hwloc_obj_t const & obj, WorkerId worker_id )
-    : Worker( hwloc_ctx, obj, worker_id ),
-      thread([this] { this->run(); })
+WorkerThread::WorkerThread( memory::ChunkedBumpAlloc< memory::HwlocAlloc > & alloc, std::shared_ptr< HwlocContext > hwloc_ctx, hwloc_obj_t const & obj, WorkerId worker_id )
+    : Worker( alloc, hwloc_ctx, obj, worker_id )
+    , thread([this] { this->run(); })
 {
 }
 
@@ -29,9 +29,9 @@ WorkerThread::~WorkerThread()
 {
 }
 
-Worker::Worker( std::shared_ptr<HwlocContext> hwloc_ctx, hwloc_obj_t const & obj, WorkerId worker_id )
-    : hwloc_ctx(hwloc_ctx)
-    , alloc( memory::HwlocAlloc<uint8_t>( hwloc_ctx, obj ) )
+Worker::Worker( memory::ChunkedBumpAlloc<memory::HwlocAlloc> & alloc, std::shared_ptr<HwlocContext> hwloc_ctx, hwloc_obj_t const & obj, WorkerId worker_id )
+    : alloc( alloc )
+    , hwloc_ctx( hwloc_ctx )
     , id( worker_id )
 {
 }

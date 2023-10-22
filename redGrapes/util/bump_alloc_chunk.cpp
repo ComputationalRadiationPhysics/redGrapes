@@ -56,9 +56,9 @@ void * BumpAllocChunk::m_alloc( size_t n_bytes )
         return nullptr;
 }
 
-size_t BumpAllocChunk::m_free( void * )
+uint16_t BumpAllocChunk::m_free( void * )
 {
-    return count.fetch_sub(1) - 1;
+    return count.fetch_sub(1);
 }
 
 bool BumpAllocChunk::contains( void * ptr ) const

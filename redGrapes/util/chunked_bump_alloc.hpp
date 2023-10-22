@@ -24,6 +24,7 @@
 #include <redGrapes/dispatch/thread/local.hpp>
 #include <redGrapes/dispatch/thread/cpuset.hpp>
 #include <redGrapes/util/trace.hpp>
+#include <backward.hpp>
 
 namespace redGrapes
 {
@@ -143,7 +144,7 @@ struct ChunkedBumpAlloc
                  * and this chunk is not `head`,
                  * remove this chunk
                  */
-                if( it->m_free((void*)ptr) == 0 )
+                if( it->m_free((void*)ptr) == 1 )
                 {
                     SPDLOG_TRACE("ChunkedBumpAlloc: erase chunk {}", it->lower_limit);
                     bump_allocators.erase( it );
@@ -155,7 +156,12 @@ struct ChunkedBumpAlloc
             prev = it;
         }
 
-        spdlog::error("try to deallocate invalid pointer ({})", (void*)ptr);
+        spdlog::error("try to deallocate invalid pointer ({}). current_arena={}, this={}", (void*)ptr, current_arena, (void*)this);
+
+        backward::StackTrace st;
+        st.load_here(32);
+        backward::Printer p;
+        p.print(st);
     }
 };
 

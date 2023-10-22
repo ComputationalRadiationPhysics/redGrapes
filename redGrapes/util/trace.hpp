@@ -1,7 +1,7 @@
 
 #pragma once
 
-#include <redGrapes_config.hpp>
+//#include <redGrapes_config.hpp>
 
 #ifndef REDGRAPES_ENABLE_TRACE
 #define REDGRAPES_ENABLE_TRACE 0

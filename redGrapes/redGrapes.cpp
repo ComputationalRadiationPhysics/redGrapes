@@ -142,6 +142,7 @@ void init( size_t n_workers, std::shared_ptr<scheduler::IScheduler> scheduler )
 {
     init_tracing();
     worker_pool = std::make_shared<dispatch::thread::WorkerPool>( hwloc_ctx, n_workers );
+    worker_pool->emplace_workers( n_workers );
 
     top_space = std::make_shared<TaskSpace>();
     top_scheduler = scheduler;

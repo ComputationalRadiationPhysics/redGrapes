@@ -129,7 +129,7 @@ struct ChunkedList
 
         ~Item()
         {
-            if( iter_offset == 0 )
+            if( refcount.fetch_sub(1) == 1 )
                 storage.value.~T();
         }
 

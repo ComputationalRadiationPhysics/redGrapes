@@ -14,12 +14,12 @@ UntypedAllocator::UntypedAllocator( dispatch::thread::WorkerId worker_id )
 
 void * UntypedAllocator::allocate( size_t n_bytes )
 {
-    return (void*)worker_pool->get_worker( worker_id ).alloc.allocate< uint8_t >( n_bytes );
+    return (void*)worker_pool->get_alloc( worker_id ).allocate< uint8_t >( n_bytes );
 }
 
 void UntypedAllocator::deallocate( void * ptr )
 {
-    worker_pool->get_worker( worker_id ).alloc.deallocate( ptr );
+    worker_pool->get_alloc( worker_id ).deallocate( ptr );
 }
 
 } // namespace memory

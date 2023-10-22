@@ -22,6 +22,7 @@
 #include <redGrapes/util/allocator.hpp>
 #include <redGrapes/util/chunked_list.hpp>
 #include <redGrapes/util/spinlock.hpp>
+#include <redGrapes/dispatch/thread/worker_pool.hpp>
 #include <redGrapes_config.hpp>
 
 #include <fmt/format.h>

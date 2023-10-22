@@ -8,6 +8,8 @@
 
 #include <memory>
 #include <redGrapes/util/bitfield.hpp>
+#include <redGrapes/util/hwloc_alloc.hpp>
+#include <redGrapes/util/chunked_bump_alloc.hpp>
 
 namespace redGrapes
 {
@@ -31,6 +33,8 @@ struct WorkerPool
     WorkerPool( std::shared_ptr< HwlocContext > hwloc_ctx, size_t n_workers = 1 );
     ~WorkerPool();
 
+    void emplace_workers( size_t n_workers );
+
     /* get the number of workers in this pool
      */
     inline size_t size()
@@ -45,6 +49,12 @@ struct WorkerPool
     /* signals all workers that no new tasks will be added
      */
     void stop();
+
+    inline memory::ChunkedBumpAlloc< memory::HwlocAlloc > & get_alloc( WorkerId worker_id )
+    {
+        assert( worker_id < allocs.size() );
+        return allocs[ worker_id ];
+    }
 
     inline WorkerThread & get_worker( WorkerId worker_id )
     {
@@ -84,6 +94,7 @@ struct WorkerPool
     int find_free_worker();
     
 private:
+    std::vector< memory::ChunkedBumpAlloc< memory::HwlocAlloc > > allocs;
     std::vector< std::shared_ptr< dispatch::thread::WorkerThread > > workers;
     AtomicBitfield worker_state;
 };

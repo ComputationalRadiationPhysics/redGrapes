@@ -39,7 +39,7 @@ void hash(unsigned task_id,
 std::chrono::microseconds task_duration(2);
 unsigned n_resources = 16;
 unsigned n_tasks = 128;
-unsigned n_threads = 4;
+unsigned n_threads = 8;
 unsigned min_dependencies = 0;
 unsigned max_dependencies = 5;
 std::mt19937 gen;
@@ -61,7 +61,7 @@ void generate_access_pattern()
         unsigned n_dependencies = distrib_n_deps(gen);
         for(int j = 0; j < n_dependencies; ++j)
         {
-	    unsigned max_path_length = 0;
+            unsigned max_path_length = 0;
 
             while(1)
             {
@@ -72,22 +72,22 @@ void generate_access_pattern()
                     access_pattern[i].push_back(resource_id);
                     hash(i, expected_hash[resource_id]);
 
-		    if( path_length[resource_id] > max_path_length )
-		      max_path_length = path_length[resource_id];
+                    if( path_length[resource_id] > max_path_length )
+                        max_path_length = path_length[resource_id];
 
                     break;
                 }
             }
 
-	    for( unsigned rid : access_pattern[i] )
-	      path_length[rid] = max_path_length + 1;
+            for( unsigned rid : access_pattern[i] )
+                path_length[rid] = max_path_length + 1;
         }
     }
 
     unsigned max_path_length = 1;
     for( unsigned pl : path_length )
-      if( pl > max_path_length )
-	max_path_length = pl;
+        if( pl > max_path_length )
+            max_path_length = pl;
 
     std::cout << "max path length = " << max_path_length << std::endl;
 }
@@ -98,9 +98,11 @@ TEST_CASE("RandomGraph")
 
     generate_access_pattern();
 
+    redGrapes::worker_pool.reset();
+    rg::init(n_threads);
+ 
     {
-        rg::init(n_threads);
-        std::vector<rg::IOResource<std::array<uint64_t, 8>>> resources(n_resources);
+       std::vector<rg::IOResource<std::array<uint64_t, 8>>> resources(n_resources);
 
         for(int i = 0; i < n_tasks; ++i)
             switch(access_pattern[i].size())
@@ -180,12 +182,15 @@ TEST_CASE("RandomGraph")
                 break;
             }
 
+        spdlog::info("BARRIER");
         rg::barrier();
+        spdlog::info("check resource values");
 
         for(int i = 0; i < n_resources; ++i)
             REQUIRE( *resources[i] == expected_hash[i] );
+    }
 
-        rg::finalize();
-    };
+    rg::finalize();
+   redGrapes::worker_pool.reset();
 }
 
