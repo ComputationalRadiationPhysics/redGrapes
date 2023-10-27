@@ -31,6 +31,7 @@ struct BumpAllocChunk
     ~BumpAllocChunk();
 
     bool empty() const;
+    bool full() const;
     void reset();
 
     void * m_alloc( size_t n_bytes );
@@ -38,6 +39,7 @@ struct BumpAllocChunk
 
     bool contains( void * ) const;
 
+private:
     std::atomic< uintptr_t > next_addr;
     uintptr_t const lower_limit;
     uintptr_t const upper_limit;

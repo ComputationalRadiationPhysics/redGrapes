@@ -58,9 +58,6 @@ struct ChunkedBumpAlloc
 
     ~ChunkedBumpAlloc()
     {
-        auto head = bump_allocators.rbegin();
-        if( head != bump_allocators.rend() )
-            head->count --;
     }
 
     inline static size_t roundup_to_poweroftwo( size_t s )
@@ -99,16 +96,7 @@ struct ChunkedBumpAlloc
 
                     // chunk is full, create a new one
                     if( !item )
-                    {
                         bump_allocators.add_chunk();
-
-                        /* now, that the new chunk is added,
-                         * decrease count of old block so it can be deleted
-                         * by any following `deallocate`
-                         */
-                        if( chunk->count.fetch_sub(1) == 1 )
-                            bump_allocators.erase( chunk );
-                    }
                 }
                 // no chunk exists, create a new one
                 else
@@ -147,8 +135,11 @@ struct ChunkedBumpAlloc
                 if( it->m_free((void*)ptr) == 1 )
                 {
                     SPDLOG_TRACE("ChunkedBumpAlloc: erase chunk {}", it->lower_limit);
-                    bump_allocators.erase( it );
-                    prev.optimize();
+                    if( it->full() )
+                    {
+                        bump_allocators.erase( it );
+                        prev.optimize();
+                    }
                 }
 
                 return;
@@ -156,7 +147,7 @@ struct ChunkedBumpAlloc
             prev = it;
         }
 
-        spdlog::error("try to deallocate invalid pointer ({}). current_arena={}, this={}", (void*)ptr, current_arena, (void*)this);
+        spdlog::error("try to deallocate invalid pointer ({}). this={}", (void*)ptr, (void*)this);
 
         backward::StackTrace st;
         st.load_here(32);

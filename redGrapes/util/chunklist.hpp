@@ -59,7 +59,7 @@ struct ChunkList
 
         ~Chunk()
         {
-            spdlog::info("destruct chunk {}", (void*)chunk_data);
+            SPDLOG_INFO("destruct chunk {}", (void*)chunk_data);
             get()->~ChunkData();
         }
 

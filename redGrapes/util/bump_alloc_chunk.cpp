@@ -20,7 +20,7 @@ namespace memory
 BumpAllocChunk::BumpAllocChunk( size_t lower_limit, size_t upper_limit )
     : lower_limit( lower_limit )
     , upper_limit( upper_limit )
-    , count(1)
+    , count(0)
 {
     SPDLOG_INFO("bumpallochunk: lower={}, upper={}", lower_limit, upper_limit);
     next_addr = upper_limit;
@@ -36,6 +36,12 @@ bool BumpAllocChunk::empty() const
 {
     return (count == 0);
 }
+
+bool BumpAllocChunk::full() const
+{
+    return next_addr < lower_limit;
+}
+    
 
 void BumpAllocChunk::reset()
 {
