@@ -39,7 +39,7 @@ bool BumpAllocChunk::empty() const
 
 bool BumpAllocChunk::full() const
 {
-    return next_addr < lower_limit;
+    return next_addr <= lower_limit;
 }
     
 
