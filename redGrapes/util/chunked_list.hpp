@@ -213,7 +213,7 @@ struct ChunkedList
         chunk_offset_t chunk_size;
         chunk_offset_t chunk_off;
         bool has_item;
-        typename memory::ChunkList< Chunk, Allocator >::MutBackwardIterator chunk;
+        typename memory::AtomicList< Chunk, Allocator >::MutBackwardIterator chunk;
 
     protected:
         /*!
@@ -296,7 +296,7 @@ struct ChunkedList
         }
 
         ItemAccess( size_t chunk_size,
-                    typename memory::ChunkList< Chunk, Allocator >::MutBackwardIterator chunk,
+                    typename memory::AtomicList< Chunk, Allocator >::MutBackwardIterator chunk,
                     unsigned chunk_off )
             : has_item(false), chunk_size(chunk_size), chunk(chunk), chunk_off(chunk_off)
         {
@@ -353,7 +353,7 @@ struct ChunkedList
     {
         BackwardIterator(
             size_t chunk_size,
-            typename memory::ChunkList< Chunk, Allocator >::MutBackwardIterator chunk,
+            typename memory::AtomicList< Chunk, Allocator >::MutBackwardIterator chunk,
             unsigned chunk_off
         )
             : ItemAccess< is_const >( chunk_size, chunk, chunk_off )
@@ -400,7 +400,7 @@ struct ChunkedList
     using MutBackwardIterator = BackwardIterator< false >;
 
 private:
-    memory::ChunkList< Chunk, Allocator > chunks;
+    memory::AtomicList< Chunk, Allocator > chunks;
 
     size_t chunk_size;
 

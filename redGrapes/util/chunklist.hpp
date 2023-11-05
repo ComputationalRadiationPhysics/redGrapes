@@ -23,8 +23,7 @@ namespace redGrapes
 namespace memory
 {
 
-/* maintains a lockfree singly-linked list of arbitrarily sized data
- * chunks
+/* maintains a lockfree singly-linked list
  *
  * allowed operations:
  *   - append new chunks at head
@@ -39,7 +38,7 @@ template <
     typename ChunkData,
     template <typename> class Allocator
 >
-struct ChunkList
+struct AtomicList
 {
 //private:
     struct Chunk
@@ -129,7 +128,7 @@ struct ChunkList
     };
 
 public:
-    ChunkList( Allocator< uint8_t > && alloc, size_t chunk_size )
+    AtomicList( Allocator< uint8_t > && alloc, size_t chunk_size )
         : alloc( alloc )
         , head( nullptr )
         , chunk_size( chunk_size )

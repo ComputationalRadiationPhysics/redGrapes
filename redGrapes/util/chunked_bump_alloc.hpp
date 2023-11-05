@@ -24,7 +24,10 @@
 #include <redGrapes/dispatch/thread/local.hpp>
 #include <redGrapes/dispatch/thread/cpuset.hpp>
 #include <redGrapes/util/trace.hpp>
+
+#ifndef NDEBUG
 #include <backward.hpp>
+#endif
 
 namespace redGrapes
 {
@@ -42,7 +45,7 @@ struct ChunkedBumpAlloc
 {
     size_t const chunk_size;
 
-    ChunkList< BumpAllocChunk, A > bump_allocators;
+    AtomicList< BumpAllocator, A > bump_allocators;
 
     ChunkedBumpAlloc( A<uint8_t> && alloc, size_t chunk_size = REDGRAPES_ALLOC_CHUNKSIZE )
         : chunk_size( chunk_size )
@@ -92,7 +95,7 @@ struct ChunkedBumpAlloc
 
                 if( chunk != bump_allocators.rend() )
                 {
-                    item = (T*) chunk->m_alloc( alloc_size );
+                    item = (T*) chunk->allocate( alloc_size );
 
                     // chunk is full, create a new one
                     if( !item )
@@ -132,7 +135,7 @@ struct ChunkedBumpAlloc
                  * and this chunk is not `head`,
                  * remove this chunk
                  */
-                if( it->m_free((void*)ptr) == 1 )
+                if( it->deallocate((void*)ptr) == 1 )
                 {
                     SPDLOG_TRACE("ChunkedBumpAlloc: erase chunk {}", it->lower_limit);
                     if( it->full() )
@@ -147,12 +150,15 @@ struct ChunkedBumpAlloc
             prev = it;
         }
 
+#ifndef NDEBUG
         spdlog::error("try to deallocate invalid pointer ({}). this={}", (void*)ptr, (void*)this);
 
         backward::StackTrace st;
         st.load_here(32);
         backward::Printer p;
         p.print(st);
+#endif
+
     }
 };
 

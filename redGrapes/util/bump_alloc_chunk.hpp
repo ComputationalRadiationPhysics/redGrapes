@@ -23,19 +23,19 @@ namespace memory
 /* A chunk of memory, inside of which bump allocation is performed.
  * The data will start immediately after this management object
  */
-struct BumpAllocChunk
+struct BumpAllocator
 {
-    BumpAllocChunk( size_t lower_limit, size_t upper_limit );
-    BumpAllocChunk( BumpAllocChunk const & ) = delete;
-    BumpAllocChunk( BumpAllocChunk & ) = delete;
-    ~BumpAllocChunk();
+    BumpAllocator( uintptr_t lower_limit, uintptr_t upper_limit );
+    BumpAllocator( BumpAllocator const & ) = delete;
+    BumpAllocator( BumpAllocator & ) = delete;
+    ~BumpAllocator();
 
     bool empty() const;
     bool full() const;
     void reset();
 
-    void * m_alloc( size_t n_bytes );
-    uint16_t m_free( void * );
+    void * allocate( size_t n_bytes );
+    uint16_t deallocate( void * );
 
     bool contains( void * ) const;
 

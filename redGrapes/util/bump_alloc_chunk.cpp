@@ -17,7 +17,7 @@ namespace redGrapes
 namespace memory
 {
 
-BumpAllocChunk::BumpAllocChunk( size_t lower_limit, size_t upper_limit )
+BumpAllocator::BumpAllocator( uintptr_t lower_limit, uintptr_t upper_limit )
     : lower_limit( lower_limit )
     , upper_limit( upper_limit )
     , count(0)
@@ -26,31 +26,31 @@ BumpAllocChunk::BumpAllocChunk( size_t lower_limit, size_t upper_limit )
     next_addr = upper_limit;
 }
 
-BumpAllocChunk::~BumpAllocChunk()
+BumpAllocator::~BumpAllocator()
 {
+#ifndef NDEBUG
     if( !empty() )
         spdlog::warn("BumpAllocChunk: {} allocations remaining not deallocated.", count.load());
+#endif
 }
 
-bool BumpAllocChunk::empty() const
+bool BumpAllocator::empty() const
 {
     return (count == 0);
 }
 
-bool BumpAllocChunk::full() const
+bool BumpAllocator::full() const
 {
     return next_addr <= lower_limit;
 }
-    
 
-void BumpAllocChunk::reset()
+void BumpAllocator::reset()
 {
     next_addr = upper_limit;
     count = 0;
-    memset((void*) lower_limit, 0, upper_limit-lower_limit);
 }
 
-void * BumpAllocChunk::m_alloc( size_t n_bytes )
+void * BumpAllocator::allocate( size_t n_bytes )
 {
     uintptr_t addr = next_addr.fetch_sub( n_bytes ) - n_bytes;
     if( addr >= lower_limit )
@@ -62,12 +62,12 @@ void * BumpAllocChunk::m_alloc( size_t n_bytes )
         return nullptr;
 }
 
-uint16_t BumpAllocChunk::m_free( void * )
+uint16_t BumpAllocator::deallocate( void * )
 {
     return count.fetch_sub(1);
 }
 
-bool BumpAllocChunk::contains( void * ptr ) const
+bool BumpAllocator::contains( void * ptr ) const
 {
     uintptr_t p = (uintptr_t)ptr;
     return p >= lower_limit && p < upper_limit;
