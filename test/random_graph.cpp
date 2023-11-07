@@ -182,15 +182,11 @@ TEST_CASE("RandomGraph")
                 break;
             }
 
-        spdlog::info("BARRIER");
         rg::barrier();
-        spdlog::info("check resource values");
-
         for(int i = 0; i < n_resources; ++i)
             REQUIRE( *resources[i] == expected_hash[i] );
     }
 
-    rg::finalize();
-   redGrapes::worker_pool.reset();
+   rg::finalize();
 }
 
