@@ -9,7 +9,7 @@
 #include <redGrapes/task/future.hpp>
 #include <redGrapes/task/task.hpp>
 #include <redGrapes/task/task_space.hpp>
-#include <redGrapes/util/allocator.hpp>
+#include <redGrapes/memory/allocator.hpp>
 #include <spdlog/spdlog.h>
 #include <type_traits>
 

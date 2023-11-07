@@ -9,7 +9,7 @@
 
 #include <mutex>
 #include <redGrapes/task/task.hpp>
-#include <redGrapes/util/allocator.hpp>
+#include <redGrapes/memory/allocator.hpp>
 #include <moodycamel/concurrentqueue.h>
 #include <redGrapes/util/trace.hpp>
 

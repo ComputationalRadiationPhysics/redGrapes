@@ -11,7 +11,7 @@
 #include <vector>
 #include <mutex>
 
-#include <redGrapes/util/allocator.hpp>
+#include <redGrapes/memory/allocator.hpp>
 #include <redGrapes/task/task.hpp>
 #include <redGrapes/task/queue.hpp>
 #include <redGrapes/dispatch/thread/cpuset.hpp>

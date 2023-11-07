@@ -7,7 +7,7 @@
 
 #include <cstdlib>
 #include <atomic>
-#include <redGrapes/util/bump_alloc_chunk.hpp>
+#include <redGrapes/memory/bump_allocator.hpp>
 #include <cstring>
 #include <redGrapes/dispatch/thread/worker.hpp>
 #include <redGrapes/redGrapes.hpp>

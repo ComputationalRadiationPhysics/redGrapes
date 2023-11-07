@@ -10,7 +10,7 @@
 #include <memory>
 #include <moodycamel/concurrentqueue.h>
 
-#include <redGrapes/util/allocator.hpp>
+#include <redGrapes/memory/allocator.hpp>
 #include <redGrapes/dispatch/thread/worker_pool.hpp>
 #include <redGrapes/scheduler/scheduler.hpp>
 

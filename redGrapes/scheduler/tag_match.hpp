@@ -11,7 +11,7 @@
 #include <memory>
 #include <optional>
 #include <spdlog/spdlog.h>
-#include <redGrapes/util/allocator.hpp>
+#include <redGrapes/memory/allocator.hpp>
 
 namespace redGrapes
 {

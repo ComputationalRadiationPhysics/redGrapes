@@ -16,7 +16,7 @@
 #include <redGrapes/task/task_builder.hpp>
 #include <redGrapes/task/task_space.hpp>
 #include <redGrapes/util/trace.hpp>
-#include <redGrapes/util/allocator.hpp>
+#include <redGrapes/memory/allocator.hpp>
 #include <redGrapes/dispatch/dispatcher.hpp>
 #include <redGrapes/scheduler/scheduler.hpp>
 

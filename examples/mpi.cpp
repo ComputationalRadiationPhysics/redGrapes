@@ -3,7 +3,7 @@
 
 #include <redGrapes/redGrapes.hpp>
 
-#include <redGrapes/util/hwloc_alloc.hpp>
+#include <redGrapes/memory/hwloc_alloc.hpp>
 #include <redGrapes/resource/ioresource.hpp>
 #include <redGrapes/resource/fieldresource.hpp>
 #include <redGrapes/dispatch/mpi/request_pool.hpp>

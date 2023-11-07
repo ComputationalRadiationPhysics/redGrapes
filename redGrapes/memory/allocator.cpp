@@ -1,7 +1,7 @@
 #include <redGrapes/dispatch/thread/worker_pool.hpp>
 #include <redGrapes/dispatch/thread/worker.hpp>
 
-#include <redGrapes/util/allocator.hpp>
+#include <redGrapes/memory/allocator.hpp>
 
 namespace redGrapes
 {

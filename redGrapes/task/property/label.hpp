@@ -12,7 +12,7 @@
 #pragma once
 
 #include <string>
-#include <redGrapes/util/allocator.hpp>
+#include <redGrapes/memory/allocator.hpp>
 #include <fmt/format.h>
 
 namespace redGrapes

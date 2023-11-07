@@ -9,7 +9,7 @@
 #include <redGrapes/task/task.hpp>
 #include <redGrapes/task/task_space.hpp>
 #include <redGrapes/task/queue.hpp>
-#include <redGrapes/util/allocator.hpp>
+#include <redGrapes/memory/allocator.hpp>
 #include <redGrapes/dispatch/thread/worker.hpp>
 
 namespace redGrapes

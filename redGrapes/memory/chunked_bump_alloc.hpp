@@ -17,8 +17,8 @@
 #include <spdlog/spdlog.h>
 #include <vector>
 #include <redGrapes/util/spinlock.hpp>
-#include <redGrapes/util/hwloc_alloc.hpp>
-#include <redGrapes/util/bump_alloc_chunk.hpp>
+#include <redGrapes/memory/hwloc_alloc.hpp>
+#include <redGrapes/memory/bump_allocator.hpp>
 #include <redGrapes/util/atomic_list.hpp>
 #include <redGrapes/scheduler/scheduler.hpp>
 #include <redGrapes/dispatch/thread/local.hpp>

@@ -6,9 +6,9 @@
  */
 #include <redGrapes/dispatch/thread/worker.hpp>
 #include <redGrapes/dispatch/thread/worker_pool.hpp>
-#include <redGrapes/util/allocator.hpp>
-#include <redGrapes/util/hwloc_alloc.hpp>
-#include <redGrapes/util/chunked_bump_alloc.hpp>
+#include <redGrapes/memory/allocator.hpp>
+#include <redGrapes/memory/hwloc_alloc.hpp>
+#include <redGrapes/memory/chunked_bump_alloc.hpp>
 #include <redGrapes_config.hpp>
 
 namespace redGrapes
