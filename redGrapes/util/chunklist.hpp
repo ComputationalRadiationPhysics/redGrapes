@@ -75,12 +75,11 @@ struct AtomicList
          */
         void skip_deleted_prev()
         {
-            auto p = std::atomic_load( &prev );
+            std::shared_ptr<Chunk> p = std::atomic_load( &prev );
             while( p && p->deleted )
-            {
-                std::atomic_store( &prev, std::atomic_load(&p->prev) );
-                p = std::atomic_load( &prev );
-            }
+                p = std::atomic_load( &p->prev );
+
+            std::atomic_store( &prev, p );
         }
 
         ChunkData * get() const
