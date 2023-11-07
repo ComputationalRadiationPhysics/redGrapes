@@ -19,7 +19,7 @@
 #include <redGrapes/util/spinlock.hpp>
 #include <redGrapes/util/hwloc_alloc.hpp>
 #include <redGrapes/util/bump_alloc_chunk.hpp>
-#include <redGrapes/util/chunklist.hpp>
+#include <redGrapes/util/atomic_list.hpp>
 #include <redGrapes/scheduler/scheduler.hpp>
 #include <redGrapes/dispatch/thread/local.hpp>
 #include <redGrapes/dispatch/thread/cpuset.hpp>
@@ -99,11 +99,11 @@ struct ChunkedBumpAlloc
 
                     // chunk is full, create a new one
                     if( !item )
-                        bump_allocators.add_chunk();
+                        bump_allocators.allocate_item();
                 }
                 // no chunk exists, create a new one
                 else
-                    bump_allocators.add_chunk();
+                    bump_allocators.allocate_item();
             }
 
             SPDLOG_TRACE("ChunkedBumpAlloc: alloc {},{}", (uintptr_t)item, alloc_size);

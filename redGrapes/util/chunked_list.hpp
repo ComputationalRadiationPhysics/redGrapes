@@ -22,7 +22,7 @@
 #include <redGrapes/util/allocator.hpp>
 #include <redGrapes/util/bump_alloc_chunk.hpp>
 #include <redGrapes/util/spinlock.hpp>
-#include <redGrapes/util/chunklist.hpp>
+#include <redGrapes/util/atomic_list.hpp>
 #include <spdlog/spdlog.h>
 
 namespace redGrapes
@@ -139,14 +139,12 @@ struct ChunkedList
          */
         T & operator=(T const & value)
         {
-            if( refcount.fetch_add(1) == 0 )
-            {
-                storage.value = value;
-                iter_offset = 0;
-                return storage.value;
-            }
-            else
-                throw std::runtime_error("assign item which is in use");
+            auto old_refcount = refcount.fetch_add(1);
+            assert( old_refcount == 0 );
+
+            storage.value = value;
+            iter_offset = 0;
+            return storage.value;
         }
 
         /* decrement refcount and in case this 
@@ -460,7 +458,7 @@ public:
                 }
             }
 
-            chunks.add_chunk();
+            chunks.allocate_item();
         }
     }
 

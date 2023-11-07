@@ -24,8 +24,7 @@ namespace memory
 {
 
 /* maintains a lockfree singly-linked list
- *
- * allowed operations:
+ * with the following allowed operations:
  *   - append new chunks at head
  *   - erase any chunk which is not current head
  *   - reversed iteration (starting at head)
@@ -33,33 +32,36 @@ namespace memory
  * each chunk is managed through a `std::shared_ptr` which points to a
  * contiguous block containing list-metadata, the chunk-control-object
  * (`ChunkData`) and freely usable data.
+ *
+ * @tparam Item element type
+ * @tparam Allocator must satisfy `Allocator` concept
  */
 template <
-    typename ChunkData,
+    typename Item,
     template <typename> class Allocator
 >
 struct AtomicList
 {
 //private:
-    struct Chunk
+    struct ItemPtr
     {
         bool volatile deleted;
-        std::shared_ptr< Chunk > prev;
-        ChunkData * chunk_data;
+        std::shared_ptr< ItemPtr > prev;
+        Item * item_data;
 
         template < typename... Args >
-        Chunk( uintptr_t chunk_data, Args&&... args )
+        ItemPtr( Item * item_data, Args&&... args )
                 : deleted(false)
                 , prev(nullptr)
-                , chunk_data((ChunkData*)chunk_data)
+                , item_data(item_data)
         {
-            new ( get() ) ChunkData ( std::forward<Args>(args)... );
+            new ( get() ) Item ( std::forward<Args>(args)... );
         }
 
-        ~Chunk()
+        ~ItemPtr()
         {
-            SPDLOG_INFO("destruct chunk {}", (void*)chunk_data);
-            get()->~ChunkData();
+            SPDLOG_INFO("destruct chunk {}", (void*)item_data);
+            get()->~Item();
         }
 
         /* flag this chunk as deleted and call ChunkData destructor
@@ -75,21 +77,21 @@ struct AtomicList
          */
         void skip_deleted_prev()
         {
-            std::shared_ptr<Chunk> p = std::atomic_load( &prev );
+            std::shared_ptr<ItemPtr> p = std::atomic_load( &prev );
             while( p && p->deleted )
                 p = std::atomic_load( &p->prev );
 
             std::atomic_store( &prev, p );
         }
 
-        ChunkData * get() const
+        Item * get() const
         {
-            return chunk_data;
+            return item_data;
         }
     };
 
     Allocator< uint8_t > alloc;
-    std::shared_ptr< Chunk > head;
+    std::shared_ptr< ItemPtr > head;
     size_t const chunk_size;
 
     /* keeps a single, predefined pointer
@@ -126,26 +128,30 @@ struct AtomicList
         }
     };
 
+
+
 public:
+            
     AtomicList( Allocator< uint8_t > && alloc, size_t chunk_size )
         : alloc( alloc )
         , head( nullptr )
         , chunk_size( chunk_size )
     {
+#ifndef NDEBUG
         if( chunk_size <= get_controlblock_size() )
              spdlog::error("chunksize = {}, control block ={}", chunk_size, get_controlblock_size());
+#endif
 
         assert( chunk_size > get_controlblock_size() );
     }
 
     static constexpr size_t get_controlblock_size()
     {
-
         /* TODO: use sizeof( ...shared_ptr_inplace_something... )
          */
         size_t const shared_ptr_size = 512;
 
-        return sizeof(Chunk) + shared_ptr_size;
+        return sizeof(ItemPtr) + shared_ptr_size;
     }
 
     constexpr size_t get_chunk_capacity()
@@ -155,11 +161,11 @@ public:
 
     /* initializes a new chunk
      */
-    void add_chunk()
+    void allocate_item()
     {
-        TRACE_EVENT("Allocator", "ChunkList add_chunk()");
+        TRACE_EVENT("Allocator", "AtomicList::allocate_item()");
 
-        /* we are relying on std::allocate_shared
+        /* NOTE: we are relying on std::allocate_shared
          * to do one *single* allocation which contains:
          * - shared_ptr control block
          * - chunk control block
@@ -170,11 +176,15 @@ public:
          */
         StaticAlloc<void> chunk_alloc( this->alloc, chunk_size );
         uintptr_t base = (uintptr_t)chunk_alloc.ptr;
-        append_chunk(
-            std::allocate_shared< Chunk >(
+        append_item(
+            std::allocate_shared< ItemPtr >(
                 chunk_alloc,
-                base + get_controlblock_size(),
-                base + get_controlblock_size() + sizeof(ChunkData),
+
+                /* TODO: generalize this constructor call,
+                 *  specialized for `memory chunks` now
+                 */
+                (Item*) (base + get_controlblock_size()),
+                base + get_controlblock_size() + sizeof(Item),
                 base + chunk_size
             )
         );
@@ -182,22 +192,22 @@ public:
 
     /* atomically appends a floating chunk to this list
      */
-    void append_chunk( std::shared_ptr< Chunk > new_head )
+    void append_item( std::shared_ptr< ItemPtr > new_head )
     {
-        TRACE_EVENT("Allocator", "append_chunk()");
+        TRACE_EVENT("Allocator", "AtomicList::append_item()");
         bool append_successful = false;
         while( ! append_successful )
         {
-            std::shared_ptr< Chunk > old_head = std::atomic_load( &head );
+            std::shared_ptr< ItemPtr > old_head = std::atomic_load( &head );
             std::atomic_store( &new_head->prev, old_head );
-            append_successful = std::atomic_compare_exchange_strong<Chunk>( &head, &old_head, new_head );
+            append_successful = std::atomic_compare_exchange_strong<ItemPtr>( &head, &old_head, new_head );
         }
     }
 
     template < bool is_const = false >
     struct BackwardIterator
     {
-        std::shared_ptr< Chunk > c;
+        std::shared_ptr< ItemPtr > c;
 
         void erase()
         {
@@ -216,8 +226,8 @@ public:
 
         typename std::conditional<
             is_const,
-            ChunkData const *,
-            ChunkData *
+            Item const *,
+            Item *
         >::type
         operator->() const
         {
@@ -226,8 +236,8 @@ public:
         
         typename std::conditional<
             is_const,
-            ChunkData const &,
-            ChunkData &
+            Item const &,
+            Item &
         >::type
         operator*() const
         {
@@ -265,7 +275,7 @@ public:
 
     MutBackwardIterator rend() const
     {
-        return MutBackwardIterator{ std::shared_ptr<Chunk>() };
+        return MutBackwardIterator{ std::shared_ptr<ItemPtr>() };
     }
 
     ConstBackwardIterator crbegin() const
@@ -275,9 +285,9 @@ public:
 
     ConstBackwardIterator crend() const
     {
-        return ConstBackwardIterator{ std::shared_ptr<Chunk>() };
+        return ConstBackwardIterator{ std::shared_ptr<ItemPtr>() };
     }
-    
+
     /* Flags chunk at `pos` as erased. Actual removal is delayed until
      * iterator stumbles over it.
      *
@@ -288,7 +298,6 @@ public:
     {
         pos.erase();
     }
-
 };
 
 } // namespace memory
