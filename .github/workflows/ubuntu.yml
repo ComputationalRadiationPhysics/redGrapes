@@ -9,7 +9,7 @@ concurrency:
 jobs:
   build_gcc:
     name: GCC
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     if: github.event.pull_request.draft == false
     env:
       CXXFLAGS: "-Wall -Wextra -Wshadow"
