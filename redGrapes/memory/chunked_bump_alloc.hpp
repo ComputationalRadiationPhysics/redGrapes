@@ -25,7 +25,7 @@
 #include <redGrapes/dispatch/thread/cpuset.hpp>
 #include <redGrapes/util/trace.hpp>
 
-#ifndef NDEBUG
+#if REDGRAPES_ENABLE_BACKWARDCPP
 #include <backward.hpp>
 #endif
 
@@ -150,7 +150,7 @@ struct ChunkedBumpAlloc
             prev = it;
         }
 
-#ifndef NDEBUG
+#if REDGRAPES_ENABLE_BACKWARDCPP
         spdlog::error("try to deallocate invalid pointer ({}). this={}", (void*)ptr, (void*)this);
 
         backward::StackTrace st;

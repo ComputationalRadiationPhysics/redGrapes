@@ -39,10 +39,6 @@ else()
   message(STATUS "Found hwloc")
 endif()
 
-set(Backward_DIR "${CMAKE_CURRENT_LIST_DIR}/share/thirdParty/bombela/backward-cpp")
-find_package(Backward)
-
-
 if( NOT TARGET redGrapes )
 add_library(redGrapes
   ${CMAKE_CURRENT_LIST_DIR}/redGrapes/resource/resource.cpp
@@ -76,7 +72,6 @@ target_link_libraries(redGrapes PUBLIC ${Boost_LIBRARIES})
 target_link_libraries(redGrapes PUBLIC fmt::fmt)
 target_link_libraries(redGrapes PUBLIC spdlog::spdlog)
 target_link_libraries(redGrapes PUBLIC ${HWLOC})
-target_link_libraries(redGrapes PUBLIC Backward::Backward)
 
 set(redGrapes_INCLUDE_DIRS ${redGrapes_CONFIG_INCLUDE_DIR} ${CMAKE_CURRENT_LIST_DIR})
 set(redGrapes_INCLUDE_DIRS ${redGrapes_INCLUDE_DIRS} "${CMAKE_CURRENT_LIST_DIR}/share/thirdParty/akrzemi/optional/include")
@@ -85,7 +80,16 @@ set(redGrapes_INCLUDE_DIRS ${redGrapes_INCLUDE_DIRS} ${HWLOC_INCLUDE_DIR})
 
 set(redGrapes_LIBRARIES ${Boost_LIBRARIES} fmt::fmt spdlog::spdlog ${CMAKE_THREAD_LIBS_INIT} ${HWLOC})
 
+option(redGrapes_ENABLE_BACKWARDCPP "Enable extended debugging with `backward-cpp`" OFF)
 option(redGrapes_ENABLE_PERFETTO "Enable tracing support with perfetto" OFF)
+
+if(redGrapes_ENABLE_BACKWARDCPP)
+  set(Backward_DIR "${CMAKE_CURRENT_LIST_DIR}/share/thirdParty/bombela/backward-cpp")
+  find_package(Backward)
+
+  add_compile_definitions(REDGRAPES_ENABLE_BACKWARDCPP=1)
+  target_link_libraries(redGrapes PUBLIC Backward::Backward)
+endif()
 
 if(redGrapes_ENABLE_PERFETTO)
     add_compile_definitions(PERFETTO_ALLOW_SUB_CPP17)
