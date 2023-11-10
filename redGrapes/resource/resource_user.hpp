@@ -23,12 +23,12 @@
 namespace redGrapes
 {
 
-struct ResourceEntry
+struct ResourceUsageEntry
 {
     std::shared_ptr< ResourceBase > resource;
     ChunkedList< Task* >::MutBackwardIterator task_entry;
 
-    bool operator==( ResourceEntry const & other ) const
+    bool operator==( ResourceUsageEntry const & other ) const
     {
         return resource == other.resource;
     }
@@ -63,7 +63,7 @@ class ResourceUser
         this->access_list.push(ra);
         std::shared_ptr<ResourceBase> r = ra.get_resource();
         //unique_resources.erase(ResourceEntry{ r, r->users.end() });           
-        unique_resources.push(ResourceEntry{ r, r->users.rend() });
+        unique_resources.push(ResourceUsageEntry{ r, r->users.rend() });
     }
 
     void rm_resource_access( ResourceAccess ra )
@@ -76,8 +76,8 @@ class ResourceUser
         for( auto ra = access_list.rbegin(); ra != access_list.rend(); ++ra )
         {
             std::shared_ptr<ResourceBase> r = ra->get_resource();
-            unique_resources.erase(ResourceEntry{ r, r->users.rend() });
-            unique_resources.push(ResourceEntry{ r, r->users.rend() });
+            unique_resources.erase(ResourceUsageEntry{ r, r->users.rend() });
+            unique_resources.push(ResourceUsageEntry{ r, r->users.rend() });
         }
     }
 
@@ -135,7 +135,7 @@ class ResourceUser
     uint8_t scope_level;
 
     ChunkedList<ResourceAccess> access_list;
-    ChunkedList<ResourceEntry> unique_resources;
+    ChunkedList<ResourceUsageEntry> unique_resources;
 }; // class ResourceUser
 
 } // namespace redGrapes
