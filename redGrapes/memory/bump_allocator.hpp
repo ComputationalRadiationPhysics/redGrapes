@@ -1,4 +1,6 @@
-/* Copyright 2023 Michael Sippel
+/* Copyright 2023 The RedGrapes Community
+ *
+ * Authors: Michael Sippel
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -9,12 +11,7 @@
 
 #include <atomic>
 #include <cstdint>
-#include <memory>
-#include <optional>
-
-#include <hwloc.h>
 #include <redGrapes/memory/block.hpp>
-#include <spdlog/spdlog.h>
 
 namespace redGrapes
 {
@@ -29,28 +26,43 @@ namespace memory
  */
 struct BumpAllocator
 {
+    BumpAllocator( Block blk );
     BumpAllocator( uintptr_t lower_limit, uintptr_t upper_limit );
     BumpAllocator( BumpAllocator const & ) = delete;
     BumpAllocator( BumpAllocator & ) = delete;
     ~BumpAllocator();
 
-    bool empty() const;
-    bool full() const;
-   
     void reset();
 
+    bool empty() const;
+
+    /* check whether this allocator is exhausted already.
+     * @return true if no free space remains
+     */
+    bool full() const;
+
+    /*! checks whether this block is managed by this allocator
+     */
+    bool owns( Block const & ) const;
+
+    /*! @param n_bytes size of requested memory block
+     * @return Block with len = n_bytes and some non-nullpointer
+     *         if successful, return Block::null() on exhaustion.
+     */
     Block allocate( size_t n_bytes );
 
     /*! @return how many active allocations remain,
      * if it returns 0, this allocator needs to be reset.
      */
-    uint16_t deallocate( Block );
-
-    bool owns( Block const & ) const;
+    uint16_t deallocate( Block blk );
 
 private:
+    //! number of active allocations
     std::atomic< uint16_t > count;
+
+    //! pointer to the upper-limit of the next allocation
     std::atomic< uintptr_t > next_addr;
+
 
     uintptr_t const lower_limit;
     uintptr_t const upper_limit;

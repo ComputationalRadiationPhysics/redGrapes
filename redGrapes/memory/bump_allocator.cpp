@@ -7,16 +7,22 @@
 
 #include <cstdlib>
 #include <atomic>
+#include <spdlog/spdlog.h>
+
 #include <redGrapes/memory/block.hpp>
 #include <redGrapes/memory/bump_allocator.hpp>
-#include <cstring>
-#include <redGrapes/dispatch/thread/worker.hpp>
-#include <redGrapes/redGrapes.hpp>
 
 namespace redGrapes
 {
 namespace memory
 {
+
+BumpAllocator::BumpAllocator( Block blk )
+    : BumpAllocator(
+        (uintptr_t)blk.ptr,
+        (uintptr_t)blk.ptr + blk.len
+    )
+{}
 
 BumpAllocator::BumpAllocator( uintptr_t lower_limit, uintptr_t upper_limit )
     : lower_limit( lower_limit )
