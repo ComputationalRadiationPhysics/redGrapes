@@ -63,7 +63,7 @@ Block BumpAllocator::allocate( size_t n_bytes )
     if( addr >= lower_limit )
     {
         count ++;
-        return Block { .ptr = addr, .len = n_bytes };
+        return Block { addr, n_bytes };
     }
     else
         return Block::null();

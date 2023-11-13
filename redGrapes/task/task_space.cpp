@@ -58,7 +58,8 @@ namespace redGrapes
         unsigned arena_id = task->arena_id;
         task->~Task();
 
-        worker_pool->get_worker( arena_id ).alloc.deallocate( memory::Block{ .ptr = (uintptr_t)task, .len=sizeof(Task) } );
+        // FIXME: len of the Block is not correct since FunTask object is bigger than sizeof(Task)
+        worker_pool->get_worker( arena_id ).alloc.deallocate( memory::Block{ (uintptr_t)task, sizeof(Task) } );
 
         // TODO: implement this using post-event of root-task?
         //  - event already has in_edge count
