@@ -14,7 +14,7 @@
 #include <memory>
 #include <moodycamel/concurrentqueue.h>
 #include <hwloc.h>
-#include <redGrapes/util/cv.hpp>
+#include <redGrapes/sync/cv.hpp>
 #include <redGrapes/memory/hwloc_alloc.hpp>
 #include <redGrapes/memory/chunked_bump_alloc.hpp>
 #include <redGrapes/task/queue.hpp>

@@ -15,7 +15,6 @@
 #include <optional>
 
 #include <hwloc.h>
-#include <redGrapes/util/spinlock.hpp>
 #include <spdlog/spdlog.h>
 
 namespace redGrapes

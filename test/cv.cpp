@@ -1,7 +1,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <thread>
-#include <redGrapes/util/cv.hpp>
+#include <redGrapes/sync/cv.hpp>
 
 TEST_CASE("CV")
 {

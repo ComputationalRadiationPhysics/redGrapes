@@ -21,7 +21,6 @@
 #include <redGrapes/util/trace.hpp>
 #include <redGrapes/memory/allocator.hpp>
 #include <redGrapes/memory/bump_allocator.hpp>
-#include <redGrapes/util/spinlock.hpp>
 #include <redGrapes/util/atomic_list.hpp>
 #include <spdlog/spdlog.h>
 

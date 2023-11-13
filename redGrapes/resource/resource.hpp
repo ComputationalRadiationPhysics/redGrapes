@@ -21,7 +21,7 @@
 #include <redGrapes/task/property/trait.hpp>
 #include <redGrapes/memory/allocator.hpp>
 #include <redGrapes/util/chunked_list.hpp>
-#include <redGrapes/util/spinlock.hpp>
+#include <redGrapes/sync/spinlock.hpp>
 #include <redGrapes/dispatch/thread/worker_pool.hpp>
 #include <redGrapes_config.hpp>
 
