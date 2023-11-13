@@ -37,7 +37,7 @@ namespace memory
  */
 template <
     typename Item,
-    template <typename> class Allocator
+    typename Allocator
 >
 struct AtomicList
 {
@@ -89,7 +89,7 @@ struct AtomicList
         }
     };
 
-    Allocator< uint8_t > alloc;
+    Allocator alloc;
     std::shared_ptr< ItemPtr > head;
     size_t const chunk_size;
 
@@ -102,10 +102,10 @@ struct AtomicList
     {
         typedef T value_type;
 
-        Allocator< T > alloc;
+        Allocator alloc;
         T * ptr;
 
-        StaticAlloc( Allocator<uint8_t> alloc, size_t n_bytes )
+        StaticAlloc( Allocator alloc, size_t n_bytes )
             : alloc(alloc)
             , ptr( (T*)alloc.allocate( n_bytes ) )
         {}
@@ -121,9 +121,9 @@ struct AtomicList
             return ptr;
         }
 
-        void deallocate( T * _p, std::size_t _n ) noexcept
+        void deallocate( T * p, std::size_t n ) noexcept
         {
-            alloc.deallocate( ptr, 1 );
+            alloc.deallocate( Block{ .ptr=(uintptr_t)p, .len=sizeof(T)*n} );
         }
     };
 
@@ -131,7 +131,7 @@ struct AtomicList
 
 public:
             
-    AtomicList( Allocator< uint8_t > && alloc, size_t chunk_size )
+    AtomicList( Allocator && alloc, size_t chunk_size )
         : alloc( alloc )
         , head( nullptr )
         , chunk_size( chunk_size )

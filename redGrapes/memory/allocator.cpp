@@ -1,3 +1,4 @@
+#include <memory>
 #include <redGrapes/dispatch/thread/worker_pool.hpp>
 #include <redGrapes/dispatch/thread/worker.hpp>
 
@@ -8,18 +9,18 @@ namespace redGrapes
 namespace memory
 {
 
-UntypedAllocator::UntypedAllocator( dispatch::thread::WorkerId worker_id )
+Allocator::Allocator( dispatch::thread::WorkerId worker_id )
   : worker_id( worker_id )
 {}
 
-void * UntypedAllocator::allocate( size_t n_bytes )
+Block Allocator::allocate( size_t n_bytes )
 {
-    return (void*)worker_pool->get_alloc( worker_id ).allocate< uint8_t >( n_bytes );
+    return worker_pool->get_alloc( worker_id ).allocate( n_bytes );
 }
 
-void UntypedAllocator::deallocate( void * ptr )
+void Allocator::deallocate( Block blk )
 {
-    worker_pool->get_alloc( worker_id ).deallocate( ptr );
+    worker_pool->get_alloc( worker_id ).deallocate( blk );
 }
 
 } // namespace memory

@@ -7,6 +7,7 @@
 
 #include <cstdlib>
 #include <atomic>
+#include <redGrapes/memory/block.hpp>
 #include <redGrapes/memory/bump_allocator.hpp>
 #include <cstring>
 #include <redGrapes/dispatch/thread/worker.hpp>
@@ -50,28 +51,28 @@ void BumpAllocator::reset()
     count = 0;
 }
 
-void * BumpAllocator::allocate( size_t n_bytes )
+Block BumpAllocator::allocate( size_t n_bytes )
 {
     uintptr_t addr = next_addr.fetch_sub( n_bytes ) - n_bytes;
     if( addr >= lower_limit )
     {
         count ++;
-        return (void*)addr;
+        return Block { .ptr = addr, .len = n_bytes };
     }
     else
-        return nullptr;
+        return Block::null();
 }
 
-uint16_t BumpAllocator::deallocate( void * )
+uint16_t BumpAllocator::deallocate( Block blk )
 {
+    assert( owns(blk) );
     return count.fetch_sub(1);
 }
 
-bool BumpAllocator::contains( void * ptr ) const
+bool BumpAllocator::owns( Block const & blk ) const
 {
-    uintptr_t p = (uintptr_t)ptr;
-    return p >= lower_limit && p < upper_limit;
-}
+    return blk.ptr >= lower_limit && blk.ptr < upper_limit;
+}    
 
 } // namespace memory
 } // namespace redGrapes

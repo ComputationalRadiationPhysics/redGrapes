@@ -39,7 +39,7 @@ void WorkerPool::emplace_workers( size_t n_workers )
         // allocate worker with id `i` on arena `i`,
         hwloc_obj_t obj = hwloc_get_obj_by_type(hwloc_ctx->topology, HWLOC_OBJ_PU, i);
         allocs.emplace_back(
-            memory::HwlocAlloc<uint8_t>( hwloc_ctx, obj ),
+            memory::HwlocAlloc( hwloc_ctx, obj ),
             REDGRAPES_ALLOC_CHUNKSIZE
         );
 

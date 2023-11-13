@@ -6,6 +6,7 @@
  */
 #pragma once
 
+#include <redGrapes/memory/block.hpp>
 #include <redGrapes/task/future.hpp>
 #include <redGrapes/task/task.hpp>
 #include <redGrapes/task/task_space.hpp>
@@ -71,8 +72,9 @@ struct TaskBuilder
         , space( current_task_space() )
     {
         // allocate
-        redGrapes::memory::Allocator< FunTask<Impl> > alloc;
-        task = alloc.allocate( 1 );
+        redGrapes::memory::Allocator alloc;
+        memory::Block blk = alloc.allocate( sizeof(FunTask<Impl>) );
+        task = (FunTask<Impl>*)blk.ptr;
 
         if( ! task )
             throw std::runtime_error("out of memory");

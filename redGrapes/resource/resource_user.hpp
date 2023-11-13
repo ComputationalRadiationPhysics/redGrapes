@@ -14,6 +14,7 @@
 #include <list>
 #include <fmt/format.h>
 
+#include <redGrapes/memory/allocator.hpp>
 #include <redGrapes/resource/resource.hpp>
 #include <redGrapes/context.hpp>
 #include <redGrapes/util/chunked_list.hpp>
@@ -46,8 +47,8 @@ class ResourceUser
 
     ResourceUser( ResourceUser const& other )
         : scope_level( other.scope_level )
-        , access_list( memory::Allocator<uint8_t>(), other.access_list )
-        , unique_resources( memory::Allocator<uint8_t>(), other.unique_resources )
+        , access_list( memory::Allocator(), other.access_list )
+        , unique_resources( memory::Allocator(), other.unique_resources )
     {
     }
 

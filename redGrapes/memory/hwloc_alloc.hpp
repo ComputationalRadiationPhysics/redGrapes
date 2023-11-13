@@ -9,6 +9,7 @@
 
 #include <cstdlib>
 #include <hwloc.h>
+#include <redGrapes/memory/block.hpp>
 #include <spdlog/spdlog.h>
 
 #include <redGrapes/util/trace.hpp>
@@ -37,28 +38,18 @@ struct HwlocContext
 namespace memory
 {
 
-template < typename T >
 struct HwlocAlloc
 {
     std::shared_ptr< HwlocContext > hwloc_ctx;
     hwloc_obj_t obj;
 
-    typedef T value_type;
-
     HwlocAlloc( std::shared_ptr< HwlocContext > hwloc_ctx, hwloc_obj_t const & obj ) noexcept
         : hwloc_ctx( hwloc_ctx ), obj( obj )
     {}
 
-    template< typename U >
-    constexpr HwlocAlloc( HwlocAlloc<U> const& other ) noexcept
-        : hwloc_ctx( other.hwloc_ctx ), obj( other.obj )
-    {}
-
-    T * allocate( std::size_t n ) const
+    Block allocate( std::size_t alloc_size ) const noexcept
     {
         TRACE_EVENT("Allocator", "HwlocAlloc::allocate");
-
-        size_t alloc_size = sizeof(T) * n;
 
         void * ptr = hwloc_alloc_membind(
             hwloc_ctx->topology, alloc_size, obj->cpuset,
@@ -68,12 +59,12 @@ struct HwlocAlloc
         SPDLOG_TRACE("hwloc_alloc {},{}", (uintptr_t)ptr, alloc_size);
 
         if( ptr )
-            return (T*)ptr;
+            return Block{ .ptr = (uintptr_t)ptr, .len = alloc_size };
         else
         {
             int error = errno;
             spdlog::error("hwloc_alloc_membind failed: {}\n", strerror(error));
-            throw std::bad_alloc();
+            return Block::null();
         }
 
         // touch memory
@@ -95,12 +86,12 @@ struct HwlocAlloc
         }
     }
 
-    void deallocate( T * p, std::size_t n = 0 ) noexcept
+    void deallocate( Block blk ) noexcept
     {
         TRACE_EVENT("Allocator", "HwlocAlloc::deallocate");
 
 //        SPDLOG_TRACE("hwloc free {}", (uintptr_t)p);
-        hwloc_free( hwloc_ctx->topology, (void*)p, sizeof(T)*n );
+        hwloc_free( hwloc_ctx->topology, (void*)blk.ptr, blk.len );
     }
 };
 

@@ -8,6 +8,7 @@
 #pragma once
 
 #include <mutex>
+#include <redGrapes/memory/block.hpp>
 #include <redGrapes/task/task.hpp>
 #include <redGrapes/memory/allocator.hpp>
 #include <moodycamel/concurrentqueue.h>
@@ -94,12 +95,12 @@ struct TaskQueueTraits
 	static const bool RECYCLE_ALLOCATED_BLOCKS = false;
 
 	static inline void* malloc(size_t size) {
-                return std::malloc(size);
-//      return (void*) memory::Allocator< uint8_t >().allocate( size );
+//                return std::malloc(size);
+     return (void*) memory::Allocator().allocate( size ).ptr;
   }
 	static inline void free(void* ptr) {
-                std::free( ptr );
-//      memory::Allocator< uint8_t >().deallocate( (uint8_t*)ptr, 1 );
+//                std::free( ptr );
+      memory::Allocator().deallocate( memory::Block{ (uintptr_t)ptr, 1 } );
   }
 };
 

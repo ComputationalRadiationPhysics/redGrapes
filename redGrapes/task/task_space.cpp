@@ -5,6 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
+#include <redGrapes/memory/block.hpp>
 #include <redGrapes/util/trace.hpp>
 #include <redGrapes/task/task.hpp>
 #include <redGrapes/task/task_space.hpp>
@@ -57,7 +58,7 @@ namespace redGrapes
         unsigned arena_id = task->arena_id;
         task->~Task();
 
-        worker_pool->get_worker( arena_id ).alloc.deallocate( task );
+        worker_pool->get_worker( arena_id ).alloc.deallocate( memory::Block{ .ptr = (uintptr_t)task, .len=sizeof(Task) } );
 
         // TODO: implement this using post-event of root-task?
         //  - event already has in_edge count

@@ -16,7 +16,6 @@
 #include <redGrapes_config.hpp>
 #include <spdlog/spdlog.h>
 #include <vector>
-#include <redGrapes/util/spinlock.hpp>
 #include <redGrapes/memory/hwloc_alloc.hpp>
 #include <redGrapes/memory/bump_allocator.hpp>
 #include <redGrapes/util/atomic_list.hpp>
@@ -40,14 +39,14 @@ namespace memory
 #define REDGRAPES_ALLOC_CHUNKSIZE ( 64 * 1024 )
 #endif
 
-template < template <typename> class A = HwlocAlloc >
+template < typename Alloc = HwlocAlloc >
 struct ChunkedBumpAlloc
 {
     size_t const chunk_size;
 
-    AtomicList< BumpAllocator, A > bump_allocators;
+    AtomicList< BumpAllocator, Alloc > bump_allocators;
 
-    ChunkedBumpAlloc( A<uint8_t> && alloc, size_t chunk_size = REDGRAPES_ALLOC_CHUNKSIZE )
+    ChunkedBumpAlloc( Alloc && alloc, size_t chunk_size = REDGRAPES_ALLOC_CHUNKSIZE )
         : chunk_size( chunk_size )
         , bump_allocators( std::move(alloc), chunk_size )
     {
@@ -76,29 +75,28 @@ struct ChunkedBumpAlloc
         return s;
     }
 
-    template <typename T>
-    T * allocate( std::size_t n = 1 )
+    Block allocate( std::size_t n = 1 ) noexcept
     {
         TRACE_EVENT("Allocator", "ChunkedBumpAlloc::allocate()");
-        size_t alloc_size = roundup_to_poweroftwo( n * sizeof(T) );
+        size_t alloc_size = roundup_to_poweroftwo( n );
  
         size_t const chunk_capacity = bump_allocators.get_chunk_capacity();
 
         if( alloc_size <= chunk_capacity )
         {
-            T * item = (T*) nullptr;
+            Block blk = Block::null();
 
-            while( !item )
+            while( !blk )
             {
                 // try to alloc in current chunk
                 auto chunk = bump_allocators.rbegin();
 
                 if( chunk != bump_allocators.rend() )
                 {
-                    item = (T*) chunk->allocate( alloc_size );
+                    blk = chunk->allocate( alloc_size );
 
                     // chunk is full, create a new one
-                    if( !item )
+                    if( !blk )
                         bump_allocators.allocate_item();
                 }
                 // no chunk exists, create a new one
@@ -106,18 +104,17 @@ struct ChunkedBumpAlloc
                     bump_allocators.allocate_item();
             }
 
-            SPDLOG_TRACE("ChunkedBumpAlloc: alloc {},{}", (uintptr_t)item, alloc_size);
-            return item;
+            SPDLOG_TRACE("ChunkedBumpAlloc: alloc {},{}", blk.ptr, blk.len);
+            return blk;
         }
         else
         {
             spdlog::error("ChunkedBumpAlloc: requested allocation of {} bytes exceeds chunk capacity of {} bytes", alloc_size, chunk_capacity);
-            return nullptr;
+            return Block::null();
         }
     }
 
-    template < typename T >
-    void deallocate( T * ptr )
+    void deallocate( Block blk )
     {
         TRACE_EVENT("Allocator", "ChunkedBumpAlloc::deallocate()");
         SPDLOG_TRACE("ChunkedBumpAlloc[{}]: free {} ", (void*)this, (uintptr_t)ptr);
@@ -129,13 +126,13 @@ struct ChunkedBumpAlloc
         auto prev = bump_allocators.rbegin();
         for( auto it = bump_allocators.rbegin(); it != bump_allocators.rend(); ++it )
         {
-            if( it->contains((void*) ptr) )
+            if( it->owns(blk) )
             {
                 /* if no allocations remain in this chunk
                  * and this chunk is not `head`,
                  * remove this chunk
                  */
-                if( it->deallocate((void*)ptr) == 1 )
+                if( it->deallocate(blk) == 1 )
                 {
                     SPDLOG_TRACE("ChunkedBumpAlloc: erase chunk {}", it->lower_limit);
                     if( it->full() )
@@ -151,7 +148,7 @@ struct ChunkedBumpAlloc
         }
 
 #if REDGRAPES_ENABLE_BACKWARDCPP
-        spdlog::error("try to deallocate invalid pointer ({}). this={}", (void*)ptr, (void*)this);
+        spdlog::error("try to deallocate invalid pointer ({}). this={}", (void*)blk.ptr, (void*)this);
 
         backward::StackTrace st;
         st.load_here(32);

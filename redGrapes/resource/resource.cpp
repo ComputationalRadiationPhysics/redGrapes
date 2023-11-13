@@ -23,7 +23,7 @@ ResourceBase::ResourceBase()
     : id( generateID() )
     , scope_level( scope_depth() )
     , users(
-        memory::Allocator< uint8_t >( get_arena_id() ),
+        memory::Allocator( get_arena_id() ),
         REDGRAPES_RUL_CHUNKSIZE
     )
 {}

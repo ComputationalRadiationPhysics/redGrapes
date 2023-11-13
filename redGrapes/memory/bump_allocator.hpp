@@ -13,6 +13,7 @@
 #include <optional>
 
 #include <hwloc.h>
+#include <redGrapes/memory/block.hpp>
 #include <spdlog/spdlog.h>
 
 namespace redGrapes
@@ -20,7 +21,10 @@ namespace redGrapes
 namespace memory
 {
 
-/* A chunk of memory, inside of which bump allocation is performed.
+/* The `BumpAllocator` manages a chunk of memory,
+ * given by `lower_limit` and `upper_limit` by
+ * decrementing the `next_addr` by the requested size,
+ * and counting the number of active allocations.
  * The data will start immediately after this management object
  */
 struct BumpAllocator
@@ -32,18 +36,24 @@ struct BumpAllocator
 
     bool empty() const;
     bool full() const;
+   
     void reset();
 
-    void * allocate( size_t n_bytes );
-    uint16_t deallocate( void * );
+    Block allocate( size_t n_bytes );
 
-    bool contains( void * ) const;
+    /*! @return how many active allocations remain,
+     * if it returns 0, this allocator needs to be reset.
+     */
+    uint16_t deallocate( Block );
+
+    bool owns( Block const & ) const;
 
 private:
+    std::atomic< uint16_t > count;
     std::atomic< uintptr_t > next_addr;
+
     uintptr_t const lower_limit;
     uintptr_t const upper_limit;
-    std::atomic< uint16_t > count;
 };
 
 } // namespace memory

@@ -75,7 +75,7 @@ namespace redGrapes
  */
 template <
     typename T,
-    template <typename> class Allocator = memory::Allocator
+    class Allocator = memory::Allocator
 >
 struct ChunkedList
 {
@@ -408,13 +408,13 @@ public:
      */
     ChunkedList( size_t est_chunk_size = 32 )
         : ChunkedList(
-            Allocator< uint8_t >(),
+            Allocator(),
             est_chunk_size
         )
     {}
 
     ChunkedList(
-        Allocator< uint8_t > && alloc,
+        Allocator && alloc,
         size_t est_chunk_size = 32
     )
         : chunks(
@@ -429,7 +429,7 @@ public:
 
     ChunkedList( ChunkedList && other ) = default;
 
-    ChunkedList( Allocator< uint8_t > && alloc, ChunkedList const & other )
+    ChunkedList( Allocator && alloc, ChunkedList const & other )
         : ChunkedList( std::move(alloc), other.chunk_size )
     {
         spdlog::error("copy construct ChunkedList!!");

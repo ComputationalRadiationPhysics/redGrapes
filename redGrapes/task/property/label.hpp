@@ -20,7 +20,7 @@ namespace redGrapes
 
 struct LabelProperty
 {
-    using string = std::basic_string< char, std::char_traits<char>, memory::Allocator<char>>;
+    using string = std::basic_string< char, std::char_traits<char>, memory::StdAllocator<char>>;
 
     string label;
 
