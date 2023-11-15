@@ -59,7 +59,7 @@ struct Future
         yield( task.get_result_set_event() );
 
         // take result
-        T result = std::move(*reinterpret_cast<T*>(task->get_result_data()));
+        T result = std::move(*reinterpret_cast<T*>(task.get_result_data()));
         taken = true;
         task.get_result_get_event().notify();
  

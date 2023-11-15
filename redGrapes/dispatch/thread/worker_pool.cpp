@@ -9,7 +9,9 @@
 #include <redGrapes/memory/allocator.hpp>
 #include <redGrapes/memory/hwloc_alloc.hpp>
 #include <redGrapes/memory/chunked_bump_alloc.hpp>
-#include <redGrapes_config.hpp>
+#include <redGrapes/redGrapes.hpp>
+
+//#include <redGrapes_config.hpp>
 
 namespace redGrapes
 {
@@ -18,32 +20,33 @@ namespace dispatch
 namespace thread
 {
 
-WorkerPool::WorkerPool( std::shared_ptr< HwlocContext > hwloc_ctx, size_t n_workers )
-    : worker_state( n_workers )
+WorkerPool::WorkerPool( HwlocContext & hwloc_ctx, size_t n_workers )
+    : hwloc_ctx( hwloc_ctx )
+    , worker_state( n_workers )
 {
-    redGrapes::dispatch::thread::current_waker_id = 0;
+    Context::current_waker_id = 0;
 }
 
 void WorkerPool::emplace_workers( size_t n_workers )
 {
-    unsigned n_pus = hwloc_get_nbobjs_by_type(hwloc_ctx->topology, HWLOC_OBJ_PU);
+    unsigned n_pus = hwloc_get_nbobjs_by_type(hwloc_ctx.topology, HWLOC_OBJ_PU);
     if( n_workers > n_pus )
         spdlog::warn("{} worker-threads requested, but only {} PUs available!", n_workers, n_pus);
 
-    allocs.reserve( n_workers );               
+    allocs.reserve( n_workers );
     workers.reserve( n_workers );
 
     SPDLOG_INFO("populate WorkerPool with {} workers", n_workers);
     for( size_t i = 0; i < n_workers; ++i )
     {
         // allocate worker with id `i` on arena `i`,
-        hwloc_obj_t obj = hwloc_get_obj_by_type(hwloc_ctx->topology, HWLOC_OBJ_PU, i);
+        hwloc_obj_t obj = hwloc_get_obj_by_type(hwloc_ctx.topology, HWLOC_OBJ_PU, i);
         allocs.emplace_back(
             memory::HwlocAlloc( hwloc_ctx, obj ),
             REDGRAPES_ALLOC_CHUNKSIZE
         );
 
-        memory::current_arena = i;
+        SingletonContext::get().current_arena = i;
         auto worker = memory::alloc_shared_bind<WorkerThread>( i, get_alloc(i), hwloc_ctx, obj, i );
 //        auto worker = std::make_shared< WorkerThread >( get_alloc(i), hwloc_ctx, obj, i );
         workers.emplace_back( worker );
@@ -75,7 +78,7 @@ int WorkerPool::find_free_worker()
     SPDLOG_TRACE("find worker...");
 
     unsigned start_idx = 0;
-    if(auto w = dispatch::thread::current_worker)
+    if(auto w = SingletonContext::get().current_worker)
         start_idx = w->get_worker_id();
 
     std::optional<unsigned> idx =

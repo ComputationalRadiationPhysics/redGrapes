@@ -13,7 +13,7 @@
 #include <redGrapes/memory/allocator.hpp>
 #include <redGrapes/dispatch/thread/worker_pool.hpp>
 #include <redGrapes/scheduler/scheduler.hpp>
-
+#include <redGrapes/scheduler/default_scheduler.hpp>
 #include <redGrapes/redGrapes.hpp>
 
 #include <redGrapes/util/trace.hpp>
@@ -25,28 +25,25 @@ PERFETTO_TRACK_EVENT_STATIC_STORAGE();
 namespace redGrapes
 {
 
-thread_local Task * current_task;
-thread_local std::function<void()> idle;
+thread_local Task *  Context::current_task;
+thread_local std::function< void() > Context::idle;
+thread_local unsigned Context::next_worker;
+thread_local scheduler::WakerId Context::current_waker_id;
+thread_local std::shared_ptr< dispatch::thread::WorkerThread > Context::current_worker;
 
-thread_local unsigned next_worker = 0;
-
-namespace memory
+Context::Context()
 {
-thread_local unsigned current_arena;
-} // namespace memory
+    idle = [this] {
+        this->scheduler->idle();
+    };
+}
 
-std::shared_ptr< HwlocContext > hwloc_ctx = std::make_shared< HwlocContext >();
-std::shared_ptr< TaskSpace > top_space;
-std::shared_ptr< dispatch::thread::WorkerPool > worker_pool;
-std::shared_ptr< scheduler::IScheduler > top_scheduler;
+Context::~Context()
+{
+        
+}
 
-#if REDGRAPES_ENABLE_TRACE
-std::shared_ptr< perfetto::TracingSession > tracing_session;
-#endif
-
-hwloc_topology_t topology;
-
-std::shared_ptr<TaskSpace> current_task_space()
+std::shared_ptr<TaskSpace> Context::current_task_space() const
 {
     if( current_task )
     {
@@ -63,10 +60,10 @@ std::shared_ptr<TaskSpace> current_task_space()
         return current_task->children;
     }
     else
-        return top_space;
+        return root_space;
 }
 
-unsigned scope_depth()
+unsigned Context::scope_depth() const
 {
     if( auto ts = current_task_space() )
         return ts->depth;
@@ -80,7 +77,7 @@ unsigned scope_depth()
  * @return Handle to flag the event with `reach_event` later.
  *         nullopt if there is no task running currently
  */
-std::optional< scheduler::EventPtr > create_event()
+std::optional< scheduler::EventPtr > Context::create_event()
 {
     if( current_task )
         return current_task->make_event();
@@ -89,7 +86,7 @@ std::optional< scheduler::EventPtr > create_event()
 }
 
 //! get backtrace from currently running task
-std::vector<std::reference_wrapper<Task>> backtrace()
+std::vector<std::reference_wrapper<Task>> Context::backtrace()
 {
     std::vector<std::reference_wrapper<Task>> bt;
     for(
@@ -102,7 +99,7 @@ std::vector<std::reference_wrapper<Task>> backtrace()
     return bt;
 }
     
-void init_tracing()
+void Context::init_tracing()
 {
 #if REDGRAPES_ENABLE_TRACE
     perfetto::TracingInitArgs args;
@@ -114,75 +111,55 @@ void init_tracing()
 #endif
 }
 
-void finalize_tracing()
+void Context::finalize_tracing()
 { 
 #if REDGRAPES_ENABLE_TRACE
     StopTracing( tracing_session );
 #endif
 }
 
-void cpubind_mainthread()
-{
-        /*
-    size_t n_pus = hwloc_get_nbobjs_by_type(hwloc_ctx->topology, HWLOC_OBJ_PU);
-    static hwloc_cpuset_t cpuset = hwloc_bitmap_alloc();
-    hwloc_bitmap_set_range( cpuset, 0, n_pus-1 );
-
-    if( hwloc_set_cpubind(hwloc_ctx->topology, cpuset, HWLOC_CPUBIND_THREAD | HWLOC_CPUBIND_STRICT) )    {
-        char *str;
-        int error = errno;
-        hwloc_bitmap_asprintf(&str, cpuset);
-        spdlog::warn("Couldn't cpubind to cpuset {}: {}\n", str, strerror(error));
-        free(str);
-    }    
-        */
-}
-
-void init( size_t n_workers, std::shared_ptr<scheduler::IScheduler> scheduler )
+void Context::init( size_t n_workers, std::shared_ptr<scheduler::IScheduler> scheduler )
 {
     init_tracing();
+
     worker_pool = std::make_shared<dispatch::thread::WorkerPool>( hwloc_ctx, n_workers );
     worker_pool->emplace_workers( n_workers );
 
-    top_space = std::make_shared<TaskSpace>();
-    top_scheduler = scheduler;
+    root_space = std::make_shared<TaskSpace>();
+    this->scheduler = scheduler;
 
     worker_pool->start();
-
-    /* bind main thread to
-     */
-    cpubind_mainthread();
 }
 
-void init( size_t n_workers )
+void Context::init( size_t n_workers )
 {
     init( n_workers, std::make_shared<scheduler::DefaultScheduler>());
 }
 
 /*! wait until all tasks in the current task space finished
  */
-void barrier()
+void Context::barrier()
 {
     SPDLOG_TRACE("barrier");
 
-    while( ! top_space->empty() )
+    while( ! root_space->empty() )
         idle();
 }
 
-void finalize()
+void Context::finalize()
 {
     barrier();
 
     worker_pool->stop();
 
-    top_scheduler.reset();
-    top_space.reset();
+    scheduler.reset();
+    root_space.reset();
 
     finalize_tracing();
 }
 
 //! pause the currently running task at least until event is reached
-void yield( scheduler::EventPtr event )
+void Context::yield( scheduler::EventPtr event )
 {
     if( current_task )
     {
@@ -191,14 +168,14 @@ void yield( scheduler::EventPtr event )
     }
     else
     {
-        event->waker_id = dispatch::thread::current_waker_id;
+        event->waker_id = Context::current_waker_id;
         while( ! event->is_reached() )
             idle();
     }
 }
 
 //! apply a patch to the properties of the currently running task
-void update_properties(typename TaskProperties::Patch const& patch)
+void Context::update_properties(typename TaskProperties::Patch const& patch)
 {
     if( current_task )
     {

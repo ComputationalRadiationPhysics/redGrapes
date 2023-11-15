@@ -12,6 +12,7 @@
 #include <redGrapes/task/queue.hpp>
 #include <redGrapes/memory/allocator.hpp>
 #include <redGrapes/dispatch/thread/worker.hpp>
+#include <redGrapes/redGrapes.hpp>
 
 namespace redGrapes
 {
@@ -59,14 +60,14 @@ namespace redGrapes
         task->~Task();
 
         // FIXME: len of the Block is not correct since FunTask object is bigger than sizeof(Task)
-        worker_pool->get_worker( arena_id ).alloc.deallocate( memory::Block{ (uintptr_t)task, sizeof(Task) } );
+        SingletonContext::get().worker_pool->get_worker( arena_id ).alloc.deallocate( memory::Block{ (uintptr_t)task, sizeof(Task) } );
 
         // TODO: implement this using post-event of root-task?
         //  - event already has in_edge count
         //  -> never have current_task = nullptr
         //spdlog::info("kill task... {} remaining", count);
         if( count == 0 )
-            top_scheduler->wake_all();
+            SingletonContext::get().scheduler->wake_all();
     }
 
     void TaskSpace::submit( Task * task )
@@ -85,7 +86,7 @@ namespace redGrapes
             r->task_entry = r->resource->users.push( task );
         }
 
-        top_scheduler->emplace_task( *task );
+        SingletonContext::get().scheduler->emplace_task( *task );
     }
 
 } // namespace redGrapes

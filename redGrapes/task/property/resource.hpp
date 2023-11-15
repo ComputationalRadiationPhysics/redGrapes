@@ -16,6 +16,7 @@
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
 #include <redGrapes/resource/resource_user.hpp>
+#include <redGrapes/resource/resource.hpp>
 
 namespace redGrapes
 {

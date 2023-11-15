@@ -5,26 +5,25 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
+#include <boost/mp11/detail/mp_void.hpp>
 #include <optional>
 #include <spdlog/spdlog.h>
 
 #include <redGrapes/scheduler/scheduler.hpp>
 #include <redGrapes/scheduler/event.hpp>
 #include <redGrapes/task/task.hpp>
-#include <redGrapes/context.hpp>
 #include <redGrapes/util/trace.hpp>
+#include <redGrapes/redGrapes.hpp>
 
 namespace redGrapes
 {
+    /*
 namespace dispatch
 {
 namespace thread
-{
+{*/
 
-thread_local scheduler::WakerId current_waker_id;
-thread_local std::shared_ptr< WorkerThread > current_worker;
-
-void execute_task( Task & task )
+void Context::execute_task( Task & task )
 {
     TRACE_EVENT("Worker", "dispatch task");
 
@@ -38,7 +37,7 @@ void execute_task( Task & task )
     
     if( event )
     {
-        event->get_event().waker_id = current_waker_id;
+        event->get_event().waker_id = current_worker->get_waker_id();
         task.sg_pause( *event );
 
         task.pre_event.up();
@@ -50,7 +49,7 @@ void execute_task( Task & task )
     current_task = nullptr;
 }
 
-} // namespace thread
-} // namespace dispatch
+//} // namespace thread
+//} // namespace dispatch
 } // namespace redGrapes
 

@@ -12,9 +12,9 @@
 #include <redGrapes/task/property/graph.hpp>
 #include <redGrapes/task/task_space.hpp>
 #include <redGrapes/task/task.hpp>
-#include <redGrapes/context.hpp>
 #include <redGrapes/resource/resource_user.hpp>
 #include <redGrapes/util/trace.hpp>
+#include <redGrapes/redGrapes.hpp>
 
 namespace redGrapes
 {
@@ -105,7 +105,7 @@ void GraphProperty::add_dependency( Task & preceding_task )
 
     // scheduling graph
     auto preceding_event =
-        top_scheduler->task_dependency_type(preceding_task, *this->task)
+        SingletonContext::get().scheduler->task_dependency_type(preceding_task, *this->task)
         ? preceding_task->get_pre_event() : preceding_task->get_post_event();
 
     if( ! preceding_event->is_reached() )

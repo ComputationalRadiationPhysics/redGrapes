@@ -2,37 +2,32 @@
 
 #include <boost/core/demangle.hpp>
 #include <memory>
-#include <redGrapes/dispatch/thread/local.hpp>
-// #include <redGrapes/dispatch/thread/worker_pool.hpp>
 #include <redGrapes/memory/block.hpp>
 #include <redGrapes/resource/access/area.hpp>
-//#include <redGrapes/context.hpp>
+#include <spdlog/spdlog.h>
 
 namespace redGrapes
 {
 
 namespace dispatch
-    {
-        namespace thread
-        {
-            using WorkerId = unsigned;
-            struct WorkerPool;
-        }
-    }
+{
+namespace thread
+{
+    using WorkerId = unsigned;
+    struct WorkerPool;
+}
+}
 
 extern std::shared_ptr< dispatch::thread::WorkerPool > worker_pool;
 
 namespace memory
 {
-extern thread_local unsigned current_arena;
 
 struct Allocator
 {   
     dispatch::thread::WorkerId worker_id;
 
-    Allocator() :Allocator(current_arena) {
-                
-            }
+    Allocator();
     Allocator( dispatch::thread::WorkerId worker_id );
 
     Block allocate( size_t n_bytes );
@@ -45,7 +40,7 @@ struct StdAllocator
     Allocator alloc;
     typedef T value_type;
 
-    StdAllocator () : alloc( current_arena )
+    StdAllocator () : alloc( )
     {
     }
     StdAllocator( dispatch::thread::WorkerId worker_id ) : alloc( worker_id ) {}
@@ -59,14 +54,14 @@ struct StdAllocator
     inline T* allocate( std::size_t n )
     {
         Block blk = alloc.allocate( sizeof(T) * n );
-        SPDLOG_TRACE("allocate {},{},{}", (uintptr_t)ptr, n*sizeof(T), boost::core::demangle(typeid(T).name()));
+        SPDLOG_TRACE("allocate {},{},{}", (uintptr_t)blk.ptr, n*sizeof(T), boost::core::demangle(typeid(T).name()));
 
         return (T*) blk.ptr;
     }
 
     inline void deallocate(T* p, std::size_t n = 0) noexcept
     {
-        alloc.deallocate(Block { .ptr = (uintptr_t)p, .len = sizeof(T)*n });
+        alloc.deallocate(Block { (uintptr_t)p, sizeof(T)*n });
     }
 
     template < typename U, typename... Args >

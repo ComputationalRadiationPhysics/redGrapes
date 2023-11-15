@@ -32,11 +32,6 @@ namespace thread
 
 struct WorkerThread;
 
-void execute_task( Task & task_id );
-
-extern thread_local scheduler::WakerId current_waker_id;
-extern thread_local std::shared_ptr< WorkerThread > current_worker;
-
 /*!
  * Creates a thread which repeatedly calls consume()
  * until stop() is invoked or the object destroyed.
@@ -71,12 +66,12 @@ struct Worker
 
 public:
     memory::ChunkedBumpAlloc< memory::HwlocAlloc > & alloc;
-    std::shared_ptr< HwlocContext > hwloc_ctx;
+    HwlocContext & hwloc_ctx;
 
     task::Queue emplacement_queue{ queue_capacity };
     task::Queue ready_queue{ queue_capacity };
 
-    Worker( memory::ChunkedBumpAlloc< memory::HwlocAlloc > & alloc, std::shared_ptr<HwlocContext > hwloc_ctx, hwloc_obj_t const & obj, WorkerId id );
+    Worker( memory::ChunkedBumpAlloc< memory::HwlocAlloc > & alloc, HwlocContext & hwloc_ctx, hwloc_obj_t const & obj, WorkerId id );
     virtual ~Worker();
 
     inline WorkerId get_worker_id() { return id; }
@@ -129,7 +124,7 @@ struct WorkerThread
 {
     std::thread thread;
 
-    WorkerThread( memory::ChunkedBumpAlloc<memory::HwlocAlloc> & alloc, std::shared_ptr<HwlocContext> hwloc_ctx, hwloc_obj_t const & obj, WorkerId worker_id );
+    WorkerThread( memory::ChunkedBumpAlloc<memory::HwlocAlloc> & alloc, HwlocContext & hwloc_ctx, hwloc_obj_t const & obj, WorkerId worker_id );
     ~WorkerThread();
 
     void stop();

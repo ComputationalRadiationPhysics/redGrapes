@@ -15,123 +15,42 @@
 #include <fmt/format.h>
 
 #include <redGrapes/memory/allocator.hpp>
-#include <redGrapes/resource/resource.hpp>
-#include <redGrapes/context.hpp>
 #include <redGrapes/util/chunked_list.hpp>
 #include <redGrapes/util/trace.hpp>
-#include <redGrapes/context.hpp>
+
+//#include <redGrapes/resource/resource.hpp>
 
 namespace redGrapes
 {
 
+unsigned scope_depth();
+
+struct Task;
+struct ResourceBase;
+struct ResourceAccess;
+
 struct ResourceUsageEntry
 {
     std::shared_ptr< ResourceBase > resource;
-    ChunkedList< Task* >::MutBackwardIterator task_entry;
+    typename ChunkedList< Task* >::MutBackwardIterator task_entry;
 
-    bool operator==( ResourceUsageEntry const & other ) const
-    {
-        return resource == other.resource;
-    }
+    bool operator==( ResourceUsageEntry const & other ) const;
 };
 
 class ResourceUser
 {
   public:    
-    ResourceUser()
-        : scope_level( scope_depth() )
-        , access_list( 64 )
-        , unique_resources( 64 )
-    {
-    }
-
-    ResourceUser( ResourceUser const& other )
-        : scope_level( other.scope_level )
-        , access_list( memory::Allocator(), other.access_list )
-        , unique_resources( memory::Allocator(), other.unique_resources )
-    {
-    }
-
-    ResourceUser( std::initializer_list< ResourceAccess > list )
-        : scope_level( scope_depth() )
-    {
-        for( auto & ra : list )
-            add_resource_access(ra);
-    }
-
-    inline void add_resource_access( ResourceAccess ra )
-    {
-        this->access_list.push(ra);
-        std::shared_ptr<ResourceBase> r = ra.get_resource();
-        //unique_resources.erase(ResourceEntry{ r, r->users.end() });           
-        unique_resources.push(ResourceUsageEntry{ r, r->users.rend() });
-    }
-
-    void rm_resource_access( ResourceAccess ra )
-    {
-        this->access_list.erase(ra);
-    }
-
-    void build_unique_resource_list()
-    {
-        for( auto ra = access_list.rbegin(); ra != access_list.rend(); ++ra )
-        {
-            std::shared_ptr<ResourceBase> r = ra->get_resource();
-            unique_resources.erase(ResourceUsageEntry{ r, r->users.rend() });
-            unique_resources.push(ResourceUsageEntry{ r, r->users.rend() });
-        }
-    }
-
-    bool has_sync_access( std::shared_ptr< ResourceBase > res )
-    {
-        for( auto ra = access_list.rbegin(); ra != access_list.rend(); ++ra )
-        {
-            if(
-               ra->get_resource() == res &&
-               ra->is_synchronizing()
-            )
-                return true;
-        }
-        return false;
-    }
-
-    static bool
-    is_serial( ResourceUser const & a, ResourceUser const & b )
-    {
-        TRACE_EVENT("ResourceUser", "is_serial");
-        for( auto ra = a.access_list.crbegin(); ra != a.access_list.crend(); ++ra )
-            for( auto rb = b.access_list.crbegin(); rb != b.access_list.crend(); ++rb )
-            {
-                TRACE_EVENT("ResourceUser", "RA::is_serial");
-                if ( ResourceAccess::is_serial( *ra, *rb ) )
-                    return true;
-            }
-        return false;
-    }
-
-    bool
-    is_superset_of( ResourceUser const & a ) const
-    {
-        TRACE_EVENT("ResourceUser", "is_superset");
-        for( auto ra = a.access_list.rbegin(); ra != a.access_list.rend(); ++ra )
-        {
-            bool found = false;
-            for( auto r = access_list.rbegin(); r != access_list.rend(); ++r )
-                if ( r->is_superset_of( *ra ) )
-                    found = true;
-
-            if ( !found && ra->scope_level() <= scope_level )
-                // a introduced a new resource
-                return false;
-        }
-        return true;
-    }
-
-    static bool
-    is_superset( ResourceUser const & a, ResourceUser const & b )
-    {
-        return a.is_superset_of(b);
-    }
+    ResourceUser();
+    ResourceUser( ResourceUser const& other );
+    ResourceUser( std::initializer_list< ResourceAccess > list );
+ 
+    void add_resource_access( ResourceAccess ra );
+    void rm_resource_access( ResourceAccess ra );
+    void build_unique_resource_list();
+    bool has_sync_access( std::shared_ptr< ResourceBase > res );
+    bool is_superset_of( ResourceUser const & a ) const;
+    static bool is_superset( ResourceUser const & a, ResourceUser const & b );   
+    static bool is_serial( ResourceUser const & a, ResourceUser const & b );
 
     uint8_t scope_level;
 

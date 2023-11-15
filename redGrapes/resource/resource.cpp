@@ -6,8 +6,8 @@
  */
 
 #include <mutex>
-#include <redGrapes/context.hpp>
 #include <redGrapes/resource/resource.hpp>
+#include <redGrapes/redGrapes.hpp>
 
 namespace redGrapes
 {
@@ -27,6 +27,10 @@ ResourceBase::ResourceBase()
         REDGRAPES_RUL_CHUNKSIZE
     )
 {}
+
+unsigned ResourceBase::get_arena_id() const {
+    return id % SingletonContext::get().worker_pool->size();
+}
 
 } // namespace redGrapes
 

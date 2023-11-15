@@ -9,13 +9,15 @@
 
 #include <mutex>
 #include <redGrapes/memory/block.hpp>
-#include <redGrapes/task/task.hpp>
 #include <redGrapes/memory/allocator.hpp>
 #include <moodycamel/concurrentqueue.h>
 #include <redGrapes/util/trace.hpp>
 
 namespace redGrapes
 {
+
+struct Task;
+
 namespace task
 {
 

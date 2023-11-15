@@ -22,8 +22,8 @@
 #include <redGrapes/memory/allocator.hpp>
 #include <redGrapes/util/chunked_list.hpp>
 #include <redGrapes/sync/spinlock.hpp>
-#include <redGrapes/dispatch/thread/worker_pool.hpp>
-#include <redGrapes_config.hpp>
+//#include <redGrapes/dispatch/thread/worker_pool.hpp>
+//#include <redGrapes_config.hpp>
 
 #include <fmt/format.h>
 
@@ -56,10 +56,7 @@ public:
      */
     ResourceBase();
 
-    inline unsigned get_arena_id() const
-    {
-        return id % worker_pool->size();
-    }
+    unsigned get_arena_id() const;
 };
 
 template <typename AccessPolicy>
@@ -311,7 +308,7 @@ protected:
     std::shared_ptr< ResourceBase > base;
 
     Resource( std::shared_ptr<ResourceBase > base )
-        : ResourceBase( base )
+        : base( base )
     {
     }
 
@@ -319,7 +316,7 @@ protected:
     Resource()
     {
         static unsigned i = 0;
-        dispatch::thread::WorkerId worker_id = i++ % worker_pool->size();
+        dispatch::thread::WorkerId worker_id = i++;
         base = redGrapes::memory::alloc_shared_bind< ResourceBase >( worker_id );
     }
 

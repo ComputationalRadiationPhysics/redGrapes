@@ -13,16 +13,16 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
-#include <redGrapes_config.hpp>
 #include <spdlog/spdlog.h>
 #include <vector>
 #include <redGrapes/memory/hwloc_alloc.hpp>
 #include <redGrapes/memory/bump_allocator.hpp>
 #include <redGrapes/util/atomic_list.hpp>
 #include <redGrapes/scheduler/scheduler.hpp>
-#include <redGrapes/dispatch/thread/local.hpp>
 #include <redGrapes/dispatch/thread/cpuset.hpp>
 #include <redGrapes/util/trace.hpp>
+
+//#include <redGrapes_config.hpp>
 
 #if REDGRAPES_ENABLE_BACKWARDCPP
 #include <backward.hpp>
@@ -38,6 +38,8 @@ namespace memory
 #ifndef REDGRAPES_ALLOC_CHUNKSIZE
 #define REDGRAPES_ALLOC_CHUNKSIZE ( 64 * 1024 )
 #endif
+
+struct HwlocAlloc;
 
 template < typename Alloc = HwlocAlloc >
 struct ChunkedBumpAlloc
@@ -117,7 +119,7 @@ struct ChunkedBumpAlloc
     void deallocate( Block blk )
     {
         TRACE_EVENT("Allocator", "ChunkedBumpAlloc::deallocate()");
-        SPDLOG_TRACE("ChunkedBumpAlloc[{}]: free {} ", (void*)this, (uintptr_t)ptr);
+        SPDLOG_TRACE("ChunkedBumpAlloc[{}]: free {} ", (void*)this, (uintptr_t)blk.ptr);
 
         /* find the chunk that contains `ptr` and deallocate there.
          * Additionally, delete the chunk if possible.
@@ -134,7 +136,7 @@ struct ChunkedBumpAlloc
                  */
                 if( it->deallocate(blk) == 1 )
                 {
-                    SPDLOG_TRACE("ChunkedBumpAlloc: erase chunk {}", it->lower_limit);
+                    SPDLOG_TRACE("ChunkedBumpAlloc: erase chunk");
                     if( it->full() )
                     {
                         bump_allocators.erase( it );

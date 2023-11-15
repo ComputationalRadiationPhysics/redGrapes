@@ -42,17 +42,20 @@ endif()
 if( NOT TARGET redGrapes )
 add_library(redGrapes
   ${CMAKE_CURRENT_LIST_DIR}/redGrapes/resource/resource.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/redGrapes/resource/resource_user.cpp
   ${CMAKE_CURRENT_LIST_DIR}/redGrapes/dispatch/thread/execute.cpp
   ${CMAKE_CURRENT_LIST_DIR}/redGrapes/dispatch/thread/cpuset.cpp
   ${CMAKE_CURRENT_LIST_DIR}/redGrapes/dispatch/thread/worker.cpp
   ${CMAKE_CURRENT_LIST_DIR}/redGrapes/dispatch/thread/worker_pool.cpp
   ${CMAKE_CURRENT_LIST_DIR}/redGrapes/scheduler/event.cpp
   ${CMAKE_CURRENT_LIST_DIR}/redGrapes/scheduler/event_ptr.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/redGrapes/scheduler/default_scheduler.cpp
   ${CMAKE_CURRENT_LIST_DIR}/redGrapes/task/property/graph.cpp
   ${CMAKE_CURRENT_LIST_DIR}/redGrapes/task/task_space.cpp
   ${CMAKE_CURRENT_LIST_DIR}/redGrapes/task/queue.cpp
   ${CMAKE_CURRENT_LIST_DIR}/redGrapes/memory/allocator.cpp
   ${CMAKE_CURRENT_LIST_DIR}/redGrapes/memory/bump_allocator.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/redGrapes/sync/cv.cpp
   ${CMAKE_CURRENT_LIST_DIR}/redGrapes/util/trace.cpp
   ${CMAKE_CURRENT_LIST_DIR}/redGrapes/redGrapes.cpp
 )

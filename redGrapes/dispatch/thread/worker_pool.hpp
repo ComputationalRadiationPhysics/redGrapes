@@ -30,7 +30,7 @@ struct WorkerThread;
 
 struct WorkerPool
 {
-    WorkerPool( std::shared_ptr< HwlocContext > hwloc_ctx, size_t n_workers = 1 );
+    WorkerPool( HwlocContext & hwloc_ctx, size_t n_workers = 1 );
     ~WorkerPool();
 
     void emplace_workers( size_t n_workers );
@@ -94,6 +94,8 @@ struct WorkerPool
     int find_free_worker();
     
 private:
+    HwlocContext & hwloc_ctx;
+
     std::vector< memory::ChunkedBumpAlloc< memory::HwlocAlloc > > allocs;
     std::vector< std::shared_ptr< dispatch::thread::WorkerThread > > workers;
     AtomicBitfield worker_state;

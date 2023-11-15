@@ -52,12 +52,12 @@ int main()
     auto default_scheduler = std::make_shared<rg::scheduler::DefaultScheduler>();
     auto mpi_request_pool = std::make_shared<rg::dispatch::mpi::RequestPool>();
 
-    hwloc_obj_t obj = hwloc_get_obj_by_type( redGrapes::hwloc_ctx->topology, HWLOC_OBJ_PU, 1 );
-    rg::memory::ChunkedBumpAlloc< rg::memory::HwlocAlloc > mpi_alloc( rg::memory::HwlocAlloc( redGrapes::hwloc_ctx, obj ) );
-    auto mpi_worker = std::make_shared<rg::dispatch::thread::Worker>( mpi_alloc, redGrapes::hwloc_ctx, obj, 4 );
+    hwloc_obj_t obj = hwloc_get_obj_by_type( redGrapes::SingletonContext::get().hwloc_ctx.topology, HWLOC_OBJ_PU, 1 );
+    rg::memory::ChunkedBumpAlloc< rg::memory::HwlocAlloc > mpi_alloc( rg::memory::HwlocAlloc( redGrapes::SingletonContext::get().hwloc_ctx, obj ) );
+    auto mpi_worker = std::make_shared<rg::dispatch::thread::Worker>( mpi_alloc, redGrapes::SingletonContext::get().hwloc_ctx, obj, 4 );
 
     // initialize main thread to execute tasks from the mpi-queue and poll
-    rg::idle =
+    rg::SingletonContext::get().idle =
         [mpi_worker, mpi_request_pool]
         {
             mpi_request_pool->poll();
@@ -65,12 +65,12 @@ int main()
             redGrapes::Task * task;
 
             if( task = mpi_worker->ready_queue.pop() )
-                redGrapes::dispatch::thread::execute_task( *task );
+                redGrapes::SingletonContext::get().execute_task( *task );
 
             while( mpi_worker->init_dependencies( task, true ) )
                 if( task )
                 {
-                    redGrapes::dispatch::thread::execute_task( *task );
+                    redGrapes::SingletonContext::get().execute_task( *task );
                     break;
                 }
         };

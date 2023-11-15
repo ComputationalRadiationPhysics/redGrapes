@@ -18,7 +18,6 @@
 #include <redGrapes/task/task_space.hpp>
 #include <redGrapes/scheduler/scheduler.hpp>
 #include <redGrapes/scheduler/event.hpp>
-#include <redGrapes/context.hpp>
 #include <redGrapes/util/trace.hpp>
 
 namespace redGrapes
@@ -118,7 +117,7 @@ bool EventPtr::notify( bool claimed )
         if(tag == scheduler::T_EVT_PRE && state == 1)
         {
             if(!claimed)
-                top_scheduler->activate_task(*task);
+                SingletonContext::get().scheduler->activate_task(*task);
         }
 
         // post event reached:
@@ -130,7 +129,7 @@ bool EventPtr::notify( bool claimed )
 
     // if event is ready or reached (state ∈ {0,1})
     if( state <= 1 && this->get_event().waker_id >= 0 )
-        top_scheduler->wake( this->get_event().waker_id );
+        SingletonContext::get().scheduler->wake( this->get_event().waker_id );
 
     if( state == 0 )
     {

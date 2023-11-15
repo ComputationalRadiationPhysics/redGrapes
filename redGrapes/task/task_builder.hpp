@@ -14,14 +14,12 @@
 #include <spdlog/spdlog.h>
 #include <type_traits>
 
+#include <redGrapes/redGrapes.hpp>
+
 namespace redGrapes
 {
 
 /* HELPERS */
-
-std::shared_ptr<TaskSpace> current_task_space();
-void update_active_task_spaces();
-Task * schedule( dispatch::thread::WorkerThread & worker );
 
 template<typename... Args>
 static inline void pass(Args&&...)
@@ -80,9 +78,9 @@ struct TaskBuilder
             throw std::runtime_error("out of memory");
 
         // construct task in-place
-        new (task) FunTask< Impl >( );
+        new (task) FunTask< Impl >();
 
-        task->arena_id = memory::current_arena;
+        task->arena_id = SingletonContext::get().current_arena;
 
         // init properties from args
         PropBuildHelper<TaskBuilder> build_helper{ *this };

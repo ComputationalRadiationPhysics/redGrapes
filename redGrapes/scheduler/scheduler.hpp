@@ -44,6 +44,8 @@ struct IScheduler
         return false;
     }
 
+    virtual void idle(){}
+
     //! add task to the set of to-initialize tasks
     virtual void emplace_task( Task & task ) {}
 

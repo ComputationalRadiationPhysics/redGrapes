@@ -1,7 +1,8 @@
 #pragma once
 
+
 #include <redGrapes/task/property/label.hpp>
-#include <redGrapes/scheduler/tag_match.hpp>
+#include <redGrapes/scheduler/tag_match_property.hpp>
 
 enum SchedulerTags
 {

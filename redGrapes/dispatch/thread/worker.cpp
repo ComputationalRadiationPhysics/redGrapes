@@ -12,6 +12,7 @@
 #include <redGrapes/memory/chunked_bump_alloc.hpp>
 #include <redGrapes/dispatch/thread/worker.hpp>
 #include <redGrapes/dispatch/thread/worker_pool.hpp>
+#include <redGrapes/redGrapes.hpp>
 
 namespace redGrapes
 {
@@ -19,7 +20,7 @@ namespace dispatch
 {
 namespace thread
 {
-WorkerThread::WorkerThread( memory::ChunkedBumpAlloc< memory::HwlocAlloc > & alloc, std::shared_ptr< HwlocContext > hwloc_ctx, hwloc_obj_t const & obj, WorkerId worker_id )
+WorkerThread::WorkerThread( memory::ChunkedBumpAlloc< memory::HwlocAlloc > & alloc, HwlocContext & hwloc_ctx, hwloc_obj_t const & obj, WorkerId worker_id )
     : Worker( alloc, hwloc_ctx, obj, worker_id )
     , thread([this] { this->run(); })
 {
@@ -29,7 +30,7 @@ WorkerThread::~WorkerThread()
 {
 }
 
-Worker::Worker( memory::ChunkedBumpAlloc<memory::HwlocAlloc> & alloc, std::shared_ptr<HwlocContext> hwloc_ctx, hwloc_obj_t const & obj, WorkerId worker_id )
+Worker::Worker( memory::ChunkedBumpAlloc<memory::HwlocAlloc> & alloc, HwlocContext & hwloc_ctx, hwloc_obj_t const & obj, WorkerId worker_id )
     : alloc( alloc )
     , hwloc_ctx( hwloc_ctx )
     , id( worker_id )
@@ -71,9 +72,11 @@ void WorkerThread::run()
      * and therefore yield() guarantees to do
      * a context-switch instead of idling
      */
-    redGrapes::idle = [this] {
+                /*
+    idle = [this] {
         throw std::runtime_error("idle in worker thread!");
     };
+                */
 
     /* wait for start-flag to be triggerd in order
      * to avoid premature access to `shared_from_this`
@@ -83,25 +86,25 @@ void WorkerThread::run()
 
     /* initialize thread-local variables
      */
-    current_worker = this->shared_from_this();
-    current_waker_id = this->get_waker_id();
-    memory::current_arena = this->get_worker_id();
+    SingletonContext::get().current_worker = this->shared_from_this();
+    SingletonContext::get().current_waker_id = this->get_waker_id();
+    SingletonContext::get().current_arena = this->get_worker_id();
 
     /* execute tasks until stop()
      */
     this->work_loop();
 
-//   current_worker.reset();
+    SingletonContext::get().current_worker.reset();
 
     SPDLOG_TRACE("Worker Finished!");    
 }
 
 void WorkerThread::cpubind()
 {
-    size_t n_pus = hwloc_get_nbobjs_by_type(hwloc_ctx->topology, HWLOC_OBJ_PU);
-    hwloc_obj_t obj = hwloc_get_obj_by_type(hwloc_ctx->topology, HWLOC_OBJ_PU, id%n_pus);
+    size_t n_pus = hwloc_get_nbobjs_by_type(hwloc_ctx.topology, HWLOC_OBJ_PU);
+    hwloc_obj_t obj = hwloc_get_obj_by_type(hwloc_ctx.topology, HWLOC_OBJ_PU, id%n_pus);
 
-    if( hwloc_set_cpubind(hwloc_ctx->topology, obj->cpuset, HWLOC_CPUBIND_THREAD | HWLOC_CPUBIND_STRICT) )
+    if( hwloc_set_cpubind(hwloc_ctx.topology, obj->cpuset, HWLOC_CPUBIND_THREAD | HWLOC_CPUBIND_STRICT) )
     {
         char *str;
         int error = errno;
@@ -113,9 +116,9 @@ void WorkerThread::cpubind()
 
 void WorkerThread::membind()
 {
-    size_t n_pus = hwloc_get_nbobjs_by_type(hwloc_ctx->topology, HWLOC_OBJ_PU);
-    hwloc_obj_t obj = hwloc_get_obj_by_type(hwloc_ctx->topology, HWLOC_OBJ_PU, id%n_pus);
-    if( hwloc_set_membind(hwloc_ctx->topology, obj->cpuset, HWLOC_MEMBIND_BIND, HWLOC_MEMBIND_THREAD | HWLOC_MEMBIND_STRICT ) )
+    size_t n_pus = hwloc_get_nbobjs_by_type(hwloc_ctx.topology, HWLOC_OBJ_PU);
+    hwloc_obj_t obj = hwloc_get_obj_by_type(hwloc_ctx.topology, HWLOC_OBJ_PU, id%n_pus);
+    if( hwloc_set_membind(hwloc_ctx.topology, obj->cpuset, HWLOC_MEMBIND_BIND, HWLOC_MEMBIND_THREAD | HWLOC_MEMBIND_STRICT ) )
     {
         char *str;
         int error = errno;
@@ -132,11 +135,11 @@ void Worker::work_loop()
     {
         while( Task * task = this->gather_task() )
         {
-            worker_pool->set_worker_state( id, dispatch::thread::WorkerState::BUSY );
-            dispatch::thread::execute_task( *task );
+            SingletonContext::get().worker_pool->set_worker_state( id, dispatch::thread::WorkerState::BUSY );
+            SingletonContext::get().execute_task( *task );
         }
 
-        worker_pool->set_worker_state( id, dispatch::thread::WorkerState::AVAILABLE );
+        SingletonContext::get().worker_pool->set_worker_state( id, dispatch::thread::WorkerState::AVAILABLE );
 
         if( !m_stop.load(std::memory_order_consume) )
             cv.wait();
@@ -170,7 +173,7 @@ Task * Worker::gather_task()
 
     /* set worker state to signal that we are requesting tasks
      */
-    worker_pool->set_worker_state( id, dispatch::thread::WorkerState::AVAILABLE );
+    SingletonContext::get().worker_pool->set_worker_state( id, dispatch::thread::WorkerState::AVAILABLE );
         
 #ifndef ENABLE_WORKSTEALING
 #define ENABLE_WORKSTEALING 1
@@ -183,7 +186,7 @@ Task * Worker::gather_task()
      * after all tasks from own queues are consumed, try to steal tasks
      */
     SPDLOG_TRACE("Worker {}: try to steal tasks", id);
-    task = top_scheduler->steal_task( *this );
+    task = SingletonContext::get().scheduler->steal_task( *this );
 
 #endif
 
