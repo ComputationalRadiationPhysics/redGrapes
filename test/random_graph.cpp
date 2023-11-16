@@ -98,7 +98,6 @@ TEST_CASE("RandomGraph")
 
     generate_access_pattern();
 
-    redGrapes::SingletonContext::get().worker_pool.reset();
     rg::init(n_threads);
  
     {

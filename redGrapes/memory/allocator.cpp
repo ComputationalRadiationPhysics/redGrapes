@@ -15,7 +15,7 @@ Allocator::Allocator()
 
 Allocator::Allocator( dispatch::thread::WorkerId worker_id )
   : worker_id(
-        worker_id// % SingletonContext::get().worker_pool->size()
+        worker_id % SingletonContext::get().n_workers
     )
 {}
 

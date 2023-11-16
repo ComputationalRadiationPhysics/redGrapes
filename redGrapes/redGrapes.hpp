@@ -79,10 +79,11 @@ struct Context
     static thread_local Task * current_task;
     static thread_local std::function< void () > idle;
     static thread_local unsigned next_worker;
-    
+
     static thread_local scheduler::WakerId current_waker_id;
     static thread_local std::shared_ptr< dispatch::thread::WorkerThread > current_worker;
 
+    unsigned n_workers;
     unsigned current_arena;
     HwlocContext hwloc_ctx;
     std::shared_ptr< dispatch::thread::WorkerPool > worker_pool;

@@ -23,7 +23,8 @@
 #include <redGrapes/util/chunked_list.hpp>
 #include <redGrapes/sync/spinlock.hpp>
 //#include <redGrapes/dispatch/thread/worker_pool.hpp>
-//#include <redGrapes_config.hpp>
+#include <redGrapes_config.hpp>
+//#include <redGrapes/redGrapes.hpp>
 
 #include <fmt/format.h>
 
@@ -316,7 +317,11 @@ protected:
     Resource()
     {
         static unsigned i = 0;
-        dispatch::thread::WorkerId worker_id = i++;
+
+        /* NOTE: Because of #include loops we cannot access Context and thus not worker_pool->size().
+         *       for this reason the modulo is done in constructor of Allocator()
+         */
+        dispatch::thread::WorkerId worker_id = i++; // % SingletonContext::get().worker_pool->size();
         base = redGrapes::memory::alloc_shared_bind< ResourceBase >( worker_id );
     }
 
@@ -346,8 +351,7 @@ struct SharedResourceObject : Resource< AccessPolicy >
     std::shared_ptr< T > obj;
 
     SharedResourceObject( std::shared_ptr<T> obj )
-        : obj(obj)
-    {}
+        : obj(obj) {}
 
     SharedResourceObject( SharedResourceObject const & other )
         : Resource< AccessPolicy >( other )

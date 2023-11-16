@@ -27,7 +27,10 @@ struct Allocator
 {   
     dispatch::thread::WorkerId worker_id;
 
+    // allocate on `current_arena` given by `SingletonContext`
     Allocator();
+
+    // allocate on arena for specific worker
     Allocator( dispatch::thread::WorkerId worker_id );
 
     Block allocate( size_t n_bytes );
@@ -40,9 +43,7 @@ struct StdAllocator
     Allocator alloc;
     typedef T value_type;
 
-    StdAllocator () : alloc( )
-    {
-    }
+    StdAllocator () : alloc() {}
     StdAllocator( dispatch::thread::WorkerId worker_id ) : alloc( worker_id ) {}
 
     template< typename U >

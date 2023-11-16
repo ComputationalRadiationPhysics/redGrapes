@@ -122,6 +122,7 @@ void Context::init( size_t n_workers, std::shared_ptr<scheduler::IScheduler> sch
 {
     init_tracing();
 
+    this->n_workers = n_workers;
     worker_pool = std::make_shared<dispatch::thread::WorkerPool>( hwloc_ctx, n_workers );
     worker_pool->emplace_workers( n_workers );
 
