@@ -30,15 +30,12 @@ namespace redGrapes
 
                 if( should_wait.load(std::memory_order_acquire) )
                 {                    
-                    std::unique_lock< std::mutex > l( m );
-
-                    if( should_wait.load(std::memory_order_acquire) )
-                        cv.wait( l );
+                    std::unique_lock< CVMutex > l( m );
+                    cv.wait( l, [this]{ return ! should_wait.load(std::memory_order_acquire); } );
                 }
             }
         }
 
-        count = 0;
         should_wait.store(true);
     }
 

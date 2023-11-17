@@ -3,6 +3,7 @@
 
 #include <atomic>
 #include <condition_variable>
+#include <redGrapes/sync/spinlock.hpp>
 
 namespace redGrapes
 {
@@ -16,12 +17,11 @@ struct PhantomLock
 struct CondVar
 {
     std::atomic<bool> should_wait;
-
-    std::condition_variable_any cv;
-
+    std::condition_variable cv;
     std::atomic_flag busy;
 
-    std::mutex m;
+    using CVMutex = std::mutex;
+    CVMutex m;
 
     unsigned timeout;
 
