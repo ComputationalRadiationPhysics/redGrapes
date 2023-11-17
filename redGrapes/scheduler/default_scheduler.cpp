@@ -35,6 +35,31 @@ void DefaultScheduler::emplace_task( Task & task )
     dispatch::thread::WorkerId worker_id = task.arena_id % SingletonContext::get().worker_pool->size();
 
     SingletonContext::get().worker_pool->get_worker(worker_id).emplace_task( task );
+
+
+    /* hack as of 2023/11/17
+     *
+     * Additionally to the worker who got the new task above,
+     * we will now notify another, available (idling) worker,
+     * in trying to avoid stale tasks in cases where new tasks
+     * are assigned to an already busy worker.
+     */
+#ifndef REDGRAPES_EMPLACE_NOTIFY_NEXT
+#define REDGRAPES_EMPLACE_NOTIFY_NEXT 0
+#endif
+
+#if REDGRAPES_EMPLACE_NOTIFY_NEXT
+    auto id = SingletonContext::get()
+		.worker_pool->probe_worker_by_state<unsigned>(
+                    [](unsigned idx)
+                    {
+                        SingletonContext::get().worker_pool->get_worker(idx).wake();
+                        return idx;
+                    },
+                    dispatch::thread::WorkerState::AVAILABLE,
+                    worker_id,
+                    true);
+#endif
 }
 
 /* send this already existing task to a worker,
