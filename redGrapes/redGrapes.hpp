@@ -84,7 +84,7 @@ struct Context
     static thread_local std::shared_ptr< dispatch::thread::WorkerThread > current_worker;
 
     unsigned n_workers;
-    unsigned current_arena;
+    static thread_local unsigned current_arena;
     HwlocContext hwloc_ctx;
     std::shared_ptr< dispatch::thread::WorkerPool > worker_pool;
 

@@ -28,6 +28,7 @@ namespace redGrapes
 thread_local Task *  Context::current_task;
 thread_local std::function< void() > Context::idle;
 thread_local unsigned Context::next_worker;
+thread_local unsigned Context::current_arena;
 thread_local scheduler::WakerId Context::current_waker_id;
 thread_local std::shared_ptr< dispatch::thread::WorkerThread > Context::current_worker;
 
