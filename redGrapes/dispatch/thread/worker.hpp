@@ -127,6 +127,7 @@ struct WorkerThread
     WorkerThread( memory::ChunkedBumpAlloc<memory::HwlocAlloc> & alloc, HwlocContext & hwloc_ctx, hwloc_obj_t const & obj, WorkerId worker_id );
     ~WorkerThread();
 
+    void start();
     void stop();
 
     /* function the thread will execute

@@ -22,12 +22,17 @@ namespace thread
 {
 WorkerThread::WorkerThread( memory::ChunkedBumpAlloc< memory::HwlocAlloc > & alloc, HwlocContext & hwloc_ctx, hwloc_obj_t const & obj, WorkerId worker_id )
     : Worker( alloc, hwloc_ctx, obj, worker_id )
-    , thread([this] { this->run(); })
 {
 }
 
 WorkerThread::~WorkerThread()
 {
+}
+
+void WorkerThread::start()
+{
+    thread = std::thread([this]{ this->run(); });
+    this->Worker::start();
 }
 
 Worker::Worker( memory::ChunkedBumpAlloc<memory::HwlocAlloc> & alloc, HwlocContext & hwloc_ctx, hwloc_obj_t const & obj, WorkerId worker_id )
