@@ -59,7 +59,6 @@ struct AtomicList
 
         ~ItemPtr()
         {
-            SPDLOG_INFO("destruct chunk {}", (void*)item_data);
             get()->~Item();
         }
 
