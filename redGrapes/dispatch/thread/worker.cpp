@@ -137,17 +137,16 @@ void Worker::work_loop()
 {
     SPDLOG_TRACE("Worker {} start work_loop()", id);
     while( ! m_stop.load(std::memory_order_consume) )
-    {
+    {        
+        SingletonContext::get().worker_pool->set_worker_state( id, dispatch::thread::WorkerState::AVAILABLE );
+        cv.wait();
+        
         while( Task * task = this->gather_task() )
         {
             SingletonContext::get().worker_pool->set_worker_state( id, dispatch::thread::WorkerState::BUSY );
             SingletonContext::get().execute_task( *task );
         }
 
-        SingletonContext::get().worker_pool->set_worker_state( id, dispatch::thread::WorkerState::AVAILABLE );
-
-        if( !m_stop.load(std::memory_order_consume) )
-            cv.wait();
     }
     SPDLOG_TRACE("Worker {} end work_loop()", id);
 }
