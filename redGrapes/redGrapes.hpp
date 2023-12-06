@@ -77,6 +77,9 @@ namespace redGrapes
         template<typename Callable, typename... Args>
         auto emplace_task(Callable&& f, Args&&... args);
 
+        template<typename Callable, typename... Args>
+        auto emplace_continuable_task(Callable&& f, Args&&... args);
+
         static thread_local Task* current_task;
         static thread_local std::function<void()> idle;
         static thread_local unsigned next_worker;
@@ -167,6 +170,12 @@ namespace redGrapes
         return std::move(SingletonContext::get().emplace_task(std::move(f), std::forward<Args>(args)...));
     }
 
+    template<typename Callable, typename... Args>
+    inline auto emplace_continuable_task(Callable&& f, Args&&... args)
+    {
+        return std::move(SingletonContext::get().emplace_continuable_task(std::move(f), std::forward<Args>(args)...));
+    }
+
 } // namespace redGrapes
 
 // `TaskBuilder` needs "Context`, so can only include here after definiton
@@ -177,18 +186,20 @@ namespace redGrapes
     template<typename Callable, typename... Args>
     auto Context::emplace_task(Callable&& f, Args&&... args)
     {
-        dispatch::thread::WorkerId worker_id =
-            // linear
-            next_worker % worker_pool->size();
-
-        // interleaved
-        //    2*next_worker % worker_pool->size() + ((2*next_worker) / worker_pool->size())%2;
-
-        next_worker++;
+        dispatch::thread::WorkerId worker_id = next_worker++ % worker_pool->size();
         current_arena = worker_id;
-
         SPDLOG_TRACE("emplace task to worker {} next_worker={}", worker_id, next_worker);
 
-        return std::move(TaskBuilder<Callable, Args...>(std::move(f), std::forward<Args>(args)...));
+        return std::move(TaskBuilder<Callable, Args...>(false, std::move(f), std::forward<Args>(args)...));
+    }
+
+    template<typename Callable, typename... Args>
+    auto Context::emplace_continuable_task(Callable&& f, Args&&... args)
+    {
+        dispatch::thread::WorkerId worker_id = next_worker++ % worker_pool->size();
+        current_arena = worker_id;
+        SPDLOG_TRACE("emplace task to worker {} next_worker={}", worker_id, next_worker);
+
+        return std::move(TaskBuilder<Callable, Args...>(true, std::move(f), std::forward<Args>(args)...));
     }
 } // namespace redGrapes

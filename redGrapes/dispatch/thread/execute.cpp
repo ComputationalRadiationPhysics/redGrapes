@@ -11,11 +11,6 @@
 #include <redGrapes/task/task.hpp>
 #include <redGrapes/util/trace.hpp>
 
-#include <boost/mp11/detail/mp_void.hpp>
-#include <spdlog/spdlog.h>
-
-#include <optional>
-
 namespace redGrapes
 {
     /*
@@ -38,8 +33,8 @@ namespace thread
 
         if(event)
         {
-            event->get_event().waker_id = current_worker->get_waker_id();
-            task.sg_pause(*event);
+            event.get_event().waker_id = current_waker_id;
+            task.sg_pause(event);
 
             task.pre_event.up();
             task.get_pre_event().notify();

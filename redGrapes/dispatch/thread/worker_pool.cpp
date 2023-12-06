@@ -45,7 +45,7 @@ namespace redGrapes
                     hwloc_obj_t obj = hwloc_get_obj_by_type(hwloc_ctx.topology, HWLOC_OBJ_PU, pu_id);
                     allocs.emplace_back(memory::HwlocAlloc(hwloc_ctx, obj), REDGRAPES_ALLOC_CHUNKSIZE);
 
-                    SingletonContext::get().current_arena = pu_id;
+                    SingletonContext::get().current_arena = worker_id;
                     auto worker
                         = memory::alloc_shared_bind<WorkerThread>(pu_id, get_alloc(pu_id), hwloc_ctx, obj, worker_id);
                     //        auto worker = std::make_shared< WorkerThread >( get_alloc(i), hwloc_ctx, obj, i );
