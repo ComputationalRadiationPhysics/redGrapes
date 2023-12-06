@@ -92,16 +92,16 @@ namespace redGrapes
          */
         struct Event
         {
+            //! the set of subsequent events
+            ChunkedList<EventPtr, REDGRAPES_EVENT_FOLLOWER_LIST_CHUNKSIZE> followers;
+
             /*! number of incoming edges
              * state == 0: event is reached and can be removed
              */
-            std::atomic_uint16_t state;
+            std::atomic<uint16_t> state;
 
             //! waker that is waiting for this event
             WakerId waker_id;
-
-            //! the set of subsequent events
-            ChunkedList<EventPtr, REDGRAPES_EVENT_FOLLOWER_LIST_CHUNKSIZE> followers;
 
             Event();
             Event(Event&);

@@ -53,11 +53,6 @@ namespace redGrapes
             return task;
         }
 
-        Task* task;
-
-        //! number of parents
-        uint8_t scope_depth;
-
         //! task space that contains this task, must not be null
         memory::Refcounted<TaskSpace, TaskSpaceDeleter>::Guard space;
 
@@ -76,6 +71,11 @@ namespace redGrapes
         scheduler::Event post_event;
         scheduler::Event result_set_event;
         scheduler::Event result_get_event;
+
+        Task* task;
+
+        //! number of parents
+        uint8_t scope_depth;
 
         inline scheduler::EventPtr get_pre_event()
         {

@@ -51,10 +51,10 @@ namespace redGrapes
         static bool is_superset(ResourceUser const& a, ResourceUser const& b);
         static bool is_serial(ResourceUser const& a, ResourceUser const& b);
 
-        uint8_t scope_level;
-
         ChunkedList<ResourceAccess, 8> access_list;
         ChunkedList<ResourceUsageEntry, 8> unique_resources;
+
+        uint8_t scope_level;
     }; // class ResourceUser
 
 } // namespace redGrapes
