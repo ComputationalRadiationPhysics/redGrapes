@@ -19,6 +19,7 @@
 // #include <redGrapes/task/future.hpp>
 #include <redGrapes/dispatch/thread/worker.hpp>
 #include <redGrapes/memory/hwloc_alloc.hpp>
+#include <redGrapes/memory/refcounted.hpp>
 #include <redGrapes/task/task.hpp>
 #include <redGrapes/task/task_space.hpp>
 
@@ -58,7 +59,7 @@ namespace redGrapes
         std::optional<scheduler::EventPtr> create_event();
 
         unsigned scope_depth() const;
-        std::shared_ptr<TaskSpace> current_task_space() const;
+        memory::Refcounted<TaskSpace, TaskSpaceDeleter>::Guard current_task_space() const;
 
         void execute_task(Task& task);
 
@@ -92,7 +93,7 @@ namespace redGrapes
         HwlocContext hwloc_ctx;
         std::shared_ptr<dispatch::thread::WorkerPool> worker_pool;
 
-        std::shared_ptr<TaskSpace> root_space;
+        memory::Refcounted<TaskSpace, TaskSpaceDeleter>::Guard root_space;
         std::shared_ptr<scheduler::IScheduler> scheduler;
 
 #if REDGRAPES_ENABLE_TRACE
@@ -159,7 +160,7 @@ namespace redGrapes
         return SingletonContext::get().scope_depth();
     }
 
-    inline std::shared_ptr<TaskSpace> current_task_space()
+    inline memory::Refcounted<TaskSpace, TaskSpaceDeleter>::Guard current_task_space()
     {
         return SingletonContext::get().current_task_space();
     }

@@ -60,12 +60,12 @@ namespace redGrapes
         using Impl = typename std::result_of<BindArgs(Callable, Args...)>::type;
         using Result = typename std::result_of<Callable(Args...)>::type;
 
-        std::shared_ptr<TaskSpace> space;
+        memory::Refcounted<TaskSpace, TaskSpaceDeleter>::Guard space;
         FunTask<Impl>* task;
 
         TaskBuilder(bool continuable, Callable&& f, Args&&... args)
             : TaskProperties::Builder<TaskBuilder>(*this)
-            , space(current_task_space())
+            , space(SingletonContext::get().current_task_space())
         {
             // allocate
             redGrapes::memory::Allocator alloc;

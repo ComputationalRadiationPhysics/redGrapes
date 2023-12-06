@@ -41,13 +41,13 @@ namespace redGrapes
     {
     }
 
-    std::shared_ptr<TaskSpace> Context::current_task_space() const
+    memory::Refcounted<TaskSpace, TaskSpaceDeleter>::Guard Context::current_task_space() const
     {
         if(current_task)
         {
             if(!current_task->children)
             {
-                auto task_space = std::make_shared<TaskSpace>(current_task);
+                memory::Refcounted<TaskSpace, TaskSpaceDeleter>::Guard task_space(new TaskSpace(current_task));
                 SPDLOG_TRACE("create child space = {}", (void*) task_space.get());
                 current_task->children = task_space;
 
@@ -120,7 +120,7 @@ namespace redGrapes
         worker_pool = std::make_shared<dispatch::thread::WorkerPool>(hwloc_ctx, n_workers);
         worker_pool->emplace_workers(n_workers);
 
-        root_space = std::make_shared<TaskSpace>();
+        root_space.acquire(new TaskSpace());
         this->scheduler = scheduler;
 
         worker_pool->start();
@@ -148,7 +148,6 @@ namespace redGrapes
         worker_pool->stop();
 
         scheduler.reset();
-        root_space.reset();
 
         finalize_tracing();
     }

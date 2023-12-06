@@ -10,26 +10,37 @@
 #include <redGrapes/dispatch/thread/cpuset.hpp>
 #include <redGrapes/memory/allocator.hpp>
 #include <redGrapes/task/queue.hpp>
-#include <redGrapes/task/task.hpp>
+// #include <redGrapes/task/task.hpp>
+#include <redGrapes/memory/refcounted.hpp>
 
 #include <atomic>
-#include <mutex>
+#include <shared_mutex>
 #include <vector>
 
 namespace redGrapes
 {
+    struct Task;
+
+    struct TaskSpace;
+
+    struct TaskSpaceDeleter
+    {
+        void operator()(TaskSpace* space)
+        {
+            delete space;
+        }
+    };
 
     /*! TaskSpace handles sub-taskspaces of child tasks
      */
-    struct TaskSpace : std::enable_shared_from_this<TaskSpace>
+    struct TaskSpace : memory::Refcounted<TaskSpace, TaskSpaceDeleter>
     {
-        std::atomic<unsigned long> task_count;
-
-        unsigned depth;
-        Task* parent;
-
+        std::vector<memory::Refcounted<TaskSpace, TaskSpaceDeleter>::Guard> active_child_spaces;
         std::shared_mutex active_child_spaces_mutex;
-        std::vector<std::shared_ptr<TaskSpace>> active_child_spaces;
+
+        std::atomic<unsigned long> task_count;
+        Task* parent;
+        unsigned depth;
 
         virtual ~TaskSpace();
 
