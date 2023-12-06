@@ -22,7 +22,6 @@
 #    define REDGRAPES_EVENT_FOLLOWER_LIST_CHUNKSIZE 16
 #endif
 
-
 namespace redGrapes
 {
 
@@ -45,9 +44,14 @@ namespace redGrapes
 
         struct EventPtr
         {
-            enum EventPtrTag tag;
+            enum EventPtrTag tag = T_UNINITIALIZED;
             Task* task;
             std::shared_ptr<Event> external_event;
+
+            inline operator bool() const
+            {
+                return tag != T_UNINITIALIZED && (task || tag == T_EVT_EXT);
+            }
 
             inline bool operator==(EventPtr const& other) const
             {
