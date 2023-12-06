@@ -7,7 +7,9 @@
 
 #pragma once
 
+#include <redGrapes/memory/allocator.hpp>
 #include <redGrapes/memory/block.hpp>
+#include <redGrapes/memory/refcounted.hpp>
 #include <redGrapes/util/trace.hpp>
 
 #include <fmt/format.h>
@@ -25,6 +27,7 @@ namespace redGrapes
     namespace memory
     {
 
+
         /* maintains a lockfree singly-linked list
          * with the following allowed operations:
          *   - append new chunks at head
@@ -41,14 +44,33 @@ namespace redGrapes
         template<typename Item, typename Allocator>
         struct AtomicList
         {
-            // private:
-            struct ItemControlBlock
-            {
-                bool volatile deleted;
-                std::shared_ptr<ItemControlBlock> prev;
-                uintptr_t item_data_ptr;
+            struct ItemControlBlock;
 
-                ItemControlBlock(memory::Block blk) : deleted(false), item_data_ptr(blk.ptr)
+            struct ItemControlBlockDeleter
+            {
+                void operator()(ItemControlBlock* e)
+                {
+                    auto alloc = e->alloc;
+                    e->~ItemControlBlock();
+                    memory::Block blk{(uintptr_t) e, sizeof(ItemControlBlock) + sizeof(Item)};
+                    alloc.deallocate(blk);
+                }
+            };
+
+            struct ItemControlBlock : Refcounted<ItemControlBlock, ItemControlBlockDeleter>
+            {
+                using Guard = typename Refcounted<ItemControlBlock, ItemControlBlockDeleter>::Guard;
+
+                bool volatile deleted;
+                Guard prev;
+                uintptr_t item_data_ptr;
+                Allocator alloc;
+
+                template<typename... Args>
+                ItemControlBlock(Allocator alloc, memory::Block blk)
+                    : prev(nullptr)
+                    , item_data_ptr(blk.ptr)
+                    , alloc(alloc)
                 {
                     /* put Item at front and initialize it
                      * with the remaining memory region
@@ -65,9 +87,14 @@ namespace redGrapes
 
                 /* flag this chunk as deleted and call ChunkData destructor
                  */
-                void erase()
+                inline void erase()
                 {
                     deleted = true;
+                }
+
+                inline Item* get() const
+                {
+                    return (Item*) item_data_ptr;
                 }
 
                 /* adjusts `prev` so that it points to a non-deleted chunk again
@@ -76,55 +103,17 @@ namespace redGrapes
                  */
                 void skip_deleted_prev()
                 {
-                    std::shared_ptr<ItemControlBlock> p = std::atomic_load(&prev);
+                    Guard p = prev;
                     while(p && p->deleted)
-                        p = std::atomic_load(&p->prev);
+                        p = p->prev;
 
-                    std::atomic_store(&prev, p);
-                }
-
-                Item* get() const
-                {
-                    return (Item*) item_data_ptr;
+                    prev = p;
                 }
             };
 
-            Allocator alloc;
-            std::shared_ptr<ItemControlBlock> head;
+            typename ItemControlBlock::Guard head;
             size_t const chunk_capacity;
-
-            /* keeps a single, predefined pointer
-             * and frees it on deallocate.
-             * used to spoof the allocated size to be bigger than requested.
-             */
-            template<typename T>
-            struct StaticAlloc
-            {
-                typedef T value_type;
-
-                Allocator alloc;
-                T* ptr;
-
-                StaticAlloc(Allocator alloc, size_t n_bytes) : alloc(alloc), ptr((T*) alloc.allocate(n_bytes))
-                {
-                }
-
-                template<typename U>
-                constexpr StaticAlloc(StaticAlloc<U> const& other) noexcept : alloc(other.alloc)
-                                                                            , ptr((T*) other.ptr)
-                {
-                }
-
-                T* allocate(size_t n) noexcept
-                {
-                    return ptr;
-                }
-
-                void deallocate(T* p, std::size_t n) noexcept
-                {
-                    alloc.deallocate(Block{.ptr = (uintptr_t) p, .len = sizeof(T) * n});
-                }
-            };
+            Allocator alloc;
 
         public:
             AtomicList(Allocator&& alloc, size_t chunk_capacity)
@@ -136,10 +125,7 @@ namespace redGrapes
 
             static constexpr size_t get_controlblock_size()
             {
-                /* TODO: use sizeof( ...shared_ptr_inplace_something... )
-                 */
-                size_t const shared_ptr_size = 512;
-                return sizeof(ItemControlBlock) + shared_ptr_size;
+                return sizeof(ItemControlBlock) + sizeof(Item);
             }
 
             constexpr size_t get_chunk_capacity()
@@ -160,23 +146,14 @@ namespace redGrapes
             {
                 TRACE_EVENT("Allocator", "AtomicList::allocate_item()");
 
-                /* NOTE: we are relying on std::allocate_shared
-                 * to do one *single* allocation which contains:
-                 * - shared_ptr control block
-                 * - chunk control block
-                 * - chunk data
-                 * whereby chunk data is not included by sizeof(ItemControlBlock),
-                 * but reserved by StaticAlloc.
-                 * This works because shared_ptr control block lies at lower address.
-                 */
-                StaticAlloc<void> chunk_alloc(this->alloc, get_chunk_allocsize());
+                memory::Block blk = this->alloc.allocate(get_chunk_allocsize());
+                ItemControlBlock* item_ctl = (ItemControlBlock*) blk.ptr;
 
-                // this block will contain the Item-data of ItemControlBlock
-                memory::Block blk{
-                    .ptr = (uintptr_t) chunk_alloc.ptr + get_controlblock_size(),
-                    .len = chunk_capacity - get_controlblock_size()};
+                blk.ptr += sizeof(ItemControlBlock);
+                blk.len -= sizeof(ItemControlBlock);
 
-                return append_item(std::allocate_shared<ItemControlBlock>(chunk_alloc, blk));
+                new(item_ctl) ItemControlBlock(alloc, blk);
+                return append_item(std::move(typename ItemControlBlock::Guard(item_ctl)));
             }
 
             /** allocate the first item if the list is empty
@@ -185,16 +162,16 @@ namespace redGrapes
              */
             bool try_allocate_first_item()
             {
-                TRACE_EVENT("Allocator", "AtomicList::allocate_first_item()");
-                StaticAlloc<void> chunk_alloc(this->alloc, get_chunk_allocsize());
+                TRACE_EVENT("Allocator", "AtomicList::try_allocate_first_item()");
 
-                // this block will contain the Item-data of ItemControlBlock
-                memory::Block blk{
-                    .ptr = (uintptr_t) chunk_alloc.ptr + get_controlblock_size(),
-                    .len = chunk_capacity - get_controlblock_size()};
+                memory::Block blk = this->alloc.allocate(get_chunk_allocsize());
+                ItemControlBlock* item_ctl = (ItemControlBlock*) blk.ptr;
 
-                auto sharedChunk = std::allocate_shared<ItemControlBlock>(chunk_alloc, blk);
-                return try_append_first_item(std::move(sharedChunk));
+                blk.ptr += sizeof(ItemControlBlock);
+                blk.len -= sizeof(ItemControlBlock);
+
+                new(item_ctl) ItemControlBlock(alloc, blk);
+                return try_append_first_item(std::move(typename ItemControlBlock::Guard(item_ctl)));
             }
 
             /** @} */
@@ -202,7 +179,7 @@ namespace redGrapes
             template<bool is_const = false>
             struct BackwardIterator
             {
-                std::shared_ptr<ItemControlBlock> c;
+                typename ItemControlBlock::Guard c;
 
                 void erase()
                 {
@@ -255,22 +232,22 @@ namespace redGrapes
              */
             MutBackwardIterator rbegin() const
             {
-                return MutBackwardIterator{std::atomic_load(&head)};
+                return MutBackwardIterator{typename ItemControlBlock::Guard(head)};
             }
 
             MutBackwardIterator rend() const
             {
-                return MutBackwardIterator{std::shared_ptr<ItemControlBlock>()};
+                return MutBackwardIterator{typename ItemControlBlock::Guard()};
             }
 
             ConstBackwardIterator crbegin() const
             {
-                return ConstBackwardIterator{std::atomic_load(&head)};
+                return ConstBackwardIterator{typename ItemControlBlock::Guard(head)};
             }
 
             ConstBackwardIterator crend() const
             {
-                return ConstBackwardIterator{std::shared_ptr<ItemControlBlock>()};
+                return ConstBackwardIterator{typename ItemControlBlock::Guard()};
             }
 
             /* Flags chunk at `pos` as erased. Actual removal is delayed until
@@ -288,31 +265,28 @@ namespace redGrapes
              * and returns the previous head to which the new_head
              * is now linked.
              */
-            auto append_item(std::shared_ptr<ItemControlBlock> new_head)
+            auto append_item(typename ItemControlBlock::Guard new_head)
             {
                 TRACE_EVENT("Allocator", "AtomicList::append_item()");
-                std::shared_ptr<ItemControlBlock> old_head;
+                typename ItemControlBlock::Guard old_head;
 
                 bool append_successful = false;
                 while(!append_successful)
                 {
-                    old_head = std::atomic_load(&head);
-                    std::atomic_store(&new_head->prev, old_head);
-                    append_successful
-                        = std::atomic_compare_exchange_strong<ItemControlBlock>(&head, &old_head, new_head);
+                    typename ItemControlBlock::Guard old_head(head);
+                    new_head->prev = old_head;
+                    append_successful = head.compare_exchange_strong(old_head.get(), new_head);
                 }
 
                 return MutBackwardIterator{old_head};
             }
 
             // append the first head item if not already exists
-            bool try_append_first_item(std::shared_ptr<ItemControlBlock> new_head)
+            bool try_append_first_item(typename ItemControlBlock::Guard new_head)
             {
                 TRACE_EVENT("Allocator", "AtomicList::append_first_item()");
 
-                std::shared_ptr<ItemControlBlock> expected(nullptr);
-                std::shared_ptr<ItemControlBlock> const& desired = new_head;
-                return std::atomic_compare_exchange_strong<ItemControlBlock>(&head, &expected, desired);
+                return head.compare_exchange_strong(nullptr, new_head);
             }
         };
 

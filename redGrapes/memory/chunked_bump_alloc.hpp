@@ -84,7 +84,7 @@ namespace redGrapes
                 TRACE_EVENT("Allocator", "ChunkedBumpAlloc::allocate()");
                 size_t alloc_size = roundup_to_poweroftwo(n);
 
-                size_t const chunk_capacity = bump_allocators.get_chunk_capacity();
+                size_t const chunk_capacity = chunk_size; // bump_allocators.get_chunk_capacity();
 
                 if(alloc_size <= chunk_capacity)
                 {
