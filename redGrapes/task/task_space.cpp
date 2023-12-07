@@ -70,8 +70,8 @@ namespace redGrapes
     void TaskSpace::submit(Task* task)
     {
         TRACE_EVENT("TaskSpace", "submit()");
+
         task->space = shared_from_this();
-        task->task = task;
 
         ++task_count;
 
