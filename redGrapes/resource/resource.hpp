@@ -50,7 +50,7 @@ public:
     unsigned int scope_level;
 
     SpinLock users_mutex;
-    ChunkedList< Task* > users;
+    ChunkedList< Task*, REDGRAPES_RUL_CHUNKSIZE > users;
 
     /**
      * Create a new resource with an unused ID.

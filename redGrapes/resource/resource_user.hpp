@@ -18,7 +18,7 @@
 #include <redGrapes/util/chunked_list.hpp>
 #include <redGrapes/util/trace.hpp>
 
-//#include <redGrapes/resource/resource.hpp>
+#include <redGrapes/resource/resource.hpp>
 
 namespace redGrapes
 {
@@ -32,7 +32,7 @@ struct ResourceAccess;
 struct ResourceUsageEntry
 {
     std::shared_ptr< ResourceBase > resource;
-    typename ChunkedList< Task* >::MutBackwardIterator task_entry;
+    typename ChunkedList< Task*, REDGRAPES_RUL_CHUNKSIZE >::MutBackwardIterator task_entry;
 
     bool operator==( ResourceUsageEntry const & other ) const;
 };
@@ -54,8 +54,8 @@ class ResourceUser
 
     uint8_t scope_level;
 
-    ChunkedList<ResourceAccess> access_list;
-    ChunkedList<ResourceUsageEntry> unique_resources;
+    ChunkedList<ResourceAccess,     8> access_list;
+    ChunkedList<ResourceUsageEntry, 8> unique_resources;
 }; // class ResourceUser
 
 } // namespace redGrapes

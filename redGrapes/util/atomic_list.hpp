@@ -17,6 +17,8 @@
 #include <hwloc.h>
 #include <spdlog/spdlog.h>
 
+#include <redGrapes/memory/block.hpp>
+
 namespace redGrapes
 {
 namespace memory
@@ -42,22 +44,24 @@ template <
 struct AtomicList
 {
 //private:
-    struct ItemPtr
+    struct ItemControlBlock
     {
         bool volatile deleted;
-        std::shared_ptr< ItemPtr > prev;
-        Item * item_data;
+        std::shared_ptr< ItemControlBlock > prev;
+        uintptr_t item_data_ptr;
 
-        template < typename... Args >
-        ItemPtr( Item * item_data, Args&&... args )
-                : deleted(false)
-                , prev(nullptr)
-                , item_data(item_data)
+        ItemControlBlock( memory::Block blk )
+            : item_data_ptr( blk.ptr )
         {
-            new ( get() ) Item ( std::forward<Args>(args)... );
+            /* put Item at front and initialize it
+             * with the remaining memory region
+             */
+            blk.ptr += sizeof(Item);
+            blk.len -= sizeof(Item);
+            new ( get() ) Item ( blk );
         }
 
-        ~ItemPtr()
+        ~ItemControlBlock()
         {
             get()->~Item();
         }
@@ -75,7 +79,7 @@ struct AtomicList
          */
         void skip_deleted_prev()
         {
-            std::shared_ptr<ItemPtr> p = std::atomic_load( &prev );
+            std::shared_ptr<ItemControlBlock> p = std::atomic_load( &prev );
             while( p && p->deleted )
                 p = std::atomic_load( &p->prev );
 
@@ -84,13 +88,13 @@ struct AtomicList
 
         Item * get() const
         {
-            return item_data;
+            return (Item*)item_data_ptr;
         }
     };
 
     Allocator alloc;
-    std::shared_ptr< ItemPtr > head;
-    size_t const chunk_size;
+    std::shared_ptr< ItemControlBlock > head;
+    size_t const chunk_capacity;
 
     /* keeps a single, predefined pointer
      * and frees it on deallocate.
@@ -126,21 +130,12 @@ struct AtomicList
         }
     };
 
-
-
 public:
-            
-    AtomicList( Allocator && alloc, size_t chunk_size )
+    AtomicList( Allocator && alloc, size_t chunk_capacity )
         : alloc( alloc )
         , head( nullptr )
-        , chunk_size( chunk_size )
+        , chunk_capacity( chunk_capacity )
     {
-#ifndef NDEBUG
-        if( chunk_size <= get_controlblock_size() )
-             spdlog::error("chunksize = {}, control block ={}", chunk_size, get_controlblock_size());
-#endif
-
-        assert( chunk_size > get_controlblock_size() );
     }
 
     static constexpr size_t get_controlblock_size()
@@ -148,13 +143,17 @@ public:
         /* TODO: use sizeof( ...shared_ptr_inplace_something... )
          */
         size_t const shared_ptr_size = 512;
-
-        return sizeof(ItemPtr) + shared_ptr_size;
+        return sizeof(ItemControlBlock) + shared_ptr_size;
     }
 
     constexpr size_t get_chunk_capacity()
     {
-        return chunk_size - get_controlblock_size();
+        return chunk_capacity;
+    }
+
+    constexpr size_t get_chunk_allocsize()
+    {
+        return chunk_capacity + get_controlblock_size();
     }
 
     /* initializes a new chunk
@@ -168,30 +167,25 @@ public:
          * - shared_ptr control block
          * - chunk control block
          * - chunk data
-         * whereby chunk data is not included by sizeof(Chunk),
+         * whereby chunk data is not included by sizeof(ItemControlBlock),
          * but reserved by StaticAlloc.
          * This works because shared_ptr control block lies at lower address.
          */
-        StaticAlloc<void> chunk_alloc( this->alloc, chunk_size );
-        uintptr_t base = (uintptr_t)chunk_alloc.ptr;
-        return append_item(
-            std::allocate_shared< ItemPtr >(
-                chunk_alloc,
+        StaticAlloc<void> chunk_alloc( this->alloc, get_chunk_allocsize() );
 
-                /* TODO: generalize this constructor call,
-                 *  specialized for `memory chunks` now
-                 */
-                (Item*) (base + get_controlblock_size()),
-                base + get_controlblock_size() + sizeof(Item),
-                base + chunk_size
-            )
-        );
+        // this block will contain the Item-data of ItemControlBlock
+        memory::Block blk{
+            .ptr = (uintptr_t)chunk_alloc.ptr + get_controlblock_size(),
+            .len = chunk_capacity - get_controlblock_size()
+        };
+
+        return append_item( std::allocate_shared< ItemControlBlock >( chunk_alloc, blk ) );
     }
 
     template < bool is_const = false >
     struct BackwardIterator
     {
-        std::shared_ptr< ItemPtr > c;
+        std::shared_ptr< ItemControlBlock > c;
 
         void erase()
         {
@@ -259,7 +253,7 @@ public:
 
     MutBackwardIterator rend() const
     {
-        return MutBackwardIterator{ std::shared_ptr<ItemPtr>() };
+        return MutBackwardIterator{ std::shared_ptr<ItemControlBlock>() };
     }
 
     ConstBackwardIterator crbegin() const
@@ -269,7 +263,7 @@ public:
 
     ConstBackwardIterator crend() const
     {
-        return ConstBackwardIterator{ std::shared_ptr<ItemPtr>() };
+        return ConstBackwardIterator{ std::shared_ptr<ItemControlBlock>() };
     }
 
     /* Flags chunk at `pos` as erased. Actual removal is delayed until
@@ -287,17 +281,17 @@ public:
      * and returns the previous head to which the new_head
      * is now linked.
      */
-    auto append_item( std::shared_ptr< ItemPtr > new_head )
+    auto append_item( std::shared_ptr< ItemControlBlock > new_head )
     {
         TRACE_EVENT("Allocator", "AtomicList::append_item()");
-        std::shared_ptr< ItemPtr > old_head;
+        std::shared_ptr< ItemControlBlock > old_head;
 
         bool append_successful = false;
         while( ! append_successful )
         {
             old_head = std::atomic_load( &head );
             std::atomic_store( &new_head->prev, old_head );
-            append_successful = std::atomic_compare_exchange_strong<ItemPtr>( &head, &old_head, new_head );
+            append_successful = std::atomic_compare_exchange_strong<ItemControlBlock>( &head, &old_head, new_head );
         }
 
         return MutBackwardIterator{ old_head };

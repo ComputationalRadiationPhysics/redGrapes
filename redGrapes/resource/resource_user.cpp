@@ -15,8 +15,8 @@ namespace redGrapes
   
     ResourceUser::ResourceUser()
         : scope_level( SingletonContext::get().scope_depth() )
-        , access_list( 64 )
-        , unique_resources( 64 )
+        , access_list( memory::Allocator() )
+        , unique_resources( memory::Allocator() )
     {
     }
 
@@ -29,6 +29,8 @@ namespace redGrapes
 
     ResourceUser::ResourceUser( std::initializer_list< ResourceAccess > list )
         : scope_level( scope_depth() )
+        , access_list( memory::Allocator() )
+        , unique_resources( memory::Allocator() )
     {
         for( auto & ra : list )
             add_resource_access(ra);

@@ -22,10 +22,7 @@ unsigned int ResourceBase::generateID()
 ResourceBase::ResourceBase()
     : id( generateID() )
     , scope_level( scope_depth() )
-    , users(
-        memory::Allocator( get_arena_id() ),
-        REDGRAPES_RUL_CHUNKSIZE
-    )
+    , users( memory::Allocator( get_arena_id() ) )
 {}
 
 unsigned ResourceBase::get_arena_id() const {
