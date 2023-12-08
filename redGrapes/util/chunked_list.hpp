@@ -79,7 +79,7 @@ template <
 >
 struct ChunkedList
 {
-    using chunk_offset_t = uint16_t;
+    using chunk_offset_t = int16_t;
     using refcount_t = uint16_t;
 
     struct Item
@@ -170,7 +170,7 @@ struct ChunkedList
          * compensated by not increasing the count when the last
          * element is inserted.
          */
-        std::atomic< chunk_offset_t > item_count{ 1 };
+        std::atomic< chunk_offset_t > item_count{ 0 };
 
         /* lowest index with free slot that can
          * be used to add a new element
@@ -435,6 +435,15 @@ public:
         spdlog::error("copy construct ChunkedList!!");
     }
 
+    /* decrement item_count and in case all items of this chunk are deleted,
+     * and this chunk is not `head`, delete the chunk too
+     */
+    void release_chunk( typename memory::AtomicList< Chunk, Allocator >::MutBackwardIterator chunk )
+    {
+        if( chunk->item_count.fetch_sub(1) == 0 )
+            chunks.erase( chunk );     
+    }
+
     MutBackwardIterator push( T const& item )
     {
         TRACE_EVENT("ChunkedList", "push");
@@ -444,20 +453,25 @@ public:
             auto chunk = chunks.rbegin();
             if( chunk != chunks.rend() )
             {
-                unsigned chunk_off = chunk->next_idx.fetch_add(1);
-
-                if( chunk_off < chunk_size )
-                {
-                    if( chunk_off+1 < chunk_size )
-                        chunk->item_count ++;
-
+                if( chunk->item_count.fetch_add(1) < chunk_size )
+		{
+                	unsigned chunk_off = chunk->next_idx.fetch_add(1);
+		
+                	if( chunk_off < chunk_size )
+                	{
+ 
                     chunk->items()[ chunk_off ] = item;
                     chunk->last_idx ++;
                     return MutBackwardIterator( chunk_size, chunk, chunk_off );
-                }
+                	}
+		}
+		
+		release_chunk(chunk);
             }
 
-            chunks.allocate_item();
+            auto prev_chunk = chunks.allocate_item();
+	    if( prev_chunk != chunks.rend() )
+	            release_chunk( prev_chunk );
         }
     }
 
@@ -484,14 +498,7 @@ public:
              */
             pos.item().remove();
 
-            /* in case all items of this chunk are deleted,
-             * delete the chunk too
-             */
-            if( pos.chunk->item_count.fetch_sub(1) == 1 )
-            {
-                // spdlog::info("last item!!");
-                chunks.erase( pos.chunk );
-            }
+            release_chunk( pos.chunk );
         }
         else
             throw std::runtime_error("remove invalid position");

@@ -159,7 +159,7 @@ public:
 
     /* initializes a new chunk
      */
-    void allocate_item()
+    auto allocate_item()
     {
         TRACE_EVENT("Allocator", "AtomicList::allocate_item()");
 
@@ -174,7 +174,7 @@ public:
          */
         StaticAlloc<void> chunk_alloc( this->alloc, chunk_size );
         uintptr_t base = (uintptr_t)chunk_alloc.ptr;
-        append_item(
+        return append_item(
             std::allocate_shared< ItemPtr >(
                 chunk_alloc,
 
@@ -186,20 +186,6 @@ public:
                 base + chunk_size
             )
         );
-    }
-
-    /* atomically appends a floating chunk to this list
-     */
-    void append_item( std::shared_ptr< ItemPtr > new_head )
-    {
-        TRACE_EVENT("Allocator", "AtomicList::append_item()");
-        bool append_successful = false;
-        while( ! append_successful )
-        {
-            std::shared_ptr< ItemPtr > old_head = std::atomic_load( &head );
-            std::atomic_store( &new_head->prev, old_head );
-            append_successful = std::atomic_compare_exchange_strong<ItemPtr>( &head, &old_head, new_head );
-        }
     }
 
     template < bool is_const = false >
@@ -296,6 +282,28 @@ public:
     {
         pos.erase();
     }
+
+    /* atomically appends a floating chunk to this list
+     * and returns the previous head to which the new_head
+     * is now linked.
+     */
+    auto append_item( std::shared_ptr< ItemPtr > new_head )
+    {
+        TRACE_EVENT("Allocator", "AtomicList::append_item()");
+        std::shared_ptr< ItemPtr > old_head;
+
+        bool append_successful = false;
+        while( ! append_successful )
+        {
+            old_head = std::atomic_load( &head );
+            std::atomic_store( &new_head->prev, old_head );
+            append_successful = std::atomic_compare_exchange_strong<ItemPtr>( &head, &old_head, new_head );
+        }
+
+        return MutBackwardIterator{ old_head };
+    }
+
+
 };
 
 } // namespace memory
