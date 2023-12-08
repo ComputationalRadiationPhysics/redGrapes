@@ -15,7 +15,7 @@ Allocator::Allocator()
 
 Allocator::Allocator( dispatch::thread::WorkerId worker_id )
   : worker_id(
-        worker_id % SingletonContext::get().n_workers
+          SingletonContext::get().n_workers == 0u ? 0u : worker_id % SingletonContext::get().n_workers
     )
 {}
 
