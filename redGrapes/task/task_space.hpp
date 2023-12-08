@@ -25,10 +25,7 @@ namespace redGrapes
 
     struct TaskSpaceDeleter
     {
-        void operator()(TaskSpace* space)
-        {
-            delete space;
-        }
+        void operator()(TaskSpace* space);
     };
 
     /*! TaskSpace handles sub-taskspaces of child tasks

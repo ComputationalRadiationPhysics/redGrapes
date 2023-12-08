@@ -16,6 +16,11 @@
 
 namespace redGrapes
 {
+    void TaskSpaceDeleter::operator()(TaskSpace* s)
+    {
+        delete s;
+    }
+
     TaskSpace::~TaskSpace()
     {
     }

@@ -48,13 +48,7 @@ namespace redGrapes
 
             struct ItemControlBlockDeleter
             {
-                void operator()(ItemControlBlock* e)
-                {
-                    auto alloc = e->alloc;
-                    e->~ItemControlBlock();
-                    memory::Block blk{(uintptr_t) e, sizeof(ItemControlBlock) + sizeof(Item)};
-                    alloc.deallocate(blk);
-                }
+                void operator()(ItemControlBlock*);
             };
 
             struct ItemControlBlock : Refcounted<ItemControlBlock, ItemControlBlockDeleter>
@@ -294,6 +288,16 @@ namespace redGrapes
                 return head.compare_exchange_strong(nullptr, new_head);
             }
         };
+
+        template<typename Item, typename Allocator>
+        void AtomicList<Item, Allocator>::ItemControlBlockDeleter::operator()(
+            AtomicList<Item, Allocator>::ItemControlBlock* e)
+        {
+            Allocator alloc = e->alloc;
+            e->~ItemControlBlock();
+            memory::Block blk{(uintptr_t) e, 0};
+            alloc.deallocate(blk);
+        }
 
     } // namespace memory
 
