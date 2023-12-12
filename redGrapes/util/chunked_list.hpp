@@ -79,7 +79,7 @@ template <
 >
 struct ChunkedList
 {
-    using chunk_offset_t = int16_t;
+    using chunk_offset_t = uint16_t;
     using refcount_t = uint16_t;
 
     struct Item
@@ -163,14 +163,11 @@ struct ChunkedList
 
     struct Chunk
     {
-        /* counts the number of alive elements in this chunk.
-         * Whenever `item_count` reaches zero, the chunk will be deleted.
-         * `item_count` starts with 1 to keep the chunk at least until
-         * its full capacity is used.  This initial offset is
-         * compensated by not increasing the count when the last
-         * element is inserted.
+        /* counts the number of freed elements in this chunk.
+         * Whenever `freed_items` reaches the last item in this chunk, the chunk
+         * will be deleted.
          */
-        std::atomic< chunk_offset_t > item_count{ 0 };
+        std::atomic< chunk_offset_t > freed_items{ 0 };
 
         /* lowest index with free slot that can
          * be used to add a new element
@@ -425,6 +422,9 @@ public:
         size_t items_capacity = (chunks.get_chunk_capacity() - sizeof(Chunk));
         this->chunk_size = items_capacity / sizeof(Item);
         assert( chunk_size < std::numeric_limits< chunk_offset_t >::max() );
+
+        // start with one batch of chunks
+        chunks.allocate_item();
     }
 
     ChunkedList( ChunkedList && other ) = default;
@@ -440,7 +440,7 @@ public:
      */
     void release_chunk( typename memory::AtomicList< Chunk, Allocator >::MutBackwardIterator chunk )
     {
-        if( chunk->item_count.fetch_sub(1) == 0 )
+        if( chunk->freed_items.fetch_add(1) == chunk_size - 1u )
             chunks.erase( chunk );     
     }
 
@@ -453,25 +453,30 @@ public:
             auto chunk = chunks.rbegin();
             if( chunk != chunks.rend() )
             {
-                if( chunk->item_count.fetch_add(1) < chunk_size )
-		{
-                	unsigned chunk_off = chunk->next_idx.fetch_add(1);
-		
-                	if( chunk_off < chunk_size )
-                	{
- 
+                unsigned chunk_off = chunk->next_idx.fetch_add(1);
+
+                if( chunk_off < chunk_size )
+                {
                     chunk->items()[ chunk_off ] = item;
                     chunk->last_idx ++;
+                    if( chunk_off == chunk_size - 1)
+                    {
+                        // the thread who took the last item of this chunk must allocate
+                        // the next batch of items
+                        chunks.allocate_item();
+                    }
                     return MutBackwardIterator( chunk_size, chunk, chunk_off );
-                	}
-		}
-		
-		release_chunk(chunk);
+                }
+                else
+                {
+                    // avoid that the counter can overflow
+                    chunk->next_idx--;
+                }
             }
-
-            auto prev_chunk = chunks.allocate_item();
-	    if( prev_chunk != chunks.rend() )
-	            release_chunk( prev_chunk );
+            else
+            {
+                throw std::runtime_error("chunk_list: invalid state, there should always be at least one chunk available.");
+            }
         }
     }
 
