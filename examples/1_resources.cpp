@@ -5,12 +5,14 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
+#include <redGrapes/redGrapes.hpp>
 #include <redGrapes/resource/ioresource.hpp>
 #include <redGrapes/resource/fieldresource.hpp>
 #include <redGrapes/resource/resource_user.hpp>
 
 int main(int, char*[])
 {
+    redGrapes::init(1);
     redGrapes::FieldResource< std::vector<int> > a;
     redGrapes::IOResource<int> b;
     redGrapes::IOResource<int> c;
@@ -35,6 +37,7 @@ int main(int, char*[])
     std::cout << "is_serial(user1,user3) = " << redGrapes::ResourceUser::is_serial(user1,user3) << std::endl;
     std::cout << "is_serial(user2,user3) = " << redGrapes::ResourceUser::is_serial(user2,user3) << std::endl;
 
+    redGrapes::finalize();
     return 0;
 }
 
