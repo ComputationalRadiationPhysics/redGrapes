@@ -191,7 +191,7 @@ struct ChunkedList
 
         ~Chunk()
         {
-            for( Item * item = first_item; item <= last_item; item++ )
+            for( Item * item = first_item; item < ( this->first_item + T_chunk_size ); item++ )
                 item->~Item();
         }
 
