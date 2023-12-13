@@ -177,7 +177,7 @@ struct ChunkedList
             iter_offset_t off = iter_offset.load();
             refcount_t old_refcount = refcount.load();
 
-            if( iter_offset == 0 && old_refcount >= 0 )
+            if( off == 0 && old_refcount >= 0 )
             {
                 old_refcount = refcount.fetch_add(1);
                 off = iter_offset.load();
@@ -236,11 +236,6 @@ struct ChunkedList
          */
         std::atomic< Item * > first_item;
 
-        /* points to the latest item which was inserted
-         * and is already fully initialized
-         */
-        std::atomic< Item * > last_item;
-
         /* points to the next free storage slot,
          * if available. Will be used to add a new element
          */
@@ -250,7 +245,6 @@ struct ChunkedList
 
         Chunk( memory::Block blk )
             : first_item( (Item*) blk.ptr )
-            , last_item( ((Item*)blk.ptr) - 1 )
             , next_item( (Item*) blk.ptr )
         {
             for(Item * item = this->first_item; item < ( this->first_item + T_chunk_size ); item++ )
@@ -266,6 +260,19 @@ struct ChunkedList
         Item * items()
         {
             return first_item;
+        }
+
+        /* returns the latest item which was inserted
+         */
+        Item * get_last_item()
+        {
+            Item * limit = first_item + T_chunk_size;
+            Item * last_item = next_item - 1;
+
+            if( last_item >= limit )
+                last_item = limit - 1;
+
+            return last_item;
         }
     };
 
@@ -300,7 +307,7 @@ struct ChunkedList
         {
             return ((bool)chunk)
                 && ( get_item_ptr() >= chunk->first_item )
-                && ( get_item_ptr() <= chunk->last_item );
+                && ( get_item_ptr() < chunk->first_item+T_chunk_size );
         }
 
         /*!
@@ -365,7 +372,7 @@ struct ChunkedList
                     {
                         ++chunk;
                         if( chunk )
-                            cur_item = (uintptr_t) chunk->last_item.load();
+                            cur_item = (uintptr_t) chunk->get_last_item();
                         else
                             cur_item = 0;
                     }
@@ -472,7 +479,7 @@ struct ChunkedList
             {
                 ++ this->chunk;
                 if( this->chunk )
-                    this->cur_item = (uintptr_t) this->chunk->last_item.load();
+                    this->cur_item = (uintptr_t) this->chunk->get_last_item();
                 else
                     this->cur_item = 0;
             }
@@ -531,15 +538,7 @@ public:
                     {
                         /* successfully allocated a slot in the current chunk
                          */
-
-                        // initialize item value
                         *next_item = item;
-
-                        /* allow iteration to start at the newly initialized item.
-                         * in case it happens that 
-                         */
-                        chunk->last_item ++;
-
                         return MutBackwardIterator( chunk, next_item );
                     }
                     else if ( (uintptr_t)next_item == (uintptr_t)chunk_end )
@@ -615,9 +614,7 @@ public:
         auto c = chunks.rbegin();
         return MutBackwardIterator(
             c,
-            ( c != chunks.rend() ) ? c->last_item.load() : nullptr
-// TODO: change to this when `last_item` is removed
-//            ( c != chunks.rend() ) ? min(c->last_item.load()-1, c->first_item+T_chunk_size) : nullptr
+            ( c != chunks.rend() ) ? c->get_last_item() : nullptr
         );
     }
 
@@ -634,7 +631,7 @@ public:
         auto c = chunks.rbegin();
         return ConstBackwardIterator(
             c,
-            ( c != chunks.rend() ) ? c->last_item.load() : nullptr
+            ( c != chunks.rend() ) ? c->get_last_item() : nullptr
         );
     }
 
