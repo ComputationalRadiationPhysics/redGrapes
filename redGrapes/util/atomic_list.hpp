@@ -156,7 +156,9 @@ public:
         return chunk_capacity + get_controlblock_size();
     }
 
-    /* initializes a new chunk
+    /* allocate a new item and add it to the list
+     *
+     * @{
      */
     auto allocate_item()
     {
@@ -181,6 +183,26 @@ public:
 
         return append_item( std::allocate_shared< ItemControlBlock >( chunk_alloc, blk ) );
     }
+
+    /** allocate the first item if the list is empty
+     *
+     * If more than one thread tries to add the first item only one thread will successfully add an item.
+     */
+    bool try_allocate_first_item()
+    {
+        TRACE_EVENT("Allocator", "AtomicList::allocate_first_item()");
+        StaticAlloc<void> chunk_alloc( this->alloc, get_chunk_allocsize() );
+
+        // this block will contain the Item-data of ItemControlBlock
+        memory::Block blk{
+            .ptr = (uintptr_t)chunk_alloc.ptr + get_controlblock_size(),
+            .len = chunk_capacity - get_controlblock_size()
+        };
+
+        auto sharedChunk = std::allocate_shared< ItemControlBlock >( chunk_alloc, blk );
+        return try_append_first_item(  std::move(sharedChunk) );
+    }
+    /** @} */
 
     template < bool is_const = false >
     struct BackwardIterator
@@ -297,7 +319,15 @@ public:
         return MutBackwardIterator{ old_head };
     }
 
+    // append the first head item if not already exists
+    bool try_append_first_item( std::shared_ptr< ItemControlBlock > new_head )
+    {
+        TRACE_EVENT("Allocator", "AtomicList::append_first_item()");
 
+        std::shared_ptr< ItemControlBlock > expected( nullptr );
+        std::shared_ptr< ItemControlBlock > const & desired = new_head;
+        return std::atomic_compare_exchange_strong<ItemControlBlock>( &head, &expected, desired );
+    }
 };
 
 } // namespace memory

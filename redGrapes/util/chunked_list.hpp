@@ -417,9 +417,7 @@ private:
 public:
     ChunkedList( Allocator && alloc )
         : chunks( std::move(alloc), T_chunk_size * sizeof(Item) + sizeof(Chunk) )
-    {
-        chunks.allocate_item();
-    }
+    {}
 
     ChunkedList( ChunkedList && other ) = default;
     ChunkedList( Allocator && alloc, ChunkedList const & other )
@@ -467,9 +465,8 @@ public:
             }
             else
             {
-                throw std::runtime_error("chunk_list: invalid state, there should always be at least one chunk available.");
+                chunks.try_allocate_first_item();
             }
-
         }
     }
 
