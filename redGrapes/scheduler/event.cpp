@@ -28,19 +28,21 @@ namespace scheduler
 Event::Event()
     : state(1)
     , waker_id(-1)
-    , followers( REDGRAPES_EVENT_FOLLOWER_LIST_CHUNKSIZE )
+    , followers( memory::Allocator() )
 {
 }
 
 Event::Event(Event & other)
     : state((uint16_t)other.state)
-    , waker_id(other.waker_id)
+    , waker_id( other.waker_id )
+    , followers( memory::Allocator() )
 {
 }
 
 Event::Event(Event && other)
     : state((uint16_t)other.state)
     , waker_id(other.waker_id)
+    , followers( memory::Allocator() )
 {
 }
 

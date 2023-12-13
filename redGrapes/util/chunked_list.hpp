@@ -15,12 +15,12 @@
 #include <array>
 #include <atomic>
 #include <cstdint>
+#include <cstdlib>
 #include <limits>
 #include <memory>
 #include <optional>
 #include <redGrapes/util/trace.hpp>
 #include <redGrapes/memory/allocator.hpp>
-#include <redGrapes/memory/bump_allocator.hpp>
 #include <redGrapes/util/atomic_list.hpp>
 #include <spdlog/spdlog.h>
 
@@ -75,11 +75,12 @@ namespace redGrapes
  */
 template <
     typename T,
+    size_t T_chunk_size = 32,
     class Allocator = memory::Allocator
 >
 struct ChunkedList
 {
-    using chunk_offset_t = int16_t;
+    using chunk_offset_t = uint32_t;
     using refcount_t = uint16_t;
 
     struct Item
@@ -102,6 +103,10 @@ struct ChunkedList
             ~ItemStorage() {}
         };
 
+        /* actual data
+         */
+        ItemStorage storage;
+
         /* in case this item is deleted, `iter_offset` gives an
          * offset by which we can safely jump to find the next
          * existing item.
@@ -115,10 +120,6 @@ struct ChunkedList
          * at this item currently
          */
         std::atomic< refcount_t > refcount;
-
-        /* actual data
-         */
-        ItemStorage storage;
 
         Item()
             : iter_offset( 0 )
@@ -163,41 +164,40 @@ struct ChunkedList
 
     struct Chunk
     {
-        /* counts the number of alive elements in this chunk.
-         * Whenever `item_count` reaches zero, the chunk will be deleted.
-         * `item_count` starts with 1 to keep the chunk at least until
-         * its full capacity is used.  This initial offset is
-         * compensated by not increasing the count when the last
-         * element is inserted.
+        /* beginning of the chunk
          */
-        std::atomic< chunk_offset_t > item_count{ 0 };
+        std::atomic< Item * > first_item;
 
-        /* lowest index with free slot that can
-         * be used to add a new element
+        /* points to the latest item which was inserted
+         * and is already fully initialized
          */
-        std::atomic< chunk_offset_t > next_idx{ 0 };
+        std::atomic< Item * > last_item;
 
-        /* highest index with fully initialized item
-         * where the iterator can start
+        /* points to the next free storage slot,
+         * if available. Will be used to add a new element
          */
-        std::atomic< chunk_offset_t > last_idx{ 0 };
+        std::atomic< Item * > next_item;
 
-        Chunk( uintptr_t lower_limit, uintptr_t upper_limit )
+        std::atomic< chunk_offset_t > freed_items{ 0 };
+
+        Chunk( memory::Block blk )
+            : first_item( (Item*) blk.ptr )
+            , last_item( ((Item*)blk.ptr) - 1 )
+            , next_item( (Item*) blk.ptr )
         {
-            size_t n = (upper_limit - lower_limit) / sizeof(Item);
-            for( unsigned i= 0; i < n; ++i )
-                new ( &items()[i] ) Item();
+            for(Item * item = this->first_item; item < ( this->first_item + T_chunk_size ); item++ )
+                new (item) Item();
         }
 
         ~Chunk()
         {
-            for( unsigned i = 0; i < last_idx; ++i )
-                items()[i].~Item();
+            for( Item * item = first_item; item <= last_item; item++ )
+                item->~Item();
         }
 
         Item * items()
         {
-            return (Item*)( (uintptr_t)this + sizeof(Chunk) );
+            return first_item;
         }
     };
 
@@ -205,12 +205,21 @@ struct ChunkedList
     struct ItemAccess
     {
     private:
-        friend class ChunkedList;
-
-        chunk_offset_t chunk_size;
-        chunk_offset_t chunk_off;
-        bool has_item;
+        friend class ChunkedList;       
         typename memory::AtomicList< Chunk, Allocator >::MutBackwardIterator chunk;
+
+        /* this pointer packs the address of the current element
+         * and the `has_element` bit in its MSB (most significant bit).
+         * Pointers where the MSB is zero indicate an existing storage location
+         * but with uninitialized element. Pointers where MSB is set
+         * point to an existing element.
+         */
+        uintptr_t cur_item;
+
+        inline Item * get_item_ptr() const { return (Item *) (cur_item & (~(uintptr_t)0 >> 1)); }
+        inline bool has_item() const { return cur_item & ~(~(uintptr_t)0 >> 1); }
+        inline void set_item() { cur_item |=  ~( ~(uintptr_t) 0 >> 1 ); }
+        inline void unset_item() { cur_item &= ~(uintptr_t)0 >> 1; }
 
     protected:
         /*!
@@ -221,7 +230,9 @@ struct ChunkedList
          */
         bool is_valid_idx() const
         {
-            return ( (bool)chunk ) && ( chunk_off < chunk_size );
+            return ((bool)chunk)
+                && ( get_item_ptr() >= chunk->first_item )
+                && ( get_item_ptr() <= chunk->last_item );
         }
 
         /*!
@@ -238,10 +249,10 @@ struct ChunkedList
                 {
                     chunk_offset_t off = item().iter_offset.load();
                     if( off == 0 )
-                        has_item = true;
+                        set_item();
                 }
             }
-            return has_item;
+            return has_item();
         }
 
         /*!
@@ -249,10 +260,11 @@ struct ChunkedList
          */
         void release()
         {
-            if( has_item )
+            if( has_item() )
+            {
                 item().remove();
-
-            has_item = false;
+                unset_item();
+            }
         }
 
         /*!
@@ -273,34 +285,40 @@ struct ChunkedList
                         step = 1;
                 }
 
-                if( step <= chunk_off )
-                    chunk_off -= step;
-                else
+                assert( ! has_item() );                
+                cur_item = (uintptr_t) (get_item_ptr() - step);
+
+                if( ! is_valid_idx() )
                 {
                     ++chunk;
-                    chunk_off = chunk_size - 1;
+                    if( chunk )
+                        cur_item = (uintptr_t) chunk->last_item.load();
+                    else
+                        cur_item = 0;
                 }
             }
 
-            // reached the end here, set chunk-off to invalid idx
-            chunk_off = std::numeric_limits< chunk_offset_t >::max();
+            // reached the end here
+            cur_item = 0;
         }
 
     public:
         ItemAccess( ItemAccess const & other )
-            : ItemAccess( other.chunk_size, other.chunk, other.chunk_off )
+            : ItemAccess( other.chunk, other.get_item_ptr() )
         {
         }
 
-        ItemAccess( size_t chunk_size,
-                    typename memory::AtomicList< Chunk, Allocator >::MutBackwardIterator chunk,
-                    unsigned chunk_off )
-            : has_item(false), chunk_size(chunk_size), chunk(chunk), chunk_off(chunk_off)
+        ItemAccess(
+            typename memory::AtomicList< Chunk, Allocator >::MutBackwardIterator chunk,
+            Item * item_ptr
+        )
+            : chunk(chunk)
+            , cur_item( (uintptr_t)item_ptr )
         {
             acquire_next_item();
         }
 
-        ~ItemAccess()
+        inline ~ItemAccess()
         {
             release();
         }
@@ -309,15 +327,15 @@ struct ChunkedList
          * and the item was successfuly locked such that it will not
          * be deleted until this iterator is released.
          */
-        bool is_valid() const
+        inline bool is_valid() const
         {
-            return has_item;
+            return has_item();
         }
 
-        Item & item() const
+        inline Item & item() const
         {
             assert( is_valid_idx() );
-            return chunk->items()[chunk_off];
+            return *get_item_ptr();
         }
 
         /*! Access item value
@@ -349,29 +367,23 @@ struct ChunkedList
     struct BackwardIterator : ItemAccess< is_const >
     {
         BackwardIterator(
-            size_t chunk_size,
             typename memory::AtomicList< Chunk, Allocator >::MutBackwardIterator chunk,
-            unsigned chunk_off
+            Item * start_item
         )
-            : ItemAccess< is_const >( chunk_size, chunk, chunk_off )
+            : ItemAccess< is_const >( chunk, start_item )
         {
         }
 
-        bool operator!=(BackwardIterator< is_const > const& other)
+        inline bool operator!=(BackwardIterator< is_const > const& other) const
         {
-            if( !this->is_valid_idx() && !other.is_valid_idx() )
-                return false;
-                
-            return this->chunk != other.chunk
-                || this->chunk_off != other.chunk_off;
+            return this->get_item_ptr() != other.get_item_ptr();
         }
 
         BackwardIterator< is_const > & operator=( BackwardIterator< is_const > const & other )
         {
             this->release();
-            this->chunk_off = other.chunk_off;
+            this->cur_item = (uintptr_t) other.get_item_ptr();
             this->chunk = other.chunk;
-            this->chunk_size = other.chunk_size;
             this->try_acquire();
             return *this;
         }
@@ -380,12 +392,15 @@ struct ChunkedList
         {
             this->release();
 
-            if( this->chunk_off > 0 )
-                -- this->chunk_off;
+            if( this->get_item_ptr() > this->chunk->first_item )
+                this->cur_item = (uintptr_t) (this->get_item_ptr() - 1);
             else
             {
                 ++ this->chunk;
-                this->chunk_off = this->chunk_size - 1;
+                if( this->chunk )
+                    this->cur_item = (uintptr_t) this->chunk->last_item.load();
+                else
+                    this->cur_item = 0;
             }
 
             this->acquire_next_item();
@@ -399,38 +414,16 @@ struct ChunkedList
 private:
     memory::AtomicList< Chunk, Allocator > chunks;
 
-    size_t chunk_size;
-
 public:
-    /*
-     * @param est_chunk_size gives an estimated number of elements
-     *        for each chunk, will be adjusted to make chunks aligned
-     */
-    ChunkedList( size_t est_chunk_size = 32 )
-        : ChunkedList(
-            Allocator(),
-            est_chunk_size
-        )
-    {}
-
-    ChunkedList(
-        Allocator && alloc,
-        size_t est_chunk_size = 32
-    )
-        : chunks(
-            std::move(alloc),
-            est_chunk_size * sizeof(Item)
-        )
+    ChunkedList( Allocator && alloc )
+        : chunks( std::move(alloc), T_chunk_size * sizeof(Item) + sizeof(Chunk) )
     {
-        size_t items_capacity = (chunks.get_chunk_capacity() - sizeof(Chunk));
-        this->chunk_size = items_capacity / sizeof(Item);
-        assert( chunk_size < std::numeric_limits< chunk_offset_t >::max() );
+        chunks.allocate_item();
     }
 
     ChunkedList( ChunkedList && other ) = default;
-
     ChunkedList( Allocator && alloc, ChunkedList const & other )
-        : ChunkedList( std::move(alloc), other.chunk_size )
+        : ChunkedList( std::move(alloc) )
     {
         spdlog::error("copy construct ChunkedList!!");
     }
@@ -440,8 +433,8 @@ public:
      */
     void release_chunk( typename memory::AtomicList< Chunk, Allocator >::MutBackwardIterator chunk )
     {
-        if( chunk->item_count.fetch_sub(1) == 0 )
-            chunks.erase( chunk );     
+        if( chunk->freed_items.fetch_add(1) == T_chunk_size - 1u )
+            chunks.erase( chunk );
     }
 
     MutBackwardIterator push( T const& item )
@@ -453,25 +446,30 @@ public:
             auto chunk = chunks.rbegin();
             if( chunk != chunks.rend() )
             {
-                if( chunk->item_count.fetch_add(1) < chunk_size )
-		{
-                	unsigned chunk_off = chunk->next_idx.fetch_add(1);
-		
-                	if( chunk_off < chunk_size )
-                	{
- 
-                    chunk->items()[ chunk_off ] = item;
-                    chunk->last_idx ++;
-                    return MutBackwardIterator( chunk_size, chunk, chunk_off );
-                	}
-		}
-		
-		release_chunk(chunk);
+                Item * chunk_begin = chunk->first_item;
+                Item * chunk_end = chunk_begin + T_chunk_size;
+                Item * next_item = chunk->next_item.fetch_add(1);
+
+                if( (uintptr_t)next_item < (uintptr_t)chunk_end )
+                {
+                    *next_item = item;
+                    chunk->last_item ++;
+                    if( (uintptr_t)next_item == (uintptr_t)(chunk_end - 1u))
+                    {
+                      // the thread who took the last item of this chunk must allocate
+                      // the next batch of items
+                      chunks.allocate_item();
+                    }
+                    return MutBackwardIterator( chunk, next_item );
+                }
+                else
+                    chunk->next_item.fetch_sub(1);
+            }
+            else
+            {
+                throw std::runtime_error("chunk_list: invalid state, there should always be at least one chunk available.");
             }
 
-            auto prev_chunk = chunks.allocate_item();
-	    if( prev_chunk != chunks.rend() )
-	            release_chunk( prev_chunk );
         }
     }
 
@@ -479,19 +477,17 @@ public:
     {
         if( pos.is_valid_idx() )
         {
-               
             /* first, set iter_offset, so that any iterator
              * will skip this element from now on
              */
 
             // first elements just goes back one step to reach last element of previous chunk
-            if( pos.chunk_off == 0 )
-                pos.chunk->items()[ pos.chunk_off ].iter_offset = 1;
+            if( pos.get_item_ptr() == pos.chunk->first_item )
+                pos.item().iter_offset = 1;
 
             // if we have a predecessor in this chunk, reuse their offset
             else
-                pos.chunk->items()[ pos.chunk_off ].iter_offset =
-                    pos.chunk->items()[ pos.chunk_off - 1 ].iter_offset + 1;
+                pos.item().iter_offset = (pos.get_item_ptr() - 1)->iter_offset + 1;
 
             /* decrement refcount once so the item will be deconstructed
              * eventually, when all iterators drop their references
@@ -502,7 +498,6 @@ public:
         }
         else
             throw std::runtime_error("remove invalid position");
-
     }
 
     void erase( T item )
@@ -516,20 +511,16 @@ public:
     {
         auto c = chunks.rbegin();
         return MutBackwardIterator(
-            chunk_size,
             c,
-            ( c != chunks.rend() ) ?
-                c->last_idx.load()-1
-                : std::numeric_limits< chunk_offset_t >::max()
+            ( c != chunks.rend() ) ? c->last_item.load() : nullptr
         );
     }
 
     MutBackwardIterator rend() const
     {
         return MutBackwardIterator(
-            chunk_size,
             chunks.rend(),
-            std::numeric_limits< chunk_offset_t >::max()
+            nullptr
         );
     }
 
@@ -537,20 +528,16 @@ public:
     {
         auto c = chunks.rbegin();
         return ConstBackwardIterator(
-            chunk_size,
             c,
-            ( c != chunks.rend() ) ?
-                c->last_idx.load()-1
-                : std::numeric_limits< chunk_offset_t >::max()
+            ( c != chunks.rend() ) ? c->last_item.load() : nullptr
         );
     }
 
     ConstBackwardIterator crend() const
     {
         return ConstBackwardIterator(
-            chunk_size,
             chunks.rend(),
-            std::numeric_limits< chunk_offset_t >::max()
+            nullptr
         );
     }
 };

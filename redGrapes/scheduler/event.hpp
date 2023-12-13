@@ -98,7 +98,7 @@ struct Event
     WakerId waker_id;
 
     //! the set of subsequent events
-    ChunkedList< EventPtr > followers;
+    ChunkedList< EventPtr, REDGRAPES_EVENT_FOLLOWER_LIST_CHUNKSIZE > followers;
 
     Event();
     Event(Event &);
