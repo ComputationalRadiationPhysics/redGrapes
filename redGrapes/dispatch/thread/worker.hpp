@@ -44,13 +44,6 @@ struct Worker
     //private:
     WorkerId id;
 
-    /*!
-     * if true, the thread shall start
-     * executing the jobs in its queue
-     * and request rescheduling if empty
-     */
-    std::atomic_bool m_start{ false };
-
     /*! if true, the thread shall stop
      * instead of waiting when it is out of jobs
      */
@@ -78,7 +71,6 @@ public:
     inline scheduler::WakerId get_waker_id() { return id + 1; }
     inline bool wake() { return cv.notify(); }
 
-    void start();
     virtual void stop();
 
     /* adds a new task to the emplacement queue
@@ -133,7 +125,7 @@ struct WorkerThread
     /* function the thread will execute
      */
     void run();
-    
+
     void cpubind();
     void membind();
 };

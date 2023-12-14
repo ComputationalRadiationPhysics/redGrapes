@@ -32,7 +32,6 @@ WorkerThread::~WorkerThread()
 void WorkerThread::start()
 {
     thread = std::thread([this]{ this->run(); });
-    this->Worker::start();
 }
 
 Worker::Worker( memory::ChunkedBumpAlloc<memory::HwlocAlloc> & alloc, HwlocContext & hwloc_ctx, hwloc_obj_t const & obj, WorkerId worker_id )
@@ -44,12 +43,6 @@ Worker::Worker( memory::ChunkedBumpAlloc<memory::HwlocAlloc> & alloc, HwlocConte
 
 Worker::~Worker()
 {
-}
-
-void Worker::start()
-{
-    m_start.store(true, std::memory_order_release);
-    wake();
 }
 
 void Worker::stop()
@@ -82,12 +75,6 @@ void WorkerThread::run()
         throw std::runtime_error("idle in worker thread!");
     };
                 */
-
-    /* wait for start-flag to be triggerd in order
-     * to avoid premature access to `shared_from_this`
-     */
-    while( ! m_start.load(std::memory_order_consume) )
-        cv.wait();
 
     /* initialize thread-local variables
      */
