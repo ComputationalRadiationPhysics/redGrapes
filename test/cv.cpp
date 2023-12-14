@@ -2,12 +2,13 @@
 #include <catch2/catch_test_macros.hpp>
 #include <thread>
 #include <redGrapes/sync/cv.hpp>
+#include <atomic>
 
 TEST_CASE("CV")
 {
     for(int i=0; i< 5000; ++i)
     {
-        volatile bool finished = false;
+        std::atomic<bool> finished = {false};
         volatile bool start = false;
 
         redGrapes::CondVar cv;
