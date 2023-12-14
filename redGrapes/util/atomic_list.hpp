@@ -51,7 +51,8 @@ struct AtomicList
         uintptr_t item_data_ptr;
 
         ItemControlBlock( memory::Block blk )
-            : item_data_ptr( blk.ptr )
+            : deleted( false )
+            , item_data_ptr( blk.ptr )
         {
             /* put Item at front and initialize it
              * with the remaining memory region
