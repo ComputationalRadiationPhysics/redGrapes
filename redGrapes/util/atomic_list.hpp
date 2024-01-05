@@ -8,6 +8,7 @@
 #pragma once
 
 #include <redGrapes/memory/block.hpp>
+#include <redGrapes/util/trace.hpp>
 
 #include <fmt/format.h>
 #include <hwloc.h>

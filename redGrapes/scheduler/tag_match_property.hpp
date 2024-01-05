@@ -1,6 +1,8 @@
 
 #pragma once
 
+#include <fmt/format.h>
+
 #include <bitset>
 #include <memory>
 #include <optional>

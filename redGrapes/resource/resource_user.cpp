@@ -3,6 +3,7 @@
 #include <redGrapes/resource/resource.hpp>
 #include <redGrapes/resource/resource_user.hpp>
 #include <redGrapes/task/task.hpp>
+#include <redGrapes/util/trace.hpp>
 
 namespace redGrapes
 {

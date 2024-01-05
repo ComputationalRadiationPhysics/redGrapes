@@ -11,6 +11,7 @@
 #include <redGrapes/memory/hwloc_alloc.hpp>
 #include <redGrapes/redGrapes.hpp>
 #include <redGrapes/scheduler/scheduler.hpp>
+#include <redGrapes/util/trace.hpp>
 
 #include <hwloc.h>
 

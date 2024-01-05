@@ -13,7 +13,6 @@
 #include <redGrapes/task/property/resource.hpp>
 #include <redGrapes/task/property/trait.hpp>
 #include <redGrapes/task/task_base.hpp>
-#include <redGrapes/util/trace.hpp>
 
 #include <type_traits>
 

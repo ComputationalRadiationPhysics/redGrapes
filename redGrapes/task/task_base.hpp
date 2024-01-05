@@ -8,7 +8,6 @@
 #pragma once
 
 #include <redGrapes/scheduler/event.hpp>
-#include <redGrapes/util/trace.hpp>
 
 #include <boost/context/continuation.hpp>
 

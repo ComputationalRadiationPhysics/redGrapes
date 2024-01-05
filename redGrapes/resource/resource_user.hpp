@@ -14,7 +14,6 @@
 #include <redGrapes/memory/allocator.hpp>
 #include <redGrapes/resource/resource.hpp>
 #include <redGrapes/util/chunked_list.hpp>
-#include <redGrapes/util/trace.hpp>
 
 #include <fmt/format.h>
 

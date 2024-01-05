@@ -10,6 +10,7 @@
 #include <redGrapes/memory/chunked_bump_alloc.hpp>
 #include <redGrapes/memory/hwloc_alloc.hpp>
 #include <redGrapes/redGrapes.hpp>
+#include <redGrapes/util/trace.hpp>
 
 // #include <redGrapes_config.hpp>
 
