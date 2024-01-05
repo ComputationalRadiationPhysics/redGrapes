@@ -17,6 +17,9 @@
 
 namespace redGrapes
 {
+    void yield(scheduler::EventPtr event);
+    std::optional<scheduler::EventPtr> create_event();
+
     namespace dispatch
     {
         namespace mpi
