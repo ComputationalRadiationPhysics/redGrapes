@@ -7,48 +7,48 @@
 
 #pragma once
 
-#include <atomic>
-#include <vector>
-#include <mutex>
-
-#include <redGrapes/memory/allocator.hpp>
-#include <redGrapes/task/task.hpp>
-#include <redGrapes/task/queue.hpp>
 #include <redGrapes/dispatch/thread/cpuset.hpp>
+#include <redGrapes/memory/allocator.hpp>
+#include <redGrapes/task/queue.hpp>
+#include <redGrapes/task/task.hpp>
+
+#include <atomic>
+#include <mutex>
+#include <vector>
 
 namespace redGrapes
 {
 
-/*! TaskSpace handles sub-taskspaces of child tasks
- */
-struct TaskSpace : std::enable_shared_from_this<TaskSpace>
-{
-    std::atomic< unsigned long > task_count;
+    /*! TaskSpace handles sub-taskspaces of child tasks
+     */
+    struct TaskSpace : std::enable_shared_from_this<TaskSpace>
+    {
+        std::atomic<unsigned long> task_count;
 
-    unsigned depth;
-    Task * parent;
+        unsigned depth;
+        Task* parent;
 
-    std::shared_mutex active_child_spaces_mutex;
-    std::vector< std::shared_ptr< TaskSpace > > active_child_spaces;
+        std::shared_mutex active_child_spaces_mutex;
+        std::vector<std::shared_ptr<TaskSpace>> active_child_spaces;
 
-    virtual ~TaskSpace();
-    
-    // top space
-    TaskSpace();
+        virtual ~TaskSpace();
 
-    // sub space
-    TaskSpace( Task * parent );
+        // top space
+        TaskSpace();
 
-    virtual bool is_serial( Task& a, Task& b );
-    virtual bool is_superset( Task& a, Task& b );
+        // sub space
+        TaskSpace(Task* parent);
 
-    // add a new task to the task-space
-    void submit( Task * task );
+        virtual bool is_serial(Task& a, Task& b);
+        virtual bool is_superset(Task& a, Task& b);
 
-    // remove task from task-space
-    void free_task( Task * task );
+        // add a new task to the task-space
+        void submit(Task* task);
 
-    bool empty() const;
-};
+        // remove task from task-space
+        void free_task(Task* task);
+
+        bool empty() const;
+    };
 
 } // namespace redGrapes

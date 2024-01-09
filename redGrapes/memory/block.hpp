@@ -18,39 +18,35 @@
 
 namespace redGrapes
 {
-namespace memory
-{
-
-struct Block
-{
-    uintptr_t ptr;
-    std::size_t len;
-
-    inline operator void* () const
+    namespace memory
     {
-        return reinterpret_cast<void*>(ptr);
-    }
 
-    inline bool operator==(Block const & other) const
-    {
-        return ptr == other.ptr && len == other.len;
-    }
+        struct Block
+        {
+            uintptr_t ptr;
+            std::size_t len;
 
-    inline operator bool() const
-    {
-        return (bool)ptr;
-    }
+            inline operator void*() const
+            {
+                return reinterpret_cast<void*>(ptr);
+            }
 
-    inline static Block null()
-    {
-        return Block {
-          .ptr = 0,
-          .len = 0
+            inline bool operator==(Block const& other) const
+            {
+                return ptr == other.ptr && len == other.len;
+            }
+
+            inline operator bool() const
+            {
+                return (bool) ptr;
+            }
+
+            static inline Block null()
+            {
+                return Block{.ptr = 0, .len = 0};
+            }
         };
-    }
-};
 
-} // memory
+    } // namespace memory
 
-} // redGrapes
-
+} // namespace redGrapes

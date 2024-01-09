@@ -1,24 +1,30 @@
-#include <catch2/catch_test_macros.hpp>
-
-#include <redGrapes/resource/resource.hpp>
-#include <redGrapes/resource/ioresource.hpp>
 #include <redGrapes/redGrapes.hpp>
+#include <redGrapes/resource/ioresource.hpp>
+#include <redGrapes/resource/resource.hpp>
+
+#include <catch2/catch_test_macros.hpp>
 
 struct Access
 {
     static bool is_serial(Access a, Access b)
-    { return true; }
+    {
+        return true;
+    }
 
     bool is_synchronizing() const
     {
         return true;
     }
-    
-    bool is_superset_of(Access a) const
-    { return true; }
 
-    bool operator==(Access const & other) const
-    { return false; }
+    bool is_superset_of(Access a) const
+    {
+        return true;
+    }
+
+    bool operator==(Access const& other) const
+    {
+        return false;
+    }
 };
 
 template<>
@@ -39,19 +45,19 @@ struct fmt::formatter<Access>
 TEST_CASE("Resource ID")
 {
     redGrapes::init(1);
-    redGrapes::Resource< Access > a, b;
+    redGrapes::Resource<Access> a, b;
 
     // same resource
-    REQUIRE( redGrapes::ResourceAccess::is_serial( a.make_access(Access{}), a.make_access(Access{}) ) == true );
-    REQUIRE( redGrapes::ResourceAccess::is_serial( b.make_access(Access{}), b.make_access(Access{}) ) == true );
+    REQUIRE(redGrapes::ResourceAccess::is_serial(a.make_access(Access{}), a.make_access(Access{})) == true);
+    REQUIRE(redGrapes::ResourceAccess::is_serial(b.make_access(Access{}), b.make_access(Access{})) == true);
 
     // same resource, but copied
-    redGrapes::Resource< Access > a2(a);
-    REQUIRE( redGrapes::ResourceAccess::is_serial( a.make_access(Access{}), a2.make_access(Access{}) ) == true );
+    redGrapes::Resource<Access> a2(a);
+    REQUIRE(redGrapes::ResourceAccess::is_serial(a.make_access(Access{}), a2.make_access(Access{})) == true);
 
     // different resource
-    REQUIRE( redGrapes::ResourceAccess::is_serial( a.make_access(Access{}), b.make_access(Access{}) ) == false );
-    REQUIRE( redGrapes::ResourceAccess::is_serial( b.make_access(Access{}), a.make_access(Access{}) ) == false );
+    REQUIRE(redGrapes::ResourceAccess::is_serial(a.make_access(Access{}), b.make_access(Access{})) == false);
+    REQUIRE(redGrapes::ResourceAccess::is_serial(b.make_access(Access{}), a.make_access(Access{})) == false);
     redGrapes::finalize();
 }
 
@@ -60,26 +66,25 @@ TEST_CASE("IOResource")
     redGrapes::init(1);
     redGrapes::IOResource<int> a, b;
 
-    REQUIRE( redGrapes::ResourceAccess::is_serial(a.read(), a.read()) == false );
-    REQUIRE( redGrapes::ResourceAccess::is_serial(a.read(), a.write()) == true );
-    REQUIRE( redGrapes::ResourceAccess::is_serial(a.write(), a.read()) == true );
-    REQUIRE( redGrapes::ResourceAccess::is_serial(a.write(), a.write()) == true );
+    REQUIRE(redGrapes::ResourceAccess::is_serial(a.read(), a.read()) == false);
+    REQUIRE(redGrapes::ResourceAccess::is_serial(a.read(), a.write()) == true);
+    REQUIRE(redGrapes::ResourceAccess::is_serial(a.write(), a.read()) == true);
+    REQUIRE(redGrapes::ResourceAccess::is_serial(a.write(), a.write()) == true);
 
-    REQUIRE( redGrapes::ResourceAccess::is_serial(b.read(), b.read()) == false );
-    REQUIRE( redGrapes::ResourceAccess::is_serial(b.read(), b.write()) == true );
-    REQUIRE( redGrapes::ResourceAccess::is_serial(b.write(), b.read()) == true );
-    REQUIRE( redGrapes::ResourceAccess::is_serial(b.write(), b.write()) == true );
+    REQUIRE(redGrapes::ResourceAccess::is_serial(b.read(), b.read()) == false);
+    REQUIRE(redGrapes::ResourceAccess::is_serial(b.read(), b.write()) == true);
+    REQUIRE(redGrapes::ResourceAccess::is_serial(b.write(), b.read()) == true);
+    REQUIRE(redGrapes::ResourceAccess::is_serial(b.write(), b.write()) == true);
 
-    REQUIRE( redGrapes::ResourceAccess::is_serial(a.read(), b.read()) == false );
-    REQUIRE( redGrapes::ResourceAccess::is_serial(a.read(), b.write()) == false );
-    REQUIRE( redGrapes::ResourceAccess::is_serial(a.write(), b.read()) == false );
-    REQUIRE( redGrapes::ResourceAccess::is_serial(a.write(), b.write()) == false );
+    REQUIRE(redGrapes::ResourceAccess::is_serial(a.read(), b.read()) == false);
+    REQUIRE(redGrapes::ResourceAccess::is_serial(a.read(), b.write()) == false);
+    REQUIRE(redGrapes::ResourceAccess::is_serial(a.write(), b.read()) == false);
+    REQUIRE(redGrapes::ResourceAccess::is_serial(a.write(), b.write()) == false);
 
-    REQUIRE( redGrapes::ResourceAccess::is_serial(b.read(), a.read()) == false );
-    REQUIRE( redGrapes::ResourceAccess::is_serial(b.read(), a.write()) == false );
-    REQUIRE( redGrapes::ResourceAccess::is_serial(b.write(), a.read()) == false );
-    REQUIRE( redGrapes::ResourceAccess::is_serial(b.write(), a.write()) == false );
+    REQUIRE(redGrapes::ResourceAccess::is_serial(b.read(), a.read()) == false);
+    REQUIRE(redGrapes::ResourceAccess::is_serial(b.read(), a.write()) == false);
+    REQUIRE(redGrapes::ResourceAccess::is_serial(b.write(), a.read()) == false);
+    REQUIRE(redGrapes::ResourceAccess::is_serial(b.write(), a.write()) == false);
 
     redGrapes::finalize();
 }
-

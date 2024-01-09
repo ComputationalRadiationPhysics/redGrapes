@@ -7,70 +7,70 @@
 
 #pragma once
 
-#include <vector>
 #include <mutex>
+#include <vector>
 
 namespace redGrapes
 {
-namespace dispatch
-{
-namespace cupla
-{
-
-//! Manages the recycling of cuda events
-struct EventPool
-{
-public:
-    EventPool(EventPool const &) = delete;
-    void operator=(EventPool const &) = delete;
-
-    EventPool() {}
-
-    static EventPool & get()
+    namespace dispatch
     {
-        static EventPool singleton;
-        return singleton;
-    }
-
-    ~EventPool()
-    {
-        std::lock_guard< std::mutex > lock( mutex );
-        for( auto e : unused_cupla_events )
-            cuplaEventDestroy( e );
-    }
-
-    cuplaEvent_t alloc()
-    {
-        std::lock_guard< std::mutex > lock( mutex );
-
-        cuplaEvent_t e;
-
-        if( unused_cupla_events.empty() )
-            cuplaEventCreate( &e );
-        else
+        namespace cupla
         {
-            e = unused_cupla_events.back();
-            unused_cupla_events.pop_back();
-        }
 
-        return e;
-    }
+            //! Manages the recycling of cuda events
+            struct EventPool
+            {
+            public:
+                EventPool(EventPool const&) = delete;
+                void operator=(EventPool const&) = delete;
 
-    void free( cuplaEvent_t event )
-    {
-        std::lock_guard< std::mutex > lock( mutex );
-        unused_cupla_events.push_back( event );
-    }
+                EventPool()
+                {
+                }
 
-private:
-    std::mutex mutex;
-    std::vector< cuplaEvent_t > unused_cupla_events;
+                static EventPool& get()
+                {
+                    static EventPool singleton;
+                    return singleton;
+                }
 
-};
+                ~EventPool()
+                {
+                    std::lock_guard<std::mutex> lock(mutex);
+                    for(auto e : unused_cupla_events)
+                        cuplaEventDestroy(e);
+                }
 
-} // namespace cupla
+                cuplaEvent_t alloc()
+                {
+                    std::lock_guard<std::mutex> lock(mutex);
 
-} // namespace dispatch
-    
+                    cuplaEvent_t e;
+
+                    if(unused_cupla_events.empty())
+                        cuplaEventCreate(&e);
+                    else
+                    {
+                        e = unused_cupla_events.back();
+                        unused_cupla_events.pop_back();
+                    }
+
+                    return e;
+                }
+
+                void free(cuplaEvent_t event)
+                {
+                    std::lock_guard<std::mutex> lock(mutex);
+                    unused_cupla_events.push_back(event);
+                }
+
+            private:
+                std::mutex mutex;
+                std::vector<cuplaEvent_t> unused_cupla_events;
+            };
+
+        } // namespace cupla
+
+    } // namespace dispatch
+
 } // namespace redGrapes
-

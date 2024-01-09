@@ -1,5 +1,6 @@
-#include <iostream>
 #include <cblas.h>
+
+#include <iostream>
 // work-around, see
 //   https://github.com/xianyi/OpenBLAS/issues/1992#issuecomment-459474791
 //   https://github.com/xianyi/OpenBLAS/pull/1998
@@ -8,9 +9,10 @@
 #define lapack_complex_double std::complex<double>
 // end work-around
 
-#include <lapacke.h>
 #include <redGrapes/task/property/inherit.hpp>
 #include <redGrapes/task/property/label.hpp>
+
+#include <lapacke.h>
 
 #define REDGRAPES_TASK_PROPERTIES redGrapes::LabelProperty
 
@@ -90,8 +92,21 @@ int main(int argc, char* argv[])
                     [blksz](auto a, auto b, auto c)
                     {
                         spdlog::info("dgemm");
-                        cblas_dgemm(CblasColMajor, CblasNoTrans, CblasTrans,
-                                    blksz, blksz, blksz, -1.0, *a, blksz, *b, blksz, 1.0, *c, blksz);
+                        cblas_dgemm(
+                            CblasColMajor,
+                            CblasNoTrans,
+                            CblasTrans,
+                            blksz,
+                            blksz,
+                            blksz,
+                            -1.0,
+                            *a,
+                            blksz,
+                            *b,
+                            blksz,
+                            1.0,
+                            *c,
+                            blksz);
                     },
                     A[k * nblks + i].read(),
                     A[k * nblks + j].read(),
@@ -106,8 +121,18 @@ int main(int argc, char* argv[])
                 [blksz, nblks](auto a, auto c)
                 {
                     spdlog::info("dsyrk");
-                    cblas_dsyrk(CblasColMajor, CblasLower, CblasNoTrans,
-                                blksz, blksz, -1.0, *a, blksz, 1.0, *c, blksz);
+                    cblas_dsyrk(
+                        CblasColMajor,
+                        CblasLower,
+                        CblasNoTrans,
+                        blksz,
+                        blksz,
+                        -1.0,
+                        *a,
+                        blksz,
+                        1.0,
+                        *c,
+                        blksz);
                 },
                 A[i * nblks + j].read(),
                 A[j * nblks + j].write());
@@ -129,9 +154,19 @@ int main(int argc, char* argv[])
                 [blksz, nblks](auto a, auto b)
                 {
                     spdlog::info("dtrsm");
-                    cblas_dtrsm(CblasColMajor,
-                                CblasRight, CblasLower, CblasTrans, CblasNonUnit,
-                                blksz, blksz, 1.0, *a, blksz, *b, blksz);
+                    cblas_dtrsm(
+                        CblasColMajor,
+                        CblasRight,
+                        CblasLower,
+                        CblasTrans,
+                        CblasNonUnit,
+                        blksz,
+                        blksz,
+                        1.0,
+                        *a,
+                        blksz,
+                        *b,
+                        blksz);
                 },
                 A[j * nblks + j].read(),
                 A[j * nblks + i].write());

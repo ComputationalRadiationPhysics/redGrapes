@@ -11,83 +11,77 @@
 
 #pragma once
 
-#include <list>
-#include <fmt/format.h>
-
 #include <redGrapes/memory/allocator.hpp>
+#include <redGrapes/resource/resource.hpp>
 #include <redGrapes/util/chunked_list.hpp>
 #include <redGrapes/util/trace.hpp>
 
-#include <redGrapes/resource/resource.hpp>
+#include <fmt/format.h>
+
+#include <list>
 
 namespace redGrapes
 {
 
-unsigned scope_depth();
+    unsigned scope_depth();
 
-struct Task;
-struct ResourceBase;
-struct ResourceAccess;
+    struct Task;
+    struct ResourceBase;
+    struct ResourceAccess;
 
-struct ResourceUsageEntry
-{
-    std::shared_ptr< ResourceBase > resource;
-    typename ChunkedList< Task*, REDGRAPES_RUL_CHUNKSIZE >::MutBackwardIterator task_entry;
+    struct ResourceUsageEntry
+    {
+        std::shared_ptr<ResourceBase> resource;
+        typename ChunkedList<Task*, REDGRAPES_RUL_CHUNKSIZE>::MutBackwardIterator task_entry;
 
-    bool operator==( ResourceUsageEntry const & other ) const;
-};
+        bool operator==(ResourceUsageEntry const& other) const;
+    };
 
-class ResourceUser
-{
-  public:    
-    ResourceUser();
-    ResourceUser( ResourceUser const& other );
-    ResourceUser( std::initializer_list< ResourceAccess > list );
- 
-    void add_resource_access( ResourceAccess ra );
-    void rm_resource_access( ResourceAccess ra );
-    void build_unique_resource_list();
-    bool has_sync_access( std::shared_ptr< ResourceBase > res );
-    bool is_superset_of( ResourceUser const & a ) const;
-    static bool is_superset( ResourceUser const & a, ResourceUser const & b );   
-    static bool is_serial( ResourceUser const & a, ResourceUser const & b );
+    class ResourceUser
+    {
+    public:
+        ResourceUser();
+        ResourceUser(ResourceUser const& other);
+        ResourceUser(std::initializer_list<ResourceAccess> list);
 
-    uint8_t scope_level;
+        void add_resource_access(ResourceAccess ra);
+        void rm_resource_access(ResourceAccess ra);
+        void build_unique_resource_list();
+        bool has_sync_access(std::shared_ptr<ResourceBase> res);
+        bool is_superset_of(ResourceUser const& a) const;
+        static bool is_superset(ResourceUser const& a, ResourceUser const& b);
+        static bool is_serial(ResourceUser const& a, ResourceUser const& b);
 
-    ChunkedList<ResourceAccess,     8> access_list;
-    ChunkedList<ResourceUsageEntry, 8> unique_resources;
-}; // class ResourceUser
+        uint8_t scope_level;
+
+        ChunkedList<ResourceAccess, 8> access_list;
+        ChunkedList<ResourceUsageEntry, 8> unique_resources;
+    }; // class ResourceUser
 
 } // namespace redGrapes
 
-template <>
-struct fmt::formatter<
-    redGrapes::ResourceUser
->
+template<>
+struct fmt::formatter<redGrapes::ResourceUser>
 {
-    constexpr auto parse( format_parse_context& ctx )
+    constexpr auto parse(format_parse_context& ctx)
     {
         return ctx.begin();
     }
 
-    template < typename FormatContext >
-    auto format(
-        redGrapes::ResourceUser const & r,
-        FormatContext & ctx
-    )
+    template<typename FormatContext>
+    auto format(redGrapes::ResourceUser const& r, FormatContext& ctx)
     {
         auto out = ctx.out();
-        out = fmt::format_to( out, "[" );
+        out = fmt::format_to(out, "[");
 
-        for( auto it = r.access_list.rbegin(); it != r.access_list.rend(); )
+        for(auto it = r.access_list.rbegin(); it != r.access_list.rend();)
         {
-            out = fmt::format_to( out, "{}", *it );
-            if( ++it != r.access_list.rend() )
-                out = fmt::format_to( out, "," );
+            out = fmt::format_to(out, "{}", *it);
+            if(++it != r.access_list.rend())
+                out = fmt::format_to(out, ",");
         }
 
-        out = fmt::format_to( out, "]" );
+        out = fmt::format_to(out, "]");
         return out;
     }
 };
-

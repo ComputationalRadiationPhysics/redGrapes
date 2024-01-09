@@ -5,28 +5,24 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-#include <iostream>
-
 #include <redGrapes/redGrapes.hpp>
 #include <redGrapes/task/property/id.hpp>
 #include <redGrapes/task/property/resource.hpp>
 
-int square (int x)
+#include <iostream>
+
+int square(int x)
 {
-    return x*x;
+    return x * x;
 }
 
 int main()
 {
     spdlog::set_level(spdlog::level::trace);
     redGrapes::init(1);
-    
-    fmt::print(
-        "square(2) = {}\n",
-        redGrapes::emplace_task(square, 2).get()
-    );
 
-    redGrapes::finalize();    
+    fmt::print("square(2) = {}\n", redGrapes::emplace_task(square, 2).get());
+
+    redGrapes::finalize();
     return 0;
 }
-

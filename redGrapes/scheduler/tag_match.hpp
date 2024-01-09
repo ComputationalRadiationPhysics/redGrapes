@@ -8,18 +8,19 @@
 #pragma once
 
 
-#include <vector>
-#include <spdlog/spdlog.h>
-
-#include <redGrapes/task/task.hpp>
-#include <redGrapes/scheduler/tag_match_property.hpp>
 #include <redGrapes/memory/chunked_bump_alloc.hpp>
 #include <redGrapes/scheduler/scheduler.hpp>
+#include <redGrapes/scheduler/tag_match_property.hpp>
+#include <redGrapes/task/task.hpp>
+
+#include <spdlog/spdlog.h>
+
+#include <vector>
 
 namespace redGrapes
 {
-namespace scheduler
-{
+    namespace scheduler
+    {
 
         template<std::size_t T_tag_count = 64>
         struct TagMatch : IScheduler
@@ -27,7 +28,7 @@ namespace scheduler
             struct SubScheduler
             {
                 std::bitset<T_tag_count> supported_tags;
-                std::shared_ptr< IScheduler > s;
+                std::shared_ptr<IScheduler> s;
             };
 
             std::vector<SubScheduler> sub_schedulers;
@@ -45,24 +46,24 @@ namespace scheduler
                 this->add_scheduler(supported_tags, s);
             }
 
-            Task * steal_task( dispatch::thread::Worker & worker )
+            Task* steal_task(dispatch::thread::Worker& worker)
             {
-                for( auto& s : sub_schedulers )
-		  if( Task * t = s.s->steal_task( worker ) )
-		    return t;
+                for(auto& s : sub_schedulers)
+                    if(Task* t = s.s->steal_task(worker))
+                        return t;
 
-		return nullptr;                
+                return nullptr;
             }
 
-            void emplace_task( Task & task )
+            void emplace_task(Task& task)
             {
                 if(auto sub_scheduler = get_matching_scheduler(task.required_scheduler_tags))
                     return (*sub_scheduler)->emplace_task(task);
                 else
-                    throw std::runtime_error("no scheduler found for task");                
+                    throw std::runtime_error("no scheduler found for task");
             }
 
-            void activate_task(Task & task)
+            void activate_task(Task& task)
             {
                 if(auto sub_scheduler = get_matching_scheduler(task.required_scheduler_tags))
                     return (*sub_scheduler)->activate_task(task);
@@ -80,7 +81,7 @@ namespace scheduler
                 return std::nullopt;
             }
 
-            bool task_dependency_type(Task const & a, Task & b)
+            bool task_dependency_type(Task const& a, Task& b)
             {
                 /// fixme: b or a ?
                 if(auto sub_scheduler = get_matching_scheduler(b.required_scheduler_tags))
@@ -95,10 +96,10 @@ namespace scheduler
                     s.s->wake_all();
             }
 
-            bool wake( WakerId waker_id )
+            bool wake(WakerId waker_id)
             {
                 for(auto const& s : sub_schedulers)
-                    if( s.s->wake( waker_id ) )
+                    if(s.s->wake(waker_id))
                         return true;
 
                 return false;
@@ -107,7 +108,7 @@ namespace scheduler
 
         /*! Factory function to easily create a tag-match-scheduler object
          */
-        template< std::size_t T_tag_count = 64 >
+        template<std::size_t T_tag_count = 64>
         struct TagMatchBuilder
         {
             std::shared_ptr<TagMatch<T_tag_count>> tag_match;
@@ -134,4 +135,3 @@ namespace scheduler
     } // namespace scheduler
 
 } // namespace redGrapes
-

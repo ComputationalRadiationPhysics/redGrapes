@@ -5,37 +5,36 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-#include <optional>
-
 #include <redGrapes/scheduler/event.hpp>
 #include <redGrapes/task/property/graph.hpp>
 #include <redGrapes/task/task.hpp>
 
+#include <optional>
+
 namespace redGrapes
 {
-namespace scheduler
-{
-
-Event & EventPtr::get_event() const
+    namespace scheduler
     {
-        switch( tag )
-        {
-        case T_EVT_PRE:
-            return task->pre_event;
-        case T_EVT_POST:
-            return task->post_event;
-        case T_EVT_RES_SET:
-            return task->result_set_event;
-        case T_EVT_RES_GET:
-            return task->result_get_event;
-        case T_EVT_EXT:
-            return *external_event;
-        default:
-            throw std::runtime_error("invalid event tag");
-        }
-    }
 
-} // namespace scheduler
+        Event& EventPtr::get_event() const
+        {
+            switch(tag)
+            {
+            case T_EVT_PRE:
+                return task->pre_event;
+            case T_EVT_POST:
+                return task->post_event;
+            case T_EVT_RES_SET:
+                return task->result_set_event;
+            case T_EVT_RES_GET:
+                return task->result_get_event;
+            case T_EVT_EXT:
+                return *external_event;
+            default:
+                throw std::runtime_error("invalid event tag");
+            }
+        }
+
+    } // namespace scheduler
 
 } // namespace redGrapes
-

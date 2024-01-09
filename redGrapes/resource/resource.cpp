@@ -5,29 +5,31 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-#include <mutex>
-#include <redGrapes/resource/resource.hpp>
 #include <redGrapes/redGrapes.hpp>
+#include <redGrapes/resource/resource.hpp>
+
+#include <mutex>
 
 namespace redGrapes
 {
-struct Task;
+    struct Task;
 
-unsigned int ResourceBase::generateID()
-{
-    static std::atomic< unsigned int > id_counter;
-    return id_counter.fetch_add(1);
-}
+    unsigned int ResourceBase::generateID()
+    {
+        static std::atomic<unsigned int> id_counter;
+        return id_counter.fetch_add(1);
+    }
 
-ResourceBase::ResourceBase()
-    : id( generateID() )
-    , scope_level( scope_depth() )
-    , users( memory::Allocator( get_arena_id() ) )
-{}
+    ResourceBase::ResourceBase()
+        : id(generateID())
+        , scope_level(scope_depth())
+        , users(memory::Allocator(get_arena_id()))
+    {
+    }
 
-unsigned ResourceBase::get_arena_id() const {
-    return id % SingletonContext::get().worker_pool->size();
-}
+    unsigned ResourceBase::get_arena_id() const
+    {
+        return id % SingletonContext::get().worker_pool->size();
+    }
 
 } // namespace redGrapes
-

@@ -11,64 +11,98 @@
 
 #pragma once
 
-#include <redGrapes/task/property/resource.hpp>
-#include <redGrapes/task/property/trait.hpp>
 #include <redGrapes/resource/access/io.hpp>
 #include <redGrapes/resource/resource.hpp>
+#include <redGrapes/task/property/resource.hpp>
+#include <redGrapes/task/property/trait.hpp>
 
 namespace redGrapes
 {
-namespace ioresource
-{
+    namespace ioresource
+    {
 
-template < typename T >
-struct ReadGuard : public SharedResourceObject< T, access::IOAccess >
-{
-    operator ResourceAccess() const noexcept { return this->make_access(access::IOAccess::read); }
+        template<typename T>
+        struct ReadGuard : public SharedResourceObject<T, access::IOAccess>
+        {
+            operator ResourceAccess() const noexcept
+            {
+                return this->make_access(access::IOAccess::read);
+            }
 
-    ReadGuard read() const noexcept { return *this; }
+            ReadGuard read() const noexcept
+            {
+                return *this;
+            }
 
-    T const & operator* () const noexcept { return *this->obj; }
-    T const * operator-> () const noexcept { return this->obj.get(); }
+            T const& operator*() const noexcept
+            {
+                return *this->obj;
+            }
 
-    T const * get() const noexcept { return this->obj.get(); }
+            T const* operator->() const noexcept
+            {
+                return this->obj.get();
+            }
 
-protected:
-    ReadGuard( std::shared_ptr<T> obj ) : SharedResourceObject<T, access::IOAccess>( obj ) {}
-};
+            T const* get() const noexcept
+            {
+                return this->obj.get();
+            }
 
-template < typename T >
-struct WriteGuard : public ReadGuard< T >
-{
-    operator ResourceAccess() const noexcept { return this->make_access(access::IOAccess::write); }
+        protected:
+            ReadGuard(std::shared_ptr<T> obj) : SharedResourceObject<T, access::IOAccess>(obj)
+            {
+            }
+        };
 
-    WriteGuard write() const noexcept { return *this; }
+        template<typename T>
+        struct WriteGuard : public ReadGuard<T>
+        {
+            operator ResourceAccess() const noexcept
+            {
+                return this->make_access(access::IOAccess::write);
+            }
 
-    T & operator* () const noexcept { return *this->obj; }
-    T * operator-> () const noexcept { return this->obj.get(); }
+            WriteGuard write() const noexcept
+            {
+                return *this;
+            }
 
-    T * get() const noexcept { return this->obj.get(); }
+            T& operator*() const noexcept
+            {
+                return *this->obj;
+            }
 
-protected:
-    WriteGuard( std::shared_ptr<T> obj ) : ReadGuard<T>( obj ) {}
-};
+            T* operator->() const noexcept
+            {
+                return this->obj.get();
+            }
 
-} // namespace ioresource
+            T* get() const noexcept
+            {
+                return this->obj.get();
+            }
 
-template < typename T >
-struct IOResource : public ioresource::WriteGuard< T >
-{
-    template < typename... Args >
-    IOResource( Args&&... args )
-        : ioresource::WriteGuard< T >(
-              memory::alloc_shared< T >( std::forward<Args>(args)... )
-          )
-    {}
+        protected:
+            WriteGuard(std::shared_ptr<T> obj) : ReadGuard<T>(obj)
+            {
+            }
+        };
 
-    IOResource( std::shared_ptr<T> o )
-        : ioresource::WriteGuard<T>( o )
-    {}
+    } // namespace ioresource
 
-}; // struct IOResource
+    template<typename T>
+    struct IOResource : public ioresource::WriteGuard<T>
+    {
+        template<typename... Args>
+        IOResource(Args&&... args) : ioresource::WriteGuard<T>(memory::alloc_shared<T>(std::forward<Args>(args)...))
+        {
+        }
+
+        IOResource(std::shared_ptr<T> o) : ioresource::WriteGuard<T>(o)
+        {
+        }
+
+    }; // struct IOResource
 
 } // namespace redGrapes

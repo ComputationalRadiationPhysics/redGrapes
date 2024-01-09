@@ -11,68 +11,66 @@
 
 #pragma once
 
-#include <string>
 #include <redGrapes/memory/allocator.hpp>
+
 #include <fmt/format.h>
+
+#include <string>
 
 namespace redGrapes
 {
 
-struct LabelProperty
-{
-    using string = std::basic_string< char, std::char_traits<char>, memory::StdAllocator<char>>;
-
-    string label;
-
-    template < typename TaskBuilder >
-    struct Builder
+    struct LabelProperty
     {
-        TaskBuilder & builder;
+        using string = std::basic_string<char, std::char_traits<char>, memory::StdAllocator<char>>;
 
-        Builder( TaskBuilder & builder )
-            : builder(builder)
-        {}
+        string label;
 
-        TaskBuilder & label( string const & l )
+        template<typename TaskBuilder>
+        struct Builder
         {
-            builder.task->label = l;
-            return builder;
+            TaskBuilder& builder;
+
+            Builder(TaskBuilder& builder) : builder(builder)
+            {
+            }
+
+            TaskBuilder& label(string const& l)
+            {
+                builder.task->label = l;
+                return builder;
+            }
+        };
+
+        struct Patch
+        {
+            template<typename PatchBuilder>
+            struct Builder
+            {
+                Builder(PatchBuilder&)
+                {
+                }
+            };
+        };
+
+        void apply_patch(Patch const&)
+        {
         }
     };
 
-    struct Patch
-    {
-        template <typename PatchBuilder>
-        struct Builder
-        {
-            Builder( PatchBuilder & ) {}
-        };
-    };
-
-    void apply_patch( Patch const & ) {}
-};
-
 } // namespace redGrapes
 
-template <>
-struct fmt::formatter< redGrapes::LabelProperty >
+template<>
+struct fmt::formatter<redGrapes::LabelProperty>
 {
-    constexpr auto parse( format_parse_context& ctx )
+    constexpr auto parse(format_parse_context& ctx)
     {
         return ctx.begin();
     }
 
-    template < typename FormatContext >
-    auto format(
-        redGrapes::LabelProperty const & label_prop,
-        FormatContext & ctx
-    )
+    template<typename FormatContext>
+    auto format(redGrapes::LabelProperty const& label_prop, FormatContext& ctx)
     {
-        return format_to(
-                   ctx.out(),
-                   "\"label\" : \"{}\"",
-                   label_prop.label
-               );
+        return format_to(ctx.out(), "\"label\" : \"{}\"", label_prop.label);
     }
 };
-

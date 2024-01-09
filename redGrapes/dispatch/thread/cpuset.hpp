@@ -9,15 +9,14 @@
 
 namespace redGrapes
 {
-namespace dispatch
-{
-namespace thread
-{
+    namespace dispatch
+    {
+        namespace thread
+        {
 
-void pin_cpu( unsigned );
-void unpin_cpu();
+            void pin_cpu(unsigned);
+            void unpin_cpu();
 
-}
-}
-}
-
+        } // namespace thread
+    } // namespace dispatch
+} // namespace redGrapes

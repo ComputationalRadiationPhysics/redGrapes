@@ -23,7 +23,7 @@ namespace redGrapes
                 {
                 }
 
-                PropertiesBuilder & scheduling_tags(std::initializer_list<unsigned> tags)
+                PropertiesBuilder& scheduling_tags(std::initializer_list<unsigned> tags)
                 {
                     std::bitset<T_tag_count> tags_bitset;
                     for(auto tag : tags)
@@ -31,7 +31,7 @@ namespace redGrapes
                     return scheduling_tags(tags_bitset);
                 }
 
-                PropertiesBuilder & scheduling_tags(std::bitset<T_tag_count> tags)
+                PropertiesBuilder& scheduling_tags(std::bitset<T_tag_count> tags)
                 {
                     builder.task->required_scheduler_tags |= tags;
                     return builder;
@@ -40,17 +40,21 @@ namespace redGrapes
 
             struct Patch
             {
-                template <typename PatchBuilder>
+                template<typename PatchBuilder>
                 struct Builder
                 {
-                    Builder( PatchBuilder & ) {}
+                    Builder(PatchBuilder&)
+                    {
+                    }
                 };
             };
 
-            void apply_patch( Patch const & ) {}
+            void apply_patch(Patch const&)
+            {
+            }
         };
-    }
-}
+    } // namespace scheduler
+} // namespace redGrapes
 
 template<typename Tag, std::size_t T_tag_count>
 struct fmt::formatter<redGrapes::scheduler::SchedulingTagProperties<Tag, T_tag_count>>
@@ -84,6 +88,3 @@ struct fmt::formatter<redGrapes::scheduler::SchedulingTagProperties<Tag, T_tag_c
         return out;
     }
 };
-
-
-
