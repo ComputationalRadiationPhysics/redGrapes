@@ -28,7 +28,7 @@ namespace redGrapes
         unsigned depth;
         Task* parent;
 
-        std::shared_mutex active_child_spaces_mutex;
+        std::shared_timed_mutex active_child_spaces_mutex;
         std::vector<std::shared_ptr<TaskSpace>> active_child_spaces;
 
         virtual ~TaskSpace();

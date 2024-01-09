@@ -60,7 +60,7 @@ namespace redGrapes
         alignas(64) std::atomic<unsigned> reader_count;
         alignas(64) std::atomic<bool> write;
     #else
-        std::shared_mutex m;
+        std::shared_timed_mutex m;
     #endif
 
         SpinLock()
