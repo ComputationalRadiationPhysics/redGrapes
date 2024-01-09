@@ -77,6 +77,8 @@ int main()
         [] ( auto a ) { std::cout << a << std::endl; },
         a.read()
     );
+    
+    rg::finalize();
 
     return 0;
 }
@@ -88,6 +90,8 @@ RedGrapes is documented using in-code doxygen comments and reStructured-text fil
 
 * [Getting Started](docs/source/tutorial/index.rst)
 * [Components](docs/source/components.rst)
+* [Contributing](docs/source/contributing.rst)
+
 
 ## Comparision with Similar Projects
 
