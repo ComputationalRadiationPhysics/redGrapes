@@ -1,15 +1,19 @@
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/benchmark/catch_benchmark.hpp>
-#include <thread>
-
 #include <redGrapes/redGrapes.hpp>
 #include <redGrapes/util/chunked_list.hpp>
+
+#include <catch2/benchmark/catch_benchmark.hpp>
+#include <catch2/catch_test_macros.hpp>
+
+#include <thread>
 
 struct TestItem
 {
     int id;
 
-    TestItem(int id):id(id){}
+    TestItem(int id) : id(id)
+    {
+    }
+
     ~TestItem()
     {
         spdlog::info("destroy {}", this->id);
@@ -50,7 +54,7 @@ TEST_CASE("Chunked List")
 
         for( auto it = l.rbegin(); it != l.rend(); ++it )
             fmt::print("v = {}\n", it->id);
-            
+
         fmt::print("--\n");
         l.remove(p1);
         l.remove(p2);
@@ -109,12 +113,12 @@ TEST_CASE("ChunkedList singlethreaded")
     unsigned r2 = 48;
     unsigned r3 = 49;
     unsigned r4 = 1023;
- 
+
     l.remove(r1);
     l.remove(r2);
     l.remove(r3);
     l.remove(r4);
- 
+
     // check that backward iterator skips removed elements
     unsigned i = 4096;
     for( auto it = l.rbegin(); it != l.rend(); ++it )

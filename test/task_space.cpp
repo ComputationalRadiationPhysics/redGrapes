@@ -1,16 +1,16 @@
 
-#include <catch2/catch_test_macros.hpp>
-
 #include <redGrapes/task/task_space.hpp>
+
+#include <catch2/catch_test_macros.hpp>
 
 struct TestTask
 {
     unsigned id;
     unsigned task_id;
 
-    //using VertexPtr = std::shared_ptr<redGrapes::PrecedenceGraphVertex<TestTask>>;
-    //using WeakVertexPtr = std::weak_ptr<redGrapes::PrecedenceGraphVertex<TestTask>>;
-    
+    // using VertexPtr = std::shared_ptr<redGrapes::PrecedenceGraphVertex<TestTask>>;
+    // using WeakVertexPtr = std::weak_ptr<redGrapes::PrecedenceGraphVertex<TestTask>>;
+
     /*
      * Create the following graph:
      *     0     2
@@ -19,15 +19,11 @@ struct TestTask
      *   |  / \ /
      *   6  5  7
      */
-    static bool is_serial(TestTask const & a, TestTask const & b)
+    static bool is_serial(TestTask const& a, TestTask const& b)
     {
-        return (a.id == 0 && b.id == 1)
-            || (a.id == 0 && b.id == 3)
-            || (a.id == 2 && b.id == 4)
-            || (a.id == 1 && b.id == 6)
-            || (a.id == 3 && b.id == 5)
-            || (a.id == 3 && b.id == 7)
-            || (a.id == 4 && b.id == 7);
+        return (a.id == 0 && b.id == 1) || (a.id == 0 && b.id == 3) || (a.id == 2 && b.id == 4)
+               || (a.id == 1 && b.id == 6) || (a.id == 3 && b.id == 5) || (a.id == 3 && b.id == 7)
+               || (a.id == 4 && b.id == 7);
     }
 };
 
@@ -81,4 +77,3 @@ TEST_CASE("precedence graph")
     }
     */
 }
-

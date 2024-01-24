@@ -9,40 +9,43 @@
 
 namespace redGrapes
 {
-namespace dispatch
-{
-namespace cupla
-{
-
-struct CuplaTaskProperties
-{
-    std::optional< cuplaEvent_t > cupla_event;
-
-    CuplaTaskProperties() {}
-
-    template < typename PropertiesBuilder >
-    struct Builder
+    namespace dispatch
     {
-        PropertiesBuilder & builder;
-
-        Builder( PropertiesBuilder & b )
-            : builder(b)
-        {}
-    };
-
-    struct Patch
-    {
-        template <typename PatchBuilder>
-        struct Builder
+        namespace cupla
         {
-            Builder( PatchBuilder & ) {}
-        };
-    };
 
-    void apply_patch( Patch const & ) {};
-};
+            struct CuplaTaskProperties
+            {
+                std::optional<cuplaEvent_t> cupla_event;
 
-}
-}
-}
+                CuplaTaskProperties()
+                {
+                }
 
+                template<typename PropertiesBuilder>
+                struct Builder
+                {
+                    PropertiesBuilder& builder;
+
+                    Builder(PropertiesBuilder& b) : builder(b)
+                    {
+                    }
+                };
+
+                struct Patch
+                {
+                    template<typename PatchBuilder>
+                    struct Builder
+                    {
+                        Builder(PatchBuilder&)
+                        {
+                        }
+                    };
+                };
+
+                void apply_patch(Patch const&){};
+            };
+
+        } // namespace cupla
+    } // namespace dispatch
+} // namespace redGrapes

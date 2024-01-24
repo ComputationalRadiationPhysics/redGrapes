@@ -6,38 +6,31 @@
  */
 
 #include <redGrapes/redGrapes.hpp>
-#include <redGrapes/resource/ioresource.hpp>
 #include <redGrapes/resource/fieldresource.hpp>
+#include <redGrapes/resource/ioresource.hpp>
 #include <redGrapes/resource/resource_user.hpp>
 
 int main(int, char*[])
 {
     redGrapes::init(1);
-    redGrapes::FieldResource< std::vector<int> > a;
+    redGrapes::FieldResource<std::vector<int>> a;
     redGrapes::IOResource<int> b;
     redGrapes::IOResource<int> c;
 
-    redGrapes::ResourceUser user1({
-        a.read(), // complete resource
-        a.write().area( {0}, {10} ), // write only indices 0 to 10
-        b.write()
-    });
+    redGrapes::ResourceUser user1(
+        {a.read(), // complete resource
+         a.write().area({0}, {10}), // write only indices 0 to 10
+         b.write()});
 
-    redGrapes::ResourceUser user2({
-        b.read()
-    });
+    redGrapes::ResourceUser user2({b.read()});
 
-    redGrapes::ResourceUser user3({
-        b.read(),
-        c.write()
-    });
+    redGrapes::ResourceUser user3({b.read(), c.write()});
 
-    std::cout << "is_serial(user1,user1) = " << redGrapes::ResourceUser::is_serial(user1,user1) << std::endl;
-    std::cout << "is_serial(user1,user2) = " << redGrapes::ResourceUser::is_serial(user1,user2) << std::endl;
-    std::cout << "is_serial(user1,user3) = " << redGrapes::ResourceUser::is_serial(user1,user3) << std::endl;
-    std::cout << "is_serial(user2,user3) = " << redGrapes::ResourceUser::is_serial(user2,user3) << std::endl;
+    std::cout << "is_serial(user1,user1) = " << redGrapes::ResourceUser::is_serial(user1, user1) << std::endl;
+    std::cout << "is_serial(user1,user2) = " << redGrapes::ResourceUser::is_serial(user1, user2) << std::endl;
+    std::cout << "is_serial(user1,user3) = " << redGrapes::ResourceUser::is_serial(user1, user3) << std::endl;
+    std::cout << "is_serial(user2,user3) = " << redGrapes::ResourceUser::is_serial(user2, user3) << std::endl;
 
     redGrapes::finalize();
     return 0;
 }
-

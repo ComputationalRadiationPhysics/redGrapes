@@ -1,36 +1,41 @@
 
 #pragma once
 
+#include <redGrapes/sync/spinlock.hpp>
+
 #include <atomic>
 #include <condition_variable>
-#include <redGrapes/sync/spinlock.hpp>
 
 namespace redGrapes
 {
 
-struct PhantomLock
-{
-    inline void lock() {}
-    inline void unlock() {}
-};
+    struct PhantomLock
+    {
+        inline void lock()
+        {
+        }
 
-struct CondVar
-{
-    std::atomic<bool> should_wait;
-    std::condition_variable cv;
-    std::atomic_flag busy;
+        inline void unlock()
+        {
+        }
+    };
 
-    using CVMutex = std::mutex;
-    CVMutex m;
+    struct CondVar
+    {
+        std::atomic<bool> should_wait;
+        std::condition_variable cv;
+        std::atomic_flag busy;
 
-    unsigned timeout;
+        using CVMutex = std::mutex;
+        CVMutex m;
 
-    CondVar();
-    CondVar( unsigned timeout );
-        
-    void wait();
-    bool notify();
-};
+        unsigned timeout;
+
+        CondVar();
+        CondVar(unsigned timeout);
+
+        void wait();
+        bool notify();
+    };
 
 } // namespace redGrapes
-

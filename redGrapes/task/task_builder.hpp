@@ -6,138 +6,135 @@
  */
 #pragma once
 
+#include <redGrapes/memory/allocator.hpp>
 #include <redGrapes/memory/block.hpp>
+#include <redGrapes/redGrapes.hpp>
 #include <redGrapes/task/future.hpp>
 #include <redGrapes/task/task.hpp>
 #include <redGrapes/task/task_space.hpp>
-#include <redGrapes/memory/allocator.hpp>
-#include <spdlog/spdlog.h>
-#include <type_traits>
 
-#include <redGrapes/redGrapes.hpp>
+#include <spdlog/spdlog.h>
+
+#include <type_traits>
 
 namespace redGrapes
 {
 
-/* HELPERS */
+    /* HELPERS */
 
-template<typename... Args>
-static inline void pass(Args&&...)
-{
-}
-
-template <typename B>
-struct PropBuildHelper
-{
-    typename TaskProperties::Builder<B>& builder;
-
-    template<typename T>
-    inline int build(T const& x)
-    {
-        trait::BuildProperties<T>::build(builder, x);
-        return 0;
-    }
-
-    void foo()
+    template<typename... Args>
+    static inline void pass(Args&&...)
     {
     }
-};
 
-/* TASK BUILDER */
-
-template < typename Callable, typename... Args >
-struct TaskBuilder
-    : TaskProperties::Builder< TaskBuilder<Callable, Args...> >
-{
-    struct BindArgs
+    template<typename B>
+    struct PropBuildHelper
     {
-        inline auto operator() ( Callable&& f, Args&&... args )
+        typename TaskProperties::Builder<B>& builder;
+
+        template<typename T>
+        inline int build(T const& x)
         {
-            return std::move([f=std::move(f), args...]() mutable {
-                return f(std::forward<Args>(args)...);
-            });
+            trait::BuildProperties<T>::build(builder, x);
+            return 0;
+        }
+
+        void foo()
+        {
         }
     };
 
-    using Impl = typename std::result_of< BindArgs(Callable, Args...) >::type;
-    using Result = typename std::result_of< Callable(Args...)>::type;
+    /* TASK BUILDER */
 
-    std::shared_ptr< TaskSpace > space;
-    FunTask< Impl > * task;
-
-    TaskBuilder( Callable&& f, Args&&... args )
-        : TaskProperties::Builder< TaskBuilder >( *this )
-        , space( current_task_space() )
+    template<typename Callable, typename... Args>
+    struct TaskBuilder : TaskProperties::Builder<TaskBuilder<Callable, Args...>>
     {
-        // allocate
-        redGrapes::memory::Allocator alloc;
-        memory::Block blk = alloc.allocate( sizeof(FunTask<Impl>) );
-        task = (FunTask<Impl>*)blk.ptr;
+        struct BindArgs
+        {
+            inline auto operator()(Callable&& f, Args&&... args)
+            {
+                return std::move([f = std::move(f), args...]() mutable { return f(std::forward<Args>(args)...); });
+            }
+        };
 
-        if( ! task )
-            throw std::runtime_error("out of memory");
+        using Impl = typename std::result_of<BindArgs(Callable, Args...)>::type;
+        using Result = typename std::result_of<Callable(Args...)>::type;
 
-        // construct task in-place
-        new (task) FunTask< Impl >();
+        std::shared_ptr<TaskSpace> space;
+        FunTask<Impl>* task;
 
-        task->arena_id = SingletonContext::get().current_arena;
+        TaskBuilder(Callable&& f, Args&&... args)
+            : TaskProperties::Builder<TaskBuilder>(*this)
+            , space(current_task_space())
+        {
+            // allocate
+            redGrapes::memory::Allocator alloc;
+            memory::Block blk = alloc.allocate(sizeof(FunTask<Impl>));
+            task = (FunTask<Impl>*) blk.ptr;
 
-        // init properties from args
-        PropBuildHelper<TaskBuilder> build_helper{ *this };
-        pass(build_helper.template build<Args>(std::forward<Args>(args))...);
-        build_helper.foo();
+            if(!task)
+                throw std::runtime_error("out of memory");
 
-        // init id
-        this->init_id();
+            // construct task in-place
+            new(task) FunTask<Impl>();
 
-        // set impl
-        task->impl.emplace(BindArgs{}( std::move(f), std::forward<Args>(args)... ));
-    }
+            task->arena_id = SingletonContext::get().current_arena;
 
-    TaskBuilder( TaskBuilder & other )
-        : TaskProperties::Builder< TaskBuilder >( *this )
-        , space( other.space )
-        , task( other.task )
-    {
-        other.task = nullptr;
-    }
+            // init properties from args
+            PropBuildHelper<TaskBuilder> build_helper{*this};
+            pass(build_helper.template build<Args>(std::forward<Args>(args))...);
+            build_helper.foo();
 
-    TaskBuilder( TaskBuilder && other )
-        : TaskProperties::Builder< TaskBuilder >( *this )
-        , space( std::move(other.space) )
-        , task( std::move(other.task) )
-    {
-        other.task = nullptr;
-    }
+            // init id
+            this->init_id();
 
-    ~TaskBuilder()
-    {
-        if( task )
-            submit();
-    }
+            // set impl
+            task->impl.emplace(BindArgs{}(std::move(f), std::forward<Args>(args)...));
+        }
 
-    TaskBuilder & enable_stack_switching()
-    {
-        task->enable_stack_switching = true;
-        return *this;
-    }
+        TaskBuilder(TaskBuilder& other)
+            : TaskProperties::Builder<TaskBuilder>(*this)
+            , space(other.space)
+            , task(other.task)
+        {
+            other.task = nullptr;
+        }
 
-    auto submit()
-    {
-        Task * t = task;
-        task = nullptr;
+        TaskBuilder(TaskBuilder&& other)
+            : TaskProperties::Builder<TaskBuilder>(*this)
+            , space(std::move(other.space))
+            , task(std::move(other.task))
+        {
+            other.task = nullptr;
+        }
 
-        SPDLOG_TRACE("submit task {}", (TaskProperties const &)*t);
-        space->submit( t );
-        
-        return std::move(Future<Result>( *t ));
-    }
+        ~TaskBuilder()
+        {
+            if(task)
+                submit();
+        }
 
-    auto get()
-    {
-        return submit().get();
-    }
-};
+        TaskBuilder& enable_stack_switching()
+        {
+            task->enable_stack_switching = true;
+            return *this;
+        }
+
+        auto submit()
+        {
+            Task* t = task;
+            task = nullptr;
+
+            SPDLOG_TRACE("submit task {}", (TaskProperties const&) *t);
+            space->submit(t);
+
+            return std::move(Future<Result>(*t));
+        }
+
+        auto get()
+        {
+            return submit().get();
+        }
+    };
 
 } // namespace redGrapes
-

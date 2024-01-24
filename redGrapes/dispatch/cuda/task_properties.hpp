@@ -9,40 +9,43 @@
 
 namespace redGrapes
 {
-namespace dispatch
-{
-namespace cuda
-{
-
-struct CudaTaskProperties
-{
-    std::optional< cudaEvent_t > cuda_event;
-
-    CudaTaskProperties() {}
-
-    template < typename PropertiesBuilder >
-    struct Builder
+    namespace dispatch
     {
-        PropertiesBuilder & builder;
-
-        Builder( PropertiesBuilder & b )
-            : builder(b)
-        {}
-    };
-
-    struct Patch
-    {
-        template <typename PatchBuilder>
-        struct Builder
+        namespace cuda
         {
-            Builder( PatchBuilder & ) {}
-        };
-    };
 
-    void apply_patch( Patch const & ) {};
-};
+            struct CudaTaskProperties
+            {
+                std::optional<cudaEvent_t> cuda_event;
 
-}
-}
-}
+                CudaTaskProperties()
+                {
+                }
 
+                template<typename PropertiesBuilder>
+                struct Builder
+                {
+                    PropertiesBuilder& builder;
+
+                    Builder(PropertiesBuilder& b) : builder(b)
+                    {
+                    }
+                };
+
+                struct Patch
+                {
+                    template<typename PatchBuilder>
+                    struct Builder
+                    {
+                        Builder(PatchBuilder&)
+                        {
+                        }
+                    };
+                };
+
+                void apply_patch(Patch const&){};
+            };
+
+        } // namespace cuda
+    } // namespace dispatch
+} // namespace redGrapes

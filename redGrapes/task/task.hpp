@@ -6,15 +6,15 @@
  */
 #pragma once
 
-#include <type_traits>
-#include <redGrapes/task/task_base.hpp>
-#include <redGrapes/task/property/inherit.hpp>
-#include <redGrapes/task/property/trait.hpp>
-#include <redGrapes/task/property/id.hpp>
-#include <redGrapes/task/property/resource.hpp>
-#include <redGrapes/task/property/queue.hpp>
 #include <redGrapes/task/property/graph.hpp>
-#include <redGrapes/util/trace.hpp>
+#include <redGrapes/task/property/id.hpp>
+#include <redGrapes/task/property/inherit.hpp>
+#include <redGrapes/task/property/queue.hpp>
+#include <redGrapes/task/property/resource.hpp>
+#include <redGrapes/task/property/trait.hpp>
+#include <redGrapes/task/task_base.hpp>
+
+#include <type_traits>
 
 // defines REDGRAPES_TASK_PROPERTIES
 #include <redGrapes_config.hpp>
@@ -22,86 +22,95 @@
 namespace redGrapes
 {
 
-using TaskProperties = TaskProperties1<
-    IDProperty,
-    ResourceProperty,
-    QueueProperty,
-    GraphProperty
+    using TaskProperties = TaskProperties1<
+        IDProperty,
+        ResourceProperty,
+        QueueProperty,
+        GraphProperty
 #ifdef REDGRAPES_TASK_PROPERTIES
-    , REDGRAPES_TASK_PROPERTIES
+        ,
+        REDGRAPES_TASK_PROPERTIES
 #endif
->;
+        >;
 
-struct Task :
-        TaskBase,
-        TaskProperties
-{
-    virtual ~Task() {}
-
-    unsigned arena_id;
-    std::atomic_int removal_countdown;
-
-    Task()
-        : removal_countdown(2)
-    {}
-
-    virtual void * get_result_data()
+    struct Task
+        : TaskBase
+        , TaskProperties
     {
-        return nullptr;
-    }
-};
+        virtual ~Task()
+        {
+        }
 
-// TODO: fuse ResultTask and FunTask into one template
-//     ---> removes one layer of virtual function calls
+        unsigned arena_id;
+        std::atomic_int removal_countdown;
 
-template < typename Result >
-struct ResultTask : Task
-{
-    Result result_data;
+        Task() : removal_countdown(2)
+        {
+        }
 
-    virtual ~ResultTask() {}
+        virtual void* get_result_data()
+        {
+            return nullptr;
+        }
+    };
 
-    virtual void * get_result_data()
+    // TODO: fuse ResultTask and FunTask into one template
+    //     ---> removes one layer of virtual function calls
+
+    template<typename Result>
+    struct ResultTask : Task
     {
-        return &result_data;
-    }
+        Result result_data;
 
-    virtual Result run_result() = 0;
+        virtual ~ResultTask()
+        {
+        }
 
-    void run() final
+        virtual void* get_result_data()
+        {
+            return &result_data;
+        }
+
+        virtual Result run_result() = 0;
+
+        void run() final
+        {
+            result_data = run_result();
+            get_result_set_event().notify(); // result event now ready
+        }
+    };
+
+    template<>
+    struct ResultTask<void> : Task
     {
-        result_data = run_result();
-        get_result_set_event().notify(); // result event now ready
-    }   
-};
+        virtual ~ResultTask()
+        {
+        }
 
-template<>
-struct ResultTask<void> : Task
-{
-    virtual ~ResultTask() {}
- 
-    virtual void run_result() {}
+        virtual void run_result()
+        {
+        }
 
-    void run() final
+        void run() final
+        {
+            run_result();
+            get_result_set_event().notify();
+        }
+    };
+
+    template<typename F>
+    struct FunTask : ResultTask<typename std::result_of<F()>::type>
     {
-        run_result();
-        get_result_set_event().notify();
-    }
-};
+        std::optional<F> impl;
 
-template< typename F >
-struct FunTask
-    : ResultTask< typename std::result_of<F()>::type >
-{
-    std::optional< F > impl;
+        virtual ~FunTask()
+        {
+        }
 
-    virtual ~FunTask() {}
-
-    typename std::result_of<F()>::type run_result()
-    {
-        return (*this->impl)();
-    }
-};
+        typename std::result_of<F()>::type run_result()
+        {
+            return (*this->impl)();
+        }
+    };
 
 } // namespace redGrapes
-

@@ -7,65 +7,75 @@
 
 #pragma once
 
-#include <optional>
 #include <spdlog/spdlog.h>
+
+#include <optional>
 
 namespace redGrapes
 {
 
-struct Task;
+    struct Task;
 
-namespace dispatch
-{
-namespace thread
-{
-struct Worker;
-}
-}
-
-namespace scheduler
-{
-
-using WakerId = int16_t;
-
-/*! Scheduler Interface
- */
-struct IScheduler
-{
-    virtual ~IScheduler()
+    namespace dispatch
     {
-    }
+        namespace thread
+        {
+            struct Worker;
+        } // namespace thread
+    } // namespace dispatch
 
-    /*! whats the task dependency type for the edge a -> b (task a precedes task b)
-     * @return true if task b depends on the pre event of task a, false if task b depends on the post event of task b.
-     */
-    virtual bool task_dependency_type( Task const & a, Task const & b )
+    namespace scheduler
     {
-        return false;
-    }
 
-    virtual void idle(){}
+        using WakerId = int16_t;
 
-    //! add task to the set of to-initialize tasks
-    virtual void emplace_task( Task & task ) {}
+        /*! Scheduler Interface
+         */
+        struct IScheduler
+        {
+            virtual ~IScheduler()
+            {
+            }
 
-    //! add task to ready set
-    virtual void activate_task( Task & task ) {}
+            /*! whats the task dependency type for the edge a -> b (task a precedes task b)
+             * @return true if task b depends on the pre event of task a, false if task b depends on the post event of
+             * task b.
+             */
+            virtual bool task_dependency_type(Task const& a, Task const& b)
+            {
+                return false;
+            }
 
-    //! give worker work if available
-    virtual Task * steal_task( dispatch::thread::Worker & worker )
-    {
-        return nullptr;
-    }
+            virtual void idle()
+            {
+            }
 
-    virtual void wake_all() {}
-    virtual bool wake( WakerId id = 0 )
-    {
-        return false;
-    }
-};
+            //! add task to the set of to-initialize tasks
+            virtual void emplace_task(Task& task)
+            {
+            }
 
-} // namespace scheduler
+            //! add task to ready set
+            virtual void activate_task(Task& task)
+            {
+            }
+
+            //! give worker work if available
+            virtual Task* steal_task(dispatch::thread::Worker& worker)
+            {
+                return nullptr;
+            }
+
+            virtual void wake_all()
+            {
+            }
+
+            virtual bool wake(WakerId id = 0)
+            {
+                return false;
+            }
+        };
+
+    } // namespace scheduler
 
 } // namespace redGrapes
-

@@ -10,54 +10,49 @@
 namespace redGrapes
 {
 
-struct Task;
+    struct Task;
 
-struct QueueProperty
-{
-    //Task volatile * volatile next;
-
-    template < typename PropertiesBuilder >
-    struct Builder
+    struct QueueProperty
     {
-        PropertiesBuilder & builder;
+        // Task volatile * volatile next;
 
-        Builder( PropertiesBuilder & b )
-            : builder(b)
-        {}
-    };
-
-    struct Patch
-    {
-        template <typename PatchBuilder>
+        template<typename PropertiesBuilder>
         struct Builder
         {
-            Builder( PatchBuilder & ) {}
-        };
-    };
+            PropertiesBuilder& builder;
 
-    void apply_patch( Patch const & ) {};
-};
+            Builder(PropertiesBuilder& b) : builder(b)
+            {
+            }
+        };
+
+        struct Patch
+        {
+            template<typename PatchBuilder>
+            struct Builder
+            {
+                Builder(PatchBuilder&)
+                {
+                }
+            };
+        };
+
+        void apply_patch(Patch const&){};
+    };
 
 } // namespace redGrapes
 
-template <>
-struct fmt::formatter< redGrapes::QueueProperty >
+template<>
+struct fmt::formatter<redGrapes::QueueProperty>
 {
-    constexpr auto parse( format_parse_context& ctx )
+    constexpr auto parse(format_parse_context& ctx)
     {
         return ctx.begin();
     }
 
-    template < typename FormatContext >
-    auto format(
-        redGrapes::QueueProperty const & label_prop,
-        FormatContext & ctx
-    )
+    template<typename FormatContext>
+    auto format(redGrapes::QueueProperty const& label_prop, FormatContext& ctx)
     {
-        return format_to(
-                   ctx.out(),
-                   ""
-               );
+        return format_to(ctx.out(), "");
     }
 };
-

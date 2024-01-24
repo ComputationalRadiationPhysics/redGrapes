@@ -51,9 +51,8 @@ namespace redGrapes
 
             static bool is_serial(IOAccess a, IOAccess b)
             {
-                return
-                    !( (a.mode == read && b.mode == read)
-                    || (a.mode == aadd && b.mode == aadd)
+                return !(
+                    (a.mode == read && b.mode == read) || (a.mode == aadd && b.mode == aadd)
                     || (a.mode == amul && b.mode == amul));
             }
 
@@ -99,4 +98,3 @@ struct fmt::formatter<redGrapes::access::IOAccess>
         return fmt::format_to(ctx.out(), "{{ \"IOAccess\" : \"{}\" }}", mode_str);
     }
 };
-

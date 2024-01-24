@@ -9,58 +9,58 @@
 
 namespace redGrapes
 {
-namespace task
-{
-
-    Queue::Queue()
+    namespace task
     {
-    }
-/*
-    inline void Queue::push(Task* item)
-    {
-        item->next = nullptr;
-        Task * n = nullptr;
-        while(! tail->next.compare_exchange_weak(n, item));
 
-        if( tail )
-            tail.load()->next = item;
-        tail = item;
+        Queue::Queue()
+        {
+        }
 
-        //std::lock_guard<std::mutex> lock(m);
-
-        item->next = nullptr;
-
-        if(tail)
-            while(!__sync_bool_compare_and_swap(&(tail->next), nullptr, item))
-                    break;
-
-        tail = item;
-
-        __sync_bool_compare_and_swap(&head, 0, item);
-
-        SPDLOG_TRACE("push: head = {}, tail = {}", (void*) head, (void*) tail);
-    }
-
-    inline Task * Queue::pop()
-    {
-        std::lock_guard<std::mutex> lock(m);
-
-        while(Task * volatile t = head)
-            if(__sync_bool_compare_and_swap(&head, t, t->next))
+        /*
+            inline void Queue::push(Task* item)
             {
-                SPDLOG_TRACE("queue pop: item={}, new head = {}", (void*) t, (void*) t->next);
+                item->next = nullptr;
+                Task * n = nullptr;
+                while(! tail->next.compare_exchange_weak(n, item));
 
-                if(t->next == nullptr)
-                    tail = nullptr;
-                else
-                    t->next = nullptr;
-                return t;
+                if( tail )
+                    tail.load()->next = item;
+                tail = item;
+
+                //std::lock_guard<std::mutex> lock(m);
+
+                item->next = nullptr;
+
+                if(tail)
+                    while(!__sync_bool_compare_and_swap(&(tail->next), nullptr, item))
+                            break;
+
+                tail = item;
+
+                __sync_bool_compare_and_swap(&head, 0, item);
+
+                SPDLOG_TRACE("push: head = {}, tail = {}", (void*) head, (void*) tail);
             }
 
-        SPDLOG_TRACE("pop: head = {}, tail = {}", (void*) head, (void*) tail);
-,        return nullptr;
-    }
-*/
-}
-}
+            inline Task * Queue::pop()
+            {
+                std::lock_guard<std::mutex> lock(m);
 
+                while(Task * volatile t = head)
+                    if(__sync_bool_compare_and_swap(&head, t, t->next))
+                    {
+                        SPDLOG_TRACE("queue pop: item={}, new head = {}", (void*) t, (void*) t->next);
+
+                        if(t->next == nullptr)
+                            tail = nullptr;
+                        else
+                            t->next = nullptr;
+                        return t;
+                    }
+
+                SPDLOG_TRACE("pop: head = {}, tail = {}", (void*) head, (void*) tail);
+        ,        return nullptr;
+            }
+        */
+    } // namespace task
+} // namespace redGrapes

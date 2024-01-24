@@ -7,4 +7,3 @@ struct IDispatcher
     virtual void notify() = 0;
 };
 */
-

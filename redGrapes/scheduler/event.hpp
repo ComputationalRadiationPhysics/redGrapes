@@ -7,17 +7,19 @@
 
 #pragma once
 
-#include <atomic>
-#include <mutex>
-#include <shared_mutex>
-#include <cassert>
-#include <memory>
-#include <spdlog/spdlog.h>
 #include <redGrapes/scheduler/scheduler.hpp>
 #include <redGrapes/util/chunked_list.hpp>
 
+#include <spdlog/spdlog.h>
+
+#include <atomic>
+#include <cassert>
+#include <memory>
+#include <mutex>
+#include <shared_mutex>
+
 #ifndef REDGRAPES_EVENT_FOLLOWER_LIST_CHUNKSIZE
-#define REDGRAPES_EVENT_FOLLOWER_LIST_CHUNKSIZE 16
+#    define REDGRAPES_EVENT_FOLLOWER_LIST_CHUNKSIZE 16
 #endif
 
 namespace std
@@ -28,96 +30,95 @@ namespace std
 namespace redGrapes
 {
 
-struct Task;
+    struct Task;
 
-namespace scheduler
-{
-
-struct Event;
-
-enum EventPtrTag {
-    T_UNINITIALIZED = 0,
-    T_EVT_PRE,
-    T_EVT_POST,
-    T_EVT_RES_SET,
-    T_EVT_RES_GET,
-    T_EVT_EXT,
-};
-
-struct EventPtr
-{
-    enum EventPtrTag tag;
-    Task * task;
-    std::shared_ptr< Event > external_event;
-
-    inline bool operator==( EventPtr const & other ) const
+    namespace scheduler
     {
-        return this->tag == other.tag && this->task == other.task;
-    }
 
-    Event & get_event() const;
+        struct Event;
 
-    inline Event & operator*() const
-    {
-        return get_event();
-    }
+        enum EventPtrTag
+        {
+            T_UNINITIALIZED = 0,
+            T_EVT_PRE,
+            T_EVT_POST,
+            T_EVT_RES_SET,
+            T_EVT_RES_GET,
+            T_EVT_EXT,
+        };
 
-    inline Event * operator->() const
-    {
-        return &get_event();
-    }
+        struct EventPtr
+        {
+            enum EventPtrTag tag;
+            Task* task;
+            std::shared_ptr<Event> external_event;
 
-    /*! A preceding event was reached and thus an incoming edge got removed.
-     * This events state is decremented and recursively notifies its followers
-     * in case it is now also reached.
-     * @return true if event was ready
-     */
-    bool notify( bool claimed = false );
-};
+            inline bool operator==(EventPtr const& other) const
+            {
+                return this->tag == other.tag && this->task == other.task;
+            }
 
-/*!
- * An event is the abstraction of the programs execution state.
- * They form a flat/non-recursive graph of events.
- * During runtime, each thread encounters a sequence of events.
- * The goal is to synchronize these events in the manner
- * "Event A must occur before Event B".
- *
- * Multiple events need to be related, so that they
- * form a partial order.
- * This order is an homomorphic image from the timeline of
- * execution states.
- */
-struct Event
-{
-    /*! number of incoming edges
-     * state == 0: event is reached and can be removed
-     */
-    std::atomic_uint16_t state;
+            Event& get_event() const;
 
-    //! waker that is waiting for this event
-    WakerId waker_id;
+            inline Event& operator*() const
+            {
+                return get_event();
+            }
 
-    //! the set of subsequent events
-    ChunkedList< EventPtr, REDGRAPES_EVENT_FOLLOWER_LIST_CHUNKSIZE > followers;
+            inline Event* operator->() const
+            {
+                return &get_event();
+            }
 
-    Event();
-    Event(Event &);
-    Event(Event &&);
+            /*! A preceding event was reached and thus an incoming edge got removed.
+             * This events state is decremented and recursively notifies its followers
+             * in case it is now also reached.
+             * @return true if event was ready
+             */
+            bool notify(bool claimed = false);
+        };
 
-    bool is_reached();
-    bool is_ready();
-    void up();
-    void dn();
+        /*!
+         * An event is the abstraction of the programs execution state.
+         * They form a flat/non-recursive graph of events.
+         * During runtime, each thread encounters a sequence of events.
+         * The goal is to synchronize these events in the manner
+         * "Event A must occur before Event B".
+         *
+         * Multiple events need to be related, so that they
+         * form a partial order.
+         * This order is an homomorphic image from the timeline of
+         * execution states.
+         */
+        struct Event
+        {
+            /*! number of incoming edges
+             * state == 0: event is reached and can be removed
+             */
+            std::atomic_uint16_t state;
 
-    //! note: follower has to be notified separately!
-    void remove_follower( EventPtr follower );
-    void add_follower( EventPtr follower );
+            //! waker that is waiting for this event
+            WakerId waker_id;
 
-    void notify_followers();
-};
+            //! the set of subsequent events
+            ChunkedList<EventPtr, REDGRAPES_EVENT_FOLLOWER_LIST_CHUNKSIZE> followers;
 
-} // namespace scheduler
+            Event();
+            Event(Event&);
+            Event(Event&&);
+
+            bool is_reached();
+            bool is_ready();
+            void up();
+            void dn();
+
+            //! note: follower has to be notified separately!
+            void remove_follower(EventPtr follower);
+            void add_follower(EventPtr follower);
+
+            void notify_followers();
+        };
+
+    } // namespace scheduler
 
 } // namespace redGrapes
-
-
