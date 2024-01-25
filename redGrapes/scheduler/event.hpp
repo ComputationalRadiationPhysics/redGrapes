@@ -22,10 +22,6 @@
 #    define REDGRAPES_EVENT_FOLLOWER_LIST_CHUNKSIZE 16
 #endif
 
-namespace std
-{
-    using shared_mutex = shared_timed_mutex;
-} // namespace std
 
 namespace redGrapes
 {
