@@ -19,7 +19,6 @@ endif()
 #########################################################
 #  Installation
 #########################################################
-option(redGrapes_USE_INTERNAL_OPTIONAL "use akrzemi's optional library for c++14" ON)
 
 include(GNUInstallDirs)
 set(CMAKE_INSTALL_CMAKEDIR "${CMAKE_INSTALL_LIBDIR}/cmake/redGrapes"
@@ -33,12 +32,6 @@ install(DIRECTORY "${redGrapes_SOURCE_DIR}/redGrapes"
     FILES_MATCHING PATTERN "*.hpp"
 )
 
-# install third-party libraries
-if(redGrapes_USE_INTERNAL_OPTIONAL)
-    install(DIRECTORY "${redGrapes_SOURCE_DIR}/share/thirdParty/akrzemi/optional/include/akrzemi"
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-    )
-endif()
 
 # Version file
 include(CMakePackageConfigHelpers)

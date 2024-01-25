@@ -8,7 +8,7 @@
 
 <hr>
 
-RedGrapes is a C++14 framework for declaratively creating and scheduling task-graphs, based on a high-level resource description.
+RedGrapes is a C++17 framework for declaratively creating and scheduling task-graphs, based on a high-level resource description.
 
 ### Motivation
 
@@ -154,10 +154,9 @@ Its conceptual design is based on a [whitepaper by A. Huebl, R. Widera, and A. M
 
 ### Dependencies
 
-RedGrapes requires a compiler supporting the C++14 standard.
+RedGrapes requires a compiler supporting the C++17 standard.
 RedGrapes further depends on the following libraries:
 
-* [optional for C++14](https://github.com/akrzemi1/Optional) by [Andrzej Krzemienski](https://github.com/akrzemi1)
 * [ConcurrentQueue](https://github.com/cameron314/concurrentqueue) by [Cameron Desrochers](https://moodycamel.com)
 * [spdlog](https://github.com/gabime/spdlog)
 * [{fmt}](https://fmt.dev)
