@@ -3,7 +3,6 @@ cmake_minimum_required(VERSION 3.18.0)
 include(CMakeFindDependencyMacro)
 
 project(redGrapes VERSION 0.1.0)
-set(CMAKE_CXX_STANDARD 14)
 
 find_package(Boost 1.62.0 REQUIRED COMPONENTS context)
 find_package(fmt REQUIRED)
@@ -39,31 +38,37 @@ else()
   message(STATUS "Found hwloc")
 endif()
 
-if( NOT TARGET redGrapes )
-add_library(redGrapes
-  ${CMAKE_CURRENT_LIST_DIR}/redGrapes/resource/resource.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/redGrapes/resource/resource_user.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/redGrapes/dispatch/thread/execute.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/redGrapes/dispatch/thread/cpuset.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/redGrapes/dispatch/thread/worker.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/redGrapes/dispatch/thread/worker_pool.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/redGrapes/scheduler/event.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/redGrapes/scheduler/event_ptr.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/redGrapes/scheduler/default_scheduler.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/redGrapes/task/property/graph.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/redGrapes/task/task_space.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/redGrapes/task/queue.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/redGrapes/memory/allocator.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/redGrapes/memory/bump_allocator.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/redGrapes/sync/cv.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/redGrapes/util/trace.cpp
-  ${CMAKE_CURRENT_LIST_DIR}/redGrapes/redGrapes.cpp
-)
+set(redGrapes_CXX_STANDARD_DEFAULT "17")
+# Check whether redGrapes_CXX_STANDARD has already been defined as a non-cached variable.
+if(DEFINED redGrapes)
+  set(redGrapes_CXX_STANDARD_DEFAULT ${redGrapes_CXX_STANDARD})
 endif()
 
-target_compile_features(redGrapes PUBLIC
-    cxx_std_14
-)
+set(redGrapes_CXX_STANDARD ${redGrapes_CXX_STANDARD_DEFAULT} CACHE STRING "C++ standard version")
+set_property(CACHE redGrapes_CXX_STANDARD PROPERTY STRINGS "17;20")
+
+if( NOT TARGET redGrapes )
+  add_library(redGrapes
+    ${CMAKE_CURRENT_LIST_DIR}/redGrapes/resource/resource.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/redGrapes/resource/resource_user.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/redGrapes/dispatch/thread/execute.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/redGrapes/dispatch/thread/cpuset.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/redGrapes/dispatch/thread/worker.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/redGrapes/dispatch/thread/worker_pool.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/redGrapes/scheduler/event.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/redGrapes/scheduler/event_ptr.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/redGrapes/scheduler/default_scheduler.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/redGrapes/task/property/graph.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/redGrapes/task/task_space.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/redGrapes/task/queue.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/redGrapes/memory/allocator.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/redGrapes/memory/bump_allocator.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/redGrapes/sync/cv.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/redGrapes/util/trace.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/redGrapes/redGrapes.cpp
+  )
+  target_compile_features(redGrapes PUBLIC cxx_std_${redGrapes_CXX_STANDARD})
+endif()
 
 target_include_directories(redGrapes PUBLIC
     $<BUILD_INTERFACE:${redGrapes_SOURCE_DIR}>
@@ -77,7 +82,6 @@ target_link_libraries(redGrapes PUBLIC spdlog::spdlog)
 target_link_libraries(redGrapes PUBLIC ${HWLOC})
 
 set(redGrapes_INCLUDE_DIRS ${redGrapes_CONFIG_INCLUDE_DIR} ${CMAKE_CURRENT_LIST_DIR})
-set(redGrapes_INCLUDE_DIRS ${redGrapes_INCLUDE_DIRS} "${CMAKE_CURRENT_LIST_DIR}/share/thirdParty/akrzemi/optional/include")
 set(redGrapes_INCLUDE_DIRS ${redGrapes_INCLUDE_DIRS} "${CMAKE_CURRENT_LIST_DIR}/share/thirdParty/cameron314/concurrentqueue/include")
 set(redGrapes_INCLUDE_DIRS ${redGrapes_INCLUDE_DIRS} ${HWLOC_INCLUDE_DIR})
 

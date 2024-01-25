@@ -51,7 +51,7 @@ namespace redGrapes
                 SPDLOG_TRACE("create child space = {}", (void*) task_space.get());
                 current_task->children = task_space;
 
-                std::unique_lock<std::shared_timed_mutex> wr_lock(current_task->space->active_child_spaces_mutex);
+                std::unique_lock<std::shared_mutex> wr_lock(current_task->space->active_child_spaces_mutex);
                 current_task->space->active_child_spaces.push_back(task_space);
             }
 
