@@ -1,4 +1,5 @@
-/* Copyright 2019-2022 Michael Sippel
+/* Copyright 2019-2024 The RedGrapes Community
+ * Authors: Michael Sippel
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -6,18 +7,26 @@
  */
 
 #include <redGrapes/redGrapes.hpp>
-#include <redGrapes/resource/resource_user.hpp>
 #include <redGrapes/scheduler/event.hpp>
 #include <redGrapes/task/property/graph.hpp>
 #include <redGrapes/task/task.hpp>
 #include <redGrapes/task/task_space.hpp>
 #include <redGrapes/util/trace.hpp>
 
+#include <cstddef>
 #include <memory>
 #include <unordered_set>
 
 namespace redGrapes
 {
+
+    Task* GraphProperty::get_task()
+    {
+        /* NOTE: this offsetof gives works because we know that `space` is
+         * the first member that is derived from `GraphProperty`
+         */
+        return (Task*) ((uintptr_t) this - offsetof(Task, space));
+    }
 
     /*! create a new (external) event which precedes the tasks post-event
      */
@@ -37,7 +46,7 @@ namespace redGrapes
     void GraphProperty::init_graph()
     {
         TRACE_EVENT("Graph", "init_graph");
-        for(auto r = this->task->unique_resources.rbegin(); r != this->task->unique_resources.rend(); ++r)
+        for(auto r = this->get_task()->unique_resources.rbegin(); r != this->get_task()->unique_resources.rend(); ++r)
         {
             if(r->task_entry != r->resource->users.rend())
             {
@@ -63,7 +72,7 @@ namespace redGrapes
                     if(preceding_task == this->space->parent)
                         break;
 
-                    if(preceding_task->space == this->space && this->space->is_serial(*preceding_task, *this->task))
+                    if(preceding_task->space == this->space && this->space->is_serial(*preceding_task, *this->get_task()))
                     {
                         add_dependency(*preceding_task);
                         if(preceding_task->has_sync_access(r->resource))
@@ -84,7 +93,7 @@ namespace redGrapes
     void GraphProperty::delete_from_resources()
     {
         TRACE_EVENT("Graph", "delete_from_resources");
-        for(auto r = this->task->unique_resources.rbegin(); r != this->task->unique_resources.rend(); ++r)
+        for(auto r = this->get_task()->unique_resources.rbegin(); r != this->get_task()->unique_resources.rend(); ++r)
         {
             // TODO: can this lock be avoided?
             //   corresponding lock to init_graph()
@@ -101,7 +110,7 @@ namespace redGrapes
         // in_edges.push_back(&preceding_task);
 
         // scheduling graph
-        auto preceding_event = SingletonContext::get().scheduler->task_dependency_type(preceding_task, *this->task)
+        auto preceding_event = SingletonContext::get().scheduler->task_dependency_type(preceding_task, *this->get_task())
                                    ? preceding_task->get_pre_event()
                                    : preceding_task->get_post_event();
 
@@ -119,7 +128,7 @@ namespace redGrapes
             scheduler::EventPtr follower = *it;
             if(follower.task)
             {
-                if(!space->is_serial(*this->task, *follower.task))
+                if(!space->is_serial(*get_task(), *follower.task))
                 {
                     // remove dependency
                     // follower.task->in_edges.erase(std::find(std::begin(follower.task->in_edges),

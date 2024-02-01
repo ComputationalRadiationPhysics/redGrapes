@@ -49,15 +49,13 @@ namespace redGrapes
     {
         Task& operator*()
         {
-            return *task;
+            return *get_task();
         }
 
         Task* operator->()
         {
-            return task;
+            return get_task();
         }
-
-        Task* task;
 
         //! number of parents
         uint8_t scope_depth;
@@ -80,24 +78,26 @@ namespace redGrapes
         scheduler::Event result_set_event;
         scheduler::Event result_get_event;
 
+        Task* get_task();
+
         inline scheduler::EventPtr get_pre_event()
         {
-            return scheduler::EventPtr{scheduler::T_EVT_PRE, this->task};
+            return scheduler::EventPtr{scheduler::T_EVT_PRE, this->get_task()};
         }
 
         inline scheduler::EventPtr get_post_event()
         {
-            return scheduler::EventPtr{scheduler::T_EVT_POST, this->task};
+            return scheduler::EventPtr{scheduler::T_EVT_POST, this->get_task()};
         }
 
         inline scheduler::EventPtr get_result_set_event()
         {
-            return scheduler::EventPtr{scheduler::T_EVT_RES_SET, this->task};
+            return scheduler::EventPtr{scheduler::T_EVT_RES_SET, this->get_task()};
         }
 
         inline scheduler::EventPtr get_result_get_event()
         {
-            return scheduler::EventPtr{scheduler::T_EVT_RES_GET, this->task};
+            return scheduler::EventPtr{scheduler::T_EVT_RES_GET, this->get_task()};
         }
 
         inline bool is_ready()
