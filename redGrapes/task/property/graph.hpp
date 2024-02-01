@@ -82,22 +82,22 @@ namespace redGrapes
 
         inline scheduler::EventPtr get_pre_event()
         {
-            return scheduler::EventPtr{scheduler::T_EVT_PRE, this->task};
+            return scheduler::EventPtr{nullptr, this->task, scheduler::T_EVT_PRE};
         }
 
         inline scheduler::EventPtr get_post_event()
         {
-            return scheduler::EventPtr{scheduler::T_EVT_POST, this->task};
+            return scheduler::EventPtr{nullptr, this->task, scheduler::T_EVT_POST};
         }
 
         inline scheduler::EventPtr get_result_set_event()
         {
-            return scheduler::EventPtr{scheduler::T_EVT_RES_SET, this->task};
+            return scheduler::EventPtr{nullptr, this->task, scheduler::T_EVT_RES_SET};
         }
 
         inline scheduler::EventPtr get_result_get_event()
         {
-            return scheduler::EventPtr{scheduler::T_EVT_RES_GET, this->task};
+            return scheduler::EventPtr{nullptr, this->task, scheduler::T_EVT_RES_GET};
         }
 
         inline bool is_ready()

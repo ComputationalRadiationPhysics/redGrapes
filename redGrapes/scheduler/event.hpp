@@ -44,9 +44,9 @@ namespace redGrapes
 
         struct EventPtr
         {
-            enum EventPtrTag tag = T_UNINITIALIZED;
-            Task* task;
             std::shared_ptr<Event> external_event;
+            Task* task = nullptr;
+            enum EventPtrTag tag = T_UNINITIALIZED;
 
             inline operator bool() const
             {
