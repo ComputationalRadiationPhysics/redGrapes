@@ -61,7 +61,6 @@ namespace redGrapes
             {
                 using Guard = typename Refcounted<ItemControlBlock, ItemControlBlockDeleter>::Guard;
 
-                bool volatile deleted;
                 Guard prev;
                 uintptr_t item_data_ptr;
                 Allocator alloc;
@@ -89,12 +88,18 @@ namespace redGrapes
                  */
                 inline void erase()
                 {
-                    deleted = true;
+                    // set MSB (most significant bit) of item_data ptr
+                    item_data_ptr |= ~(~(uintptr_t) 0 >> 1);
+                }
+
+                inline bool is_deleted() const
+                {
+                    return item_data_ptr & ~(~(uintptr_t) 0 >> 1);
                 }
 
                 inline Item* get() const
                 {
-                    return (Item*) item_data_ptr;
+                    return (Item*) (item_data_ptr & (~(uintptr_t) 0 >> 1));
                 }
 
                 /* adjusts `prev` so that it points to a non-deleted chunk again
@@ -104,7 +109,7 @@ namespace redGrapes
                 void skip_deleted_prev()
                 {
                     Guard p = prev;
-                    while(p && p->deleted)
+                    while(p && p->is_deleted())
                         p = p->prev;
 
                     prev = p;
