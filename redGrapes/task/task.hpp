@@ -12,7 +12,6 @@
 #include <redGrapes/task/property/queue.hpp>
 #include <redGrapes/task/property/resource.hpp>
 #include <redGrapes/task/property/trait.hpp>
-#include <redGrapes/task/task_base.hpp>
 
 #include <type_traits>
 
@@ -23,29 +22,39 @@ namespace redGrapes
 {
 
     using TaskProperties = TaskProperties1<
-        IDProperty,
-        ResourceProperty,
-        QueueProperty,
-        GraphProperty
+        GraphProperty,
+        ResourceProperty
+//  ,  QueueProperty
 #ifdef REDGRAPES_TASK_PROPERTIES
         ,
         REDGRAPES_TASK_PROPERTIES
 #endif
-        >;
+        ,
+        IDProperty>;
 
-    struct Task
-        : TaskBase
-        , TaskProperties
+    struct Task : TaskProperties
     {
+        uint16_t arena_id;
+        std::atomic<uint8_t> removal_countdown;
+
+        Task() : removal_countdown(2)
+        {
+        }
+
         virtual ~Task()
         {
         }
 
-        unsigned arena_id;
-        std::atomic_int removal_countdown;
-
-        Task() : removal_countdown(2)
+        inline scheduler::EventPtr operator()()
         {
+            return this->run();
+        }
+
+        virtual scheduler::EventPtr run() = 0;
+
+        virtual void yield(scheduler::EventPtr event)
+        {
+            spdlog::error("Task {} does not support yield()", this->task_id);
         }
 
         virtual void* get_result_data()
@@ -53,9 +62,6 @@ namespace redGrapes
             return nullptr;
         }
     };
-
-    // TODO: fuse ResultTask and FunTask into one template
-    //     ---> removes one layer of virtual function calls
 
     template<typename Result>
     struct ResultTask : Task
@@ -73,10 +79,11 @@ namespace redGrapes
 
         virtual Result run_result() = 0;
 
-        void run() final
+        virtual scheduler::EventPtr run()
         {
             result_data = run_result();
             get_result_set_event().notify(); // result event now ready
+            return scheduler::EventPtr{};
         }
     };
 
@@ -91,10 +98,11 @@ namespace redGrapes
         {
         }
 
-        void run() final
+        virtual scheduler::EventPtr run()
         {
             run_result();
             get_result_set_event().notify();
+            return scheduler::EventPtr{};
         }
     };
 
@@ -110,6 +118,49 @@ namespace redGrapes
         typename std::result_of<F()>::type run_result()
         {
             return (*this->impl)();
+        }
+    };
+
+} // namespace redGrapes
+
+#include <redGrapes/scheduler/event.hpp>
+
+#include <boost/context/continuation.hpp>
+
+namespace redGrapes
+{
+
+    template<typename F>
+    struct ContinuableTask : FunTask<F>
+    {
+        boost::context::continuation yield_cont;
+        boost::context::continuation resume_cont;
+        scheduler::EventPtr event;
+
+        scheduler::EventPtr run()
+        {
+            if(!resume_cont)
+            {
+                resume_cont = boost::context::callcc(
+                    [this](boost::context::continuation&& c)
+                    {
+                        this->yield_cont = std::move(c);
+                        this->FunTask<F>::run();
+                        this->event = scheduler::EventPtr{};
+
+                        return std::move(this->yield_cont);
+                    });
+            }
+            else
+                resume_cont = resume_cont.resume();
+
+            return event;
+        }
+
+        void yield(scheduler::EventPtr e)
+        {
+            this->event = e;
+            yield_cont = yield_cont.resume();
         }
     };
 

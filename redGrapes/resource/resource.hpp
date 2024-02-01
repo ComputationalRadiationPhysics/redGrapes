@@ -47,11 +47,11 @@ namespace redGrapes
         static unsigned int generateID();
 
     public:
-        unsigned int id;
-        unsigned int scope_level;
-
-        SpinLock users_mutex;
         ChunkedList<Task*, REDGRAPES_RUL_CHUNKSIZE> users;
+        SpinLock users_mutex;
+
+        uint16_t id;
+        uint8_t scope_level;
 
         /**
          * Create a new resource with an unused ID.

@@ -19,6 +19,7 @@
 // #include <redGrapes/task/future.hpp>
 #include <redGrapes/dispatch/thread/worker.hpp>
 #include <redGrapes/memory/hwloc_alloc.hpp>
+#include <redGrapes/memory/refcounted.hpp>
 #include <redGrapes/task/task.hpp>
 #include <redGrapes/task/task_space.hpp>
 
@@ -58,7 +59,7 @@ namespace redGrapes
         std::optional<scheduler::EventPtr> create_event();
 
         unsigned scope_depth() const;
-        std::shared_ptr<TaskSpace> current_task_space() const;
+        memory::Refcounted<TaskSpace, TaskSpaceDeleter>::Guard current_task_space() const;
 
         void execute_task(Task& task);
 
@@ -77,6 +78,9 @@ namespace redGrapes
         template<typename Callable, typename... Args>
         auto emplace_task(Callable&& f, Args&&... args);
 
+        template<typename Callable, typename... Args>
+        auto emplace_continuable_task(Callable&& f, Args&&... args);
+
         static thread_local Task* current_task;
         static thread_local std::function<void()> idle;
         static thread_local unsigned next_worker;
@@ -89,7 +93,7 @@ namespace redGrapes
         HwlocContext hwloc_ctx;
         std::shared_ptr<dispatch::thread::WorkerPool> worker_pool;
 
-        std::shared_ptr<TaskSpace> root_space;
+        memory::Refcounted<TaskSpace, TaskSpaceDeleter>::Guard root_space;
         std::shared_ptr<scheduler::IScheduler> scheduler;
 
 #if REDGRAPES_ENABLE_TRACE
@@ -156,7 +160,7 @@ namespace redGrapes
         return SingletonContext::get().scope_depth();
     }
 
-    inline std::shared_ptr<TaskSpace> current_task_space()
+    inline memory::Refcounted<TaskSpace, TaskSpaceDeleter>::Guard current_task_space()
     {
         return SingletonContext::get().current_task_space();
     }
@@ -165,6 +169,12 @@ namespace redGrapes
     inline auto emplace_task(Callable&& f, Args&&... args)
     {
         return std::move(SingletonContext::get().emplace_task(std::move(f), std::forward<Args>(args)...));
+    }
+
+    template<typename Callable, typename... Args>
+    inline auto emplace_continuable_task(Callable&& f, Args&&... args)
+    {
+        return std::move(SingletonContext::get().emplace_continuable_task(std::move(f), std::forward<Args>(args)...));
     }
 
 } // namespace redGrapes
@@ -177,18 +187,20 @@ namespace redGrapes
     template<typename Callable, typename... Args>
     auto Context::emplace_task(Callable&& f, Args&&... args)
     {
-        dispatch::thread::WorkerId worker_id =
-            // linear
-            next_worker % worker_pool->size();
-
-        // interleaved
-        //    2*next_worker % worker_pool->size() + ((2*next_worker) / worker_pool->size())%2;
-
-        next_worker++;
+        dispatch::thread::WorkerId worker_id = next_worker++ % worker_pool->size();
         current_arena = worker_id;
-
         SPDLOG_TRACE("emplace task to worker {} next_worker={}", worker_id, next_worker);
 
-        return std::move(TaskBuilder<Callable, Args...>(std::move(f), std::forward<Args>(args)...));
+        return std::move(TaskBuilder<Callable, Args...>(false, std::move(f), std::forward<Args>(args)...));
+    }
+
+    template<typename Callable, typename... Args>
+    auto Context::emplace_continuable_task(Callable&& f, Args&&... args)
+    {
+        dispatch::thread::WorkerId worker_id = next_worker++ % worker_pool->size();
+        current_arena = worker_id;
+        SPDLOG_TRACE("emplace task to worker {} next_worker={}", worker_id, next_worker);
+
+        return std::move(TaskBuilder<Callable, Args...>(true, std::move(f), std::forward<Args>(args)...));
     }
 } // namespace redGrapes

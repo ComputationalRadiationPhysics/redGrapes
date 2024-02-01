@@ -60,23 +60,29 @@ namespace redGrapes
         using Impl = typename std::result_of<BindArgs(Callable, Args...)>::type;
         using Result = typename std::result_of<Callable(Args...)>::type;
 
-        std::shared_ptr<TaskSpace> space;
+        memory::Refcounted<TaskSpace, TaskSpaceDeleter>::Guard space;
         FunTask<Impl>* task;
 
-        TaskBuilder(Callable&& f, Args&&... args)
+        TaskBuilder(bool continuable, Callable&& f, Args&&... args)
             : TaskProperties::Builder<TaskBuilder>(*this)
-            , space(current_task_space())
+            , space(SingletonContext::get().current_task_space())
         {
             // allocate
             redGrapes::memory::Allocator alloc;
-            memory::Block blk = alloc.allocate(sizeof(FunTask<Impl>));
-            task = (FunTask<Impl>*) blk.ptr;
+            memory::Block blk;
 
-            if(!task)
-                throw std::runtime_error("out of memory");
-
-            // construct task in-place
-            new(task) FunTask<Impl>();
+            if(continuable)
+            {
+                blk = alloc.allocate(sizeof(ContinuableTask<Impl>));
+                task = (ContinuableTask<Impl>*) blk.ptr;
+                new(task) ContinuableTask<Impl>();
+            }
+            else
+            {
+                blk = alloc.allocate(sizeof(FunTask<Impl>));
+                task = (FunTask<Impl>*) blk.ptr;
+                new(task) FunTask<Impl>();
+            }
 
             task->arena_id = SingletonContext::get().current_arena;
 
@@ -112,12 +118,6 @@ namespace redGrapes
         {
             if(task)
                 submit();
-        }
-
-        TaskBuilder& enable_stack_switching()
-        {
-            task->enable_stack_switching = true;
-            return *this;
         }
 
         auto submit()

@@ -17,7 +17,7 @@ int main()
     rg::init(1);
     rg::IOResource<int> a; // scope-level=0
 
-    rg::emplace_task(
+    rg::emplace_continuable_task(
         [](auto a)
         {
             std::cout << "scope = " << rg::scope_depth() << std::endl;
@@ -34,8 +34,8 @@ int main()
 
             std::cout << "scope = " << rg::scope_depth() << std::endl;
         },
-        a.read())
-        .enable_stack_switching();
+        a.read()
+    );
 
     rg::finalize();
 }

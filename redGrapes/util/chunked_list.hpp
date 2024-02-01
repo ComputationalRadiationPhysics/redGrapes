@@ -19,7 +19,6 @@
 
 #include <array>
 #include <atomic>
-#include <cassert>
 #include <cstdint>
 #include <cstdlib>
 #include <limits>
@@ -495,8 +494,9 @@ namespace redGrapes
         memory::AtomicList<Chunk, Allocator> chunks;
 
     public:
-        ChunkedList(Allocator&& alloc) : chunks(std::move(alloc), T_chunk_size * sizeof(Item) + sizeof(Chunk))
+        ChunkedList(Allocator&& alloc = memory::Allocator()) : chunks(std::move(alloc), T_chunk_size * sizeof(Item))
         {
+            chunks.allocate_item();
         }
 
         ChunkedList(ChunkedList&& other) = default;

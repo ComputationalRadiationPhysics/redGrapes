@@ -7,6 +7,10 @@
 
 #pragma once
 
+#include <redGrapes/scheduler/event.hpp>
+#include <redGrapes/task/property/inherit.hpp>
+#include <redGrapes/task/task_space.hpp>
+
 #include <spdlog/spdlog.h>
 
 #include <atomic>
@@ -16,16 +20,8 @@
 #include <optional>
 #include <shared_mutex>
 
-// #include <redGrapes/task/task.hpp>
-#include <redGrapes/scheduler/event.hpp>
-#include <redGrapes/task/property/inherit.hpp>
-
 namespace redGrapes
 {
-
-    struct Task;
-    struct TaskSpace;
-
     /*!
      * Each task associates with two events:
      * A Pre-Event and a Post-Event.
@@ -57,47 +53,48 @@ namespace redGrapes
             return task;
         }
 
-        Task* task;
-
-        //! number of parents
-        uint8_t scope_depth;
-
         //! task space that contains this task, must not be null
-        std::shared_ptr<TaskSpace> space;
+        memory::Refcounted<TaskSpace, TaskSpaceDeleter>::Guard space;
 
         //! task space for children, may be null
-        std::shared_ptr<TaskSpace> children;
+        memory::Refcounted<TaskSpace, TaskSpaceDeleter>::Guard children;
+
 
         /*
-        // in edges dont need a mutex because they are initialized
-        // once by `init_dependencies()` and only read afterwards.
-        // expired pointers (null) must be ignored
-        std::vector<Task*> in_edges;
-        */
+            // in edges dont need a mutex because they are initialized
+            // once by `init_dependencies()` and only read afterwards.
+            // expired pointers (null) must be ignored
+            std::vector<Task*> in_edges;
+            */
 
         scheduler::Event pre_event;
         scheduler::Event post_event;
         scheduler::Event result_set_event;
         scheduler::Event result_get_event;
 
+        Task* task;
+
+        //! number of parents
+        uint8_t scope_depth;
+
         inline scheduler::EventPtr get_pre_event()
         {
-            return scheduler::EventPtr{scheduler::T_EVT_PRE, this->task};
+            return scheduler::EventPtr{nullptr, this->task, scheduler::T_EVT_PRE};
         }
 
         inline scheduler::EventPtr get_post_event()
         {
-            return scheduler::EventPtr{scheduler::T_EVT_POST, this->task};
+            return scheduler::EventPtr{nullptr, this->task, scheduler::T_EVT_POST};
         }
 
         inline scheduler::EventPtr get_result_set_event()
         {
-            return scheduler::EventPtr{scheduler::T_EVT_RES_SET, this->task};
+            return scheduler::EventPtr{nullptr, this->task, scheduler::T_EVT_RES_SET};
         }
 
         inline scheduler::EventPtr get_result_get_event()
         {
-            return scheduler::EventPtr{scheduler::T_EVT_RES_GET, this->task};
+            return scheduler::EventPtr{nullptr, this->task, scheduler::T_EVT_RES_GET};
         }
 
         inline bool is_ready()

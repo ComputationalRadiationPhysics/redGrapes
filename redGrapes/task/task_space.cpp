@@ -16,6 +16,11 @@
 
 namespace redGrapes
 {
+    void TaskSpaceDeleter::operator()(TaskSpace* s)
+    {
+        delete s;
+    }
+
     TaskSpace::~TaskSpace()
     {
     }
@@ -70,7 +75,7 @@ namespace redGrapes
     void TaskSpace::submit(Task* task)
     {
         TRACE_EVENT("TaskSpace", "submit()");
-        task->space = shared_from_this();
+        task->space.acquire(this);
         task->task = task;
 
         ++task_count;

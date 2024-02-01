@@ -22,7 +22,6 @@
 #    define REDGRAPES_EVENT_FOLLOWER_LIST_CHUNKSIZE 16
 #endif
 
-
 namespace redGrapes
 {
 
@@ -45,9 +44,14 @@ namespace redGrapes
 
         struct EventPtr
         {
-            enum EventPtrTag tag;
-            Task* task;
             std::shared_ptr<Event> external_event;
+            Task* task = nullptr;
+            enum EventPtrTag tag = T_UNINITIALIZED;
+
+            inline operator bool() const
+            {
+                return tag != T_UNINITIALIZED && (task || tag == T_EVT_EXT);
+            }
 
             inline bool operator==(EventPtr const& other) const
             {
@@ -88,16 +92,16 @@ namespace redGrapes
          */
         struct Event
         {
+            //! the set of subsequent events
+            ChunkedList<EventPtr, REDGRAPES_EVENT_FOLLOWER_LIST_CHUNKSIZE> followers;
+
             /*! number of incoming edges
              * state == 0: event is reached and can be removed
              */
-            std::atomic_uint16_t state;
+            std::atomic<uint16_t> state;
 
             //! waker that is waiting for this event
             WakerId waker_id;
-
-            //! the set of subsequent events
-            ChunkedList<EventPtr, REDGRAPES_EVENT_FOLLOWER_LIST_CHUNKSIZE> followers;
 
             Event();
             Event(Event&);
