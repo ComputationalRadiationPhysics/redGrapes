@@ -1,4 +1,4 @@
-/* Copyright 2019-2020 Michael Sippel
+/* Copyright 2019-2024 Michael Sippel, Tapish Narwal
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -7,23 +7,17 @@
 
 #pragma once
 
+#include "redGrapes/scheduler/event.hpp"
+
 #include <spdlog/spdlog.h>
 
-#include <atomic>
-#include <cassert>
 #include <memory>
-#include <mutex>
-#include <optional>
-#include <shared_mutex>
-
-// #include <redGrapes/task/task.hpp>
-#include <redGrapes/scheduler/event.hpp>
-#include <redGrapes/task/property/inherit.hpp>
 
 namespace redGrapes
 {
 
-    struct Task;
+    // struct Task;
+    template<typename TTask>
     struct TaskSpace;
 
     /*!
@@ -45,28 +39,29 @@ namespace redGrapes
      * With child-tasks, the post-event of the child task
      * precedes the parent tasks post-event.
      */
+    template<typename TTask>
     struct GraphProperty
     {
-        Task& operator*()
+        TTask& operator*()
         {
             return *task;
         }
 
-        Task* operator->()
+        TTask* operator->()
         {
             return task;
         }
 
-        Task* task;
+        TTask* task;
 
         //! number of parents
         uint8_t scope_depth;
 
         //! task space that contains this task, must not be null
-        std::shared_ptr<TaskSpace> space;
+        std::shared_ptr<TaskSpace<TTask>> space;
 
         //! task space for children, may be null
-        std::shared_ptr<TaskSpace> children;
+        std::shared_ptr<TaskSpace<TTask>> children;
 
         /*
         // in edges dont need a mutex because they are initialized
@@ -75,29 +70,29 @@ namespace redGrapes
         std::vector<Task*> in_edges;
         */
 
-        scheduler::Event pre_event;
-        scheduler::Event post_event;
-        scheduler::Event result_set_event;
-        scheduler::Event result_get_event;
+        scheduler::Event<TTask> pre_event;
+        scheduler::Event<TTask> post_event;
+        scheduler::Event<TTask> result_set_event;
+        scheduler::Event<TTask> result_get_event;
 
-        inline scheduler::EventPtr get_pre_event()
+        inline scheduler::EventPtr<TTask> get_pre_event()
         {
-            return scheduler::EventPtr{scheduler::T_EVT_PRE, this->task};
+            return scheduler::EventPtr<TTask>{scheduler::T_EVT_PRE, this->task};
         }
 
-        inline scheduler::EventPtr get_post_event()
+        inline scheduler::EventPtr<TTask> get_post_event()
         {
-            return scheduler::EventPtr{scheduler::T_EVT_POST, this->task};
+            return scheduler::EventPtr<TTask>{scheduler::T_EVT_POST, this->task};
         }
 
-        inline scheduler::EventPtr get_result_set_event()
+        inline scheduler::EventPtr<TTask> get_result_set_event()
         {
-            return scheduler::EventPtr{scheduler::T_EVT_RES_SET, this->task};
+            return scheduler::EventPtr<TTask>{scheduler::T_EVT_RES_SET, this->task};
         }
 
-        inline scheduler::EventPtr get_result_get_event()
+        inline scheduler::EventPtr<TTask> get_result_get_event()
         {
-            return scheduler::EventPtr{scheduler::T_EVT_RES_GET, this->task};
+            return scheduler::EventPtr<TTask>{scheduler::T_EVT_RES_GET, this->task};
         }
 
         inline bool is_ready()
@@ -122,13 +117,13 @@ namespace redGrapes
 
         /*! create a new event which precedes the tasks post-event
          */
-        scheduler::EventPtr make_event();
+        scheduler::EventPtr<TTask> make_event();
 
         /*!
          * represent ›pausation of the task until event is reached‹
          * in the scheduling graph
          */
-        inline void sg_pause(scheduler::EventPtr event)
+        inline void sg_pause(scheduler::EventPtr<TTask> event)
         {
             pre_event.state = 1;
             event->add_follower(get_pre_event());
@@ -148,7 +143,7 @@ namespace redGrapes
          * preceding task to the pre-event of this task.
          * Additionally, an edge to the post-event of the parent is added.
          */
-        void add_dependency(Task& preceding_task);
+        void add_dependency(TTask& preceding_task);
 
         /*!
          * checks all incoming edges if they are still required and
@@ -188,8 +183,8 @@ namespace redGrapes
 
 } // namespace redGrapes
 
-template<>
-struct fmt::formatter<redGrapes::GraphProperty>
+template<typename TTask>
+struct fmt::formatter<redGrapes::GraphProperty<TTask>>
 {
     constexpr auto parse(format_parse_context& ctx)
     {
@@ -197,7 +192,7 @@ struct fmt::formatter<redGrapes::GraphProperty>
     }
 
     template<typename FormatContext>
-    auto format(redGrapes::GraphProperty const& sg_prop, FormatContext& ctx)
+    auto format(redGrapes::GraphProperty<TTask> const& sg_prop, FormatContext& ctx)
     {
         return ctx.out();
     }

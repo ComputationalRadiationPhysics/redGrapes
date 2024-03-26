@@ -38,50 +38,37 @@ else()
   message(STATUS "Found hwloc")
 endif()
 
-set(redGrapes_CXX_STANDARD_DEFAULT "17")
+set(redGrapes_CXX_STANDARD_DEFAULT "20")
 # Check whether redGrapes_CXX_STANDARD has already been defined as a non-cached variable.
 if(DEFINED redGrapes)
   set(redGrapes_CXX_STANDARD_DEFAULT ${redGrapes_CXX_STANDARD})
 endif()
 
 set(redGrapes_CXX_STANDARD ${redGrapes_CXX_STANDARD_DEFAULT} CACHE STRING "C++ standard version")
-set_property(CACHE redGrapes_CXX_STANDARD PROPERTY STRINGS "17;20")
+set_property(CACHE redGrapes_CXX_STANDARD PROPERTY STRINGS "20;23")
 
 if( NOT TARGET redGrapes )
-  add_library(redGrapes
-    ${CMAKE_CURRENT_LIST_DIR}/redGrapes/resource/resource.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/redGrapes/resource/resource_user.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/redGrapes/dispatch/thread/execute.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/redGrapes/dispatch/thread/cpuset.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/redGrapes/dispatch/thread/worker.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/redGrapes/dispatch/thread/worker_pool.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/redGrapes/scheduler/event.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/redGrapes/scheduler/event_ptr.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/redGrapes/scheduler/default_scheduler.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/redGrapes/task/property/graph.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/redGrapes/task/task_space.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/redGrapes/task/queue.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/redGrapes/memory/allocator.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/redGrapes/memory/bump_allocator.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/redGrapes/sync/cv.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/redGrapes/util/trace.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/redGrapes/redGrapes.cpp
-  )
-  target_compile_features(redGrapes PUBLIC cxx_std_${redGrapes_CXX_STANDARD})
+  add_library(redGrapes INTERFACE)
+  target_compile_features(redGrapes INTERFACE cxx_std_${redGrapes_CXX_STANDARD})
+  if(MSVC)
+    target_compile_options(redGrapes INTERFACE /W4 /WX)
+  else()
+    target_compile_options(redGrapes INTERFACE -Wall -Wextra -Wpedantic)
 endif()
 
-target_include_directories(redGrapes PUBLIC
+endif()
+
+target_include_directories(redGrapes INTERFACE
     $<BUILD_INTERFACE:${redGrapes_SOURCE_DIR}>
     $<INSTALL_INTERFACE:${redGrapes_INSTALL_PREFIX}>
 )
 
-target_link_libraries(redGrapes PUBLIC ${CMAKE_THREAD_LIBS_INIT})
-target_link_libraries(redGrapes PUBLIC ${Boost_LIBRARIES})
-target_link_libraries(redGrapes PUBLIC fmt::fmt)
-target_link_libraries(redGrapes PUBLIC spdlog::spdlog)
-target_link_libraries(redGrapes PUBLIC ${HWLOC})
-
-set(redGrapes_INCLUDE_DIRS ${redGrapes_CONFIG_INCLUDE_DIR} ${CMAKE_CURRENT_LIST_DIR})
+target_link_libraries(redGrapes INTERFACE ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(redGrapes INTERFACE ${Boost_LIBRARIES})
+target_link_libraries(redGrapes INTERFACE fmt::fmt)
+target_link_libraries(redGrapes INTERFACE spdlog::spdlog)
+target_link_libraries(redGrapes INTERFACE ${HWLOC})
+set(redGrapes_INCLUDE_DIRS ${CMAKE_CURRENT_LIST_DIR})
 set(redGrapes_INCLUDE_DIRS ${redGrapes_INCLUDE_DIRS} "${CMAKE_CURRENT_LIST_DIR}/share/thirdParty/cameron314/concurrentqueue/include")
 set(redGrapes_INCLUDE_DIRS ${redGrapes_INCLUDE_DIRS} ${HWLOC_INCLUDE_DIR})
 
@@ -95,7 +82,7 @@ if(redGrapes_ENABLE_BACKWARDCPP)
   find_package(Backward)
 
   add_compile_definitions(REDGRAPES_ENABLE_BACKWARDCPP=1)
-  target_link_libraries(redGrapes PUBLIC Backward::Backward)
+  target_link_libraries(redGrapes INTERFACE Backward::Backward)
 endif()
 
 if(redGrapes_ENABLE_PERFETTO)
@@ -111,5 +98,5 @@ if(redGrapes_ENABLE_PERFETTO)
     set(redGrapes_LIBRARIES ${Boost_LIBRARIES} fmt::fmt spdlog::spdlog perfetto ${CMAKE_THREAD_LIBS_INIT})
 endif()
 
-target_include_directories(redGrapes PUBLIC ${redGrapes_INCLUDE_DIRS})
+target_include_directories(redGrapes INTERFACE ${redGrapes_INCLUDE_DIRS})
 

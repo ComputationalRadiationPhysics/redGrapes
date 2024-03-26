@@ -7,6 +7,7 @@ project(redGrapesExamplesAndTests VERSION 0.1.0)
 #  Examples & Tests
 ########################################################
 option(redGrapes_BUILD_EXAMPLES "Build the examples" ON)
+option(BUILD_TESTING "Build the tests" OFF)
 
 if(redGrapes_BUILD_EXAMPLES)
     add_subdirectory("examples/")

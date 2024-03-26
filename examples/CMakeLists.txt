@@ -3,8 +3,6 @@ cmake_minimum_required(VERSION 3.18.0)
 
 project(redGrapesExamples LANGUAGES CXX)
 
-set(redGrapes_CONFIG_INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/config")
-
 find_package(redGrapes REQUIRED CONFIG PATHS "${CMAKE_CURRENT_LIST_DIR}/../")
 include_directories(SYSTEM ${redGrapes_INCLUDE_DIRS})
 

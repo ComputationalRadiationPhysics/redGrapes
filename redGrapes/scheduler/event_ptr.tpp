@@ -1,22 +1,18 @@
-/* Copyright 2022 Michael Sippel
+/* Copyright 2022-2024 Michael Sippel, Tapish Narwal
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
-
-#include <redGrapes/scheduler/event.hpp>
-#include <redGrapes/task/property/graph.hpp>
-#include <redGrapes/task/task.hpp>
-
-#include <optional>
+#pragma once
+#include "redGrapes/scheduler/event.hpp"
 
 namespace redGrapes
 {
     namespace scheduler
     {
-
-        Event& EventPtr::get_event() const
+        template<typename TTask>
+        Event<TTask>& EventPtr<TTask>::get_event() const
         {
             switch(tag)
             {

@@ -26,12 +26,12 @@ In order to build the examples and tests, do the typical cmake procedure:
 
 Enable Tests with
 ::
-    cmake .. BUILD_TESTING=ON
+    cmake .. -DBUILD_TESTING=ON
     
 Set Loglevel
 ::
-    cmake .. CMAKE_CXX_FLAGS="-DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_OFF"
+    cmake .. -DCMAKE_CXX_FLAGS="-DSPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_OFF"
 
 Enable Tracing with Perfetto
 ::
-    cmake .. redGrapes_ENABLE_PERFETTO=ON
+    cmake .. -DredGrapes_ENABLE_PERFETTO=ON

@@ -1,4 +1,4 @@
-/* Copyright 2022 Michael Sippel
+/* Copyright 2022-2024 Michael Sippel, Tapish Narwal
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -6,45 +6,52 @@
  */
 #pragma once
 
-#include <redGrapes/task/property/graph.hpp>
-#include <redGrapes/task/property/id.hpp>
-#include <redGrapes/task/property/inherit.hpp>
-#include <redGrapes/task/property/queue.hpp>
-#include <redGrapes/task/property/resource.hpp>
-#include <redGrapes/task/property/trait.hpp>
-#include <redGrapes/task/task_base.hpp>
+#include "redGrapes/task/property/graph.hpp"
+#include "redGrapes/task/property/id.hpp"
+#include "redGrapes/task/property/inherit.hpp"
+#include "redGrapes/task/property/resource.hpp"
+#include "redGrapes/task/task_base.hpp"
 
 #include <type_traits>
-
-// defines REDGRAPES_TASK_PROPERTIES
-#include <redGrapes_config.hpp>
 
 namespace redGrapes
 {
 
-    using TaskProperties = TaskProperties1<
-        IDProperty,
-        ResourceProperty,
-        QueueProperty,
-        GraphProperty
-#ifdef REDGRAPES_TASK_PROPERTIES
-        ,
-        REDGRAPES_TASK_PROPERTIES
-#endif
-        >;
-
-    struct Task
-        : TaskBase
-        , TaskProperties
+    template<typename T>
+    concept C_TaskProperty = requires(T taskProp, T::Patch patch)
     {
+        {
+            taskProp.apply_patch(patch)
+        } -> std::same_as<void>;
+    };
+
+    template<C_TaskProperty... UserTaskProperties>
+    struct Task
+        : TaskBase<Task<UserTaskProperties...>>
+        , TaskProperties1<
+              IDProperty,
+              ResourceProperty<Task<UserTaskProperties...>>,
+              GraphProperty<Task<UserTaskProperties...>>,
+              UserTaskProperties...>
+    {
+        using TaskProperties = TaskProperties1<
+            IDProperty,
+            ResourceProperty<Task<UserTaskProperties...>>,
+            GraphProperty<Task<UserTaskProperties...>>,
+            UserTaskProperties...>;
+
         virtual ~Task()
         {
         }
 
-        unsigned arena_id;
+        // worker id where task is first emplaced and task memory is located (may be stolen later)
+        unsigned worker_id;
         std::atomic_int removal_countdown;
+        scheduler::IScheduler<Task<UserTaskProperties...>>& scheduler;
 
-        Task() : removal_countdown(2)
+        Task(scheduler::IScheduler<Task<UserTaskProperties...>>& scheduler)
+            : removal_countdown(2)
+            , scheduler(scheduler)
         {
         }
 
@@ -57,10 +64,14 @@ namespace redGrapes
     // TODO: fuse ResultTask and FunTask into one template
     //     ---> removes one layer of virtual function calls
 
-    template<typename Result>
-    struct ResultTask : Task
+    template<typename Result, typename TTask>
+    struct ResultTask : TTask
     {
         Result result_data;
+
+        ResultTask(scheduler::IScheduler<TTask>& scheduler) : TTask(scheduler)
+        {
+        }
 
         virtual ~ResultTask()
         {
@@ -76,13 +87,17 @@ namespace redGrapes
         void run() final
         {
             result_data = run_result();
-            get_result_set_event().notify(); // result event now ready
+            this->get_result_set_event().notify(); // result event now ready
         }
     };
 
-    template<>
-    struct ResultTask<void> : Task
+    template<typename TTask>
+    struct ResultTask<void, TTask> : TTask
     {
+        ResultTask(scheduler::IScheduler<TTask>& scheduler) : TTask(scheduler)
+        {
+        }
+
         virtual ~ResultTask()
         {
         }
@@ -94,13 +109,18 @@ namespace redGrapes
         void run() final
         {
             run_result();
-            get_result_set_event().notify();
+            this->get_result_set_event().notify();
         }
     };
 
-    template<typename F>
-    struct FunTask : ResultTask<typename std::result_of<F()>::type>
+    template<typename F, typename TTask>
+    struct FunTask : ResultTask<typename std::result_of<F()>::type, TTask>
     {
+        FunTask(scheduler::IScheduler<TTask>& scheduler)
+            : ResultTask<typename std::result_of<F()>::type, TTask>(scheduler)
+        {
+        }
+
         std::optional<F> impl;
 
         virtual ~FunTask()

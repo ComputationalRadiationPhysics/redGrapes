@@ -1,4 +1,4 @@
-/* Copyright 2019 Michael Sippel
+/* Copyright 2019-2024 Michael Sippel, Tapish Narwal
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -11,19 +11,19 @@
 
 #pragma once
 
-#include <redGrapes/resource/resource.hpp>
-#include <redGrapes/resource/resource_user.hpp>
+#include "redGrapes/resource/resource_user.hpp"
 
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
 
-#include <cstdarg>
+#include <list>
 #include <stdexcept>
 
 namespace redGrapes
 {
 
-    struct ResourceProperty : ResourceUser
+    template<typename TTask>
+    struct ResourceProperty : ResourceUser<TTask>
     {
         template<typename PropertiesBuilder>
         struct Builder
@@ -34,16 +34,16 @@ namespace redGrapes
             {
             }
 
-            PropertiesBuilder& resources(std::initializer_list<ResourceAccess> list)
+            PropertiesBuilder& resources(std::initializer_list<ResourceAccess<TTask>> list)
             {
-                for(ResourceAccess const& ra : list)
+                for(ResourceAccess<TTask> const& ra : list)
                     builder.task->access_list.push(ra);
                 builder.task->build_unique_resource_list();
 
                 return builder;
             }
 
-            inline PropertiesBuilder& add_resource(ResourceAccess access)
+            inline PropertiesBuilder& add_resource(ResourceAccess<TTask> access)
             {
                 (*builder.task) += access;
                 return builder;
@@ -61,7 +61,7 @@ namespace redGrapes
                 {
                 }
 
-                PatchBuilder add_resources(std::initializer_list<ResourceAccess> list)
+                PatchBuilder add_resources(std::initializer_list<ResourceAccess<TTask>> list)
                 {
                     Patch& p = builder.patch;
                     for(auto const& acc : list)
@@ -69,7 +69,7 @@ namespace redGrapes
                     return builder;
                 }
 
-                PatchBuilder remove_resources(std::initializer_list<ResourceAccess> list)
+                PatchBuilder remove_resources(std::initializer_list<ResourceAccess<TTask>> list)
                 {
                     Patch& p = builder.patch;
                     for(auto const& acc : list)
@@ -84,30 +84,30 @@ namespace redGrapes
                 REMOVE
             };
 
-            std::list<std::pair<DiffType, ResourceAccess>> diff;
+            std::list<std::pair<DiffType, ResourceAccess<TTask>>> diff;
 
             void operator+=(Patch const& other)
             {
                 this->diff.insert(std::end(this->diff), std::begin(other.diff), std::end(other.diff));
             }
 
-            void operator+=(ResourceAccess const& ra)
+            void operator+=(ResourceAccess<TTask> const& ra)
             {
                 this->diff.push_back(std::make_pair(DiffType::ADD, ra));
             }
 
-            void operator-=(ResourceAccess const& ra)
+            void operator-=(ResourceAccess<TTask> const& ra)
             {
                 this->diff.push_back(std::make_pair(DiffType::REMOVE, ra));
             }
         };
 
-        inline void operator+=(ResourceAccess const& ra)
+        inline void operator+=(ResourceAccess<TTask> const& ra)
         {
             this->add_resource_access(ra);
         }
 
-        inline void operator-=(ResourceAccess const& ra)
+        inline void operator-=(ResourceAccess<TTask> const& ra)
         {
             this->rm_resource_access(ra);
         }
@@ -134,16 +134,17 @@ namespace redGrapes
         }
     };
 
+    template<typename TTask>
     struct ResourcePrecedencePolicy
     {
-        static bool is_serial(ResourceProperty const& a, ResourceProperty const& b)
+        static bool is_serial(ResourceProperty<TTask> const& a, ResourceProperty<TTask> const& b)
         {
-            return redGrapes::ResourceUser::is_serial(a, b);
+            return redGrapes::ResourceUser<TTask>::is_serial(a, b);
         }
 
-        static void assert_superset(ResourceProperty const& super, ResourceProperty const& sub)
+        static void assert_superset(ResourceProperty<TTask> const& super, ResourceProperty<TTask> const& sub)
         {
-            if(!redGrapes::ResourceUser::is_superset(super, sub))
+            if(!redGrapes::ResourceUser<TTask>::is_superset(super, sub))
             {
                 auto msg = fmt::format("Not allowed: {} is no superset of {}\n", super, sub);
                 spdlog::error(msg);
@@ -154,8 +155,8 @@ namespace redGrapes
 
 } // namespace redGrapes
 
-template<>
-struct fmt::formatter<redGrapes::ResourceProperty>
+template<typename TTask>
+struct fmt::formatter<redGrapes::ResourceProperty<TTask>>
 {
     constexpr auto parse(format_parse_context& ctx)
     {
@@ -163,8 +164,8 @@ struct fmt::formatter<redGrapes::ResourceProperty>
     }
 
     template<typename FormatContext>
-    auto format(redGrapes::ResourceProperty const& label_prop, FormatContext& ctx)
+    auto format(redGrapes::ResourceProperty<TTask> const& label_prop, FormatContext& ctx)
     {
-        return format_to(ctx.out(), "\"resources\" : {}", (redGrapes::ResourceUser const&) label_prop);
+        return format_to(ctx.out(), "\"resources\" : {}", (redGrapes::ResourceUser<TTask> const&) label_prop);
     }
 };

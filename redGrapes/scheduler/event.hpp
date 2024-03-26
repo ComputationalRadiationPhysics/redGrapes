@@ -1,4 +1,4 @@
-/* Copyright 2019-2020 Michael Sippel
+/* Copyright 2019-2024 Michael Sippel, Tapish Narwal
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -7,16 +7,13 @@
 
 #pragma once
 
-#include <redGrapes/scheduler/scheduler.hpp>
-#include <redGrapes/util/chunked_list.hpp>
+#include "redGrapes/scheduler/scheduler.hpp"
+#include "redGrapes/util/chunked_list.hpp"
 
 #include <spdlog/spdlog.h>
 
 #include <atomic>
-#include <cassert>
 #include <memory>
-#include <mutex>
-#include <shared_mutex>
 
 #ifndef REDGRAPES_EVENT_FOLLOWER_LIST_CHUNKSIZE
 #    define REDGRAPES_EVENT_FOLLOWER_LIST_CHUNKSIZE 16
@@ -25,12 +22,9 @@
 
 namespace redGrapes
 {
-
-    struct Task;
-
     namespace scheduler
     {
-
+        template<typename TTask>
         struct Event;
 
         enum EventPtrTag
@@ -43,25 +37,26 @@ namespace redGrapes
             T_EVT_EXT,
         };
 
+        template<typename TTask>
         struct EventPtr
         {
             enum EventPtrTag tag;
-            Task* task;
-            std::shared_ptr<Event> external_event;
+            TTask* task;
+            std::shared_ptr<Event<TTask>> external_event;
 
-            inline bool operator==(EventPtr const& other) const
+            inline bool operator==(EventPtr<TTask> const& other) const
             {
                 return this->tag == other.tag && this->task == other.task;
             }
 
-            Event& get_event() const;
+            Event<TTask>& get_event() const;
 
-            inline Event& operator*() const
+            inline Event<TTask>& operator*() const
             {
                 return get_event();
             }
 
-            inline Event* operator->() const
+            inline Event<TTask>* operator->() const
             {
                 return &get_event();
             }
@@ -86,6 +81,7 @@ namespace redGrapes
          * This order is an homomorphic image from the timeline of
          * execution states.
          */
+        template<typename TTask>
         struct Event
         {
             /*! number of incoming edges
@@ -97,7 +93,7 @@ namespace redGrapes
             WakerId waker_id;
 
             //! the set of subsequent events
-            ChunkedList<EventPtr, REDGRAPES_EVENT_FOLLOWER_LIST_CHUNKSIZE> followers;
+            ChunkedList<EventPtr<TTask>, REDGRAPES_EVENT_FOLLOWER_LIST_CHUNKSIZE> followers;
 
             Event();
             Event(Event&);
@@ -109,8 +105,8 @@ namespace redGrapes
             void dn();
 
             //! note: follower has to be notified separately!
-            void remove_follower(EventPtr follower);
-            void add_follower(EventPtr follower);
+            void remove_follower(EventPtr<TTask> follower);
+            void add_follower(EventPtr<TTask> follower);
 
             void notify_followers();
         };

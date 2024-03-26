@@ -1,4 +1,4 @@
-/* Copyright 2019 Michael Sippel
+/* Copyright 2019-2024 Michael Sippel, Tapish Narwal
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -6,6 +6,7 @@
  */
 
 #include <redGrapes/redGrapes.hpp>
+#include <redGrapes/task/property/label.hpp>
 
 #include <chrono>
 #include <iostream>
@@ -16,43 +17,45 @@ int main(int, char*[])
     spdlog::set_level(spdlog::level::trace);
     spdlog::set_pattern("[thread %t] %^[%l]%$ %v");
 
-    redGrapes::init(4);
+    auto rg = redGrapes::init<redGrapes::LabelProperty>(4);
 
-    redGrapes::emplace_task(
-        []
-        {
-            std::cout << "f1"
-                      << "..." << std::endl;
+    rg.emplace_task(
+          [&rg]
+          {
+              std::cout << "f1"
+                        << "..." << std::endl;
 
-            int i = 0;
-            for(auto t : redGrapes::backtrace())
-                fmt::print("refinement 1 backtrace [{}]: {}\n", i++, t.get().label);
+              int i = 0;
+              for(auto t : rg.backtrace())
+                  fmt::print("refinement 1 backtrace [{}]: {}\n", i++, t.get().label);
 
-            redGrapes::emplace_task(
-                []
-                {
-                    fmt::print("Refinement 1\n");
-                    std::this_thread::sleep_for(std::chrono::seconds(1));
-                });
+              rg.emplace_task(
+                  []
+                  {
+                      fmt::print("Refinement 1\n");
+                      std::this_thread::sleep_for(std::chrono::seconds(1));
+                  });
 
-            SPDLOG_TRACE("EX: create next task task");
+              SPDLOG_TRACE("EX: create next task task");
 
-            redGrapes::emplace_task(
-                []
-                {
-                    fmt::print("Refinement 2\n");
-                    std::this_thread::sleep_for(std::chrono::seconds(1));
+              rg.emplace_task(
+                    [&rg]
+                    {
+                        fmt::print("Refinement 2\n");
+                        std::this_thread::sleep_for(std::chrono::seconds(1));
 
-                    int i = 0;
-                    for(auto t : redGrapes::backtrace())
-                        fmt::print("refinement 2 backtrace [{}]: {}\n", i++, (redGrapes::TaskProperties const&) t);
-                })
-                .label("Child Task 2");
-        })
+                        int i = 0;
+                        for(auto t : rg.backtrace())
+                            fmt::print(
+                                "refinement 2 backtrace [{}]: {}\n",
+                                i++,
+                                (decltype(rg)::RGTask::TaskProperties const&) t); // TODO cleaner way to do this
+                    })
+                  .label("Child Task 2");
+          })
         .label("Parent Task")
         .submit();
 
-    redGrapes::finalize();
 
     return 0;
 }

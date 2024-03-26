@@ -1,4 +1,4 @@
-/* Copyright 2019-2020 Michael Sippel
+/* Copyright 2019-2024 Michael Sippel, Tapish Narwal
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -7,7 +7,7 @@
 
 #pragma once
 
-#include <redGrapes/scheduler/event.hpp>
+#include "redGrapes/scheduler/event.hpp"
 
 #include <boost/context/continuation.hpp>
 
@@ -19,6 +19,7 @@
 namespace redGrapes
 {
 
+    template<typename TTask>
     struct TaskBase
     {
         bool finished;
@@ -34,7 +35,7 @@ namespace redGrapes
 
         virtual void run() = 0;
 
-        std::optional<scheduler::EventPtr> operator()()
+        std::optional<scheduler::EventPtr<TTask>> operator()()
         {
             if(enable_stack_switching)
             {
@@ -70,7 +71,7 @@ namespace redGrapes
             return event;
         }
 
-        void yield(scheduler::EventPtr event)
+        void yield(scheduler::EventPtr<TTask> event)
         {
             this->event = event;
 
@@ -92,7 +93,7 @@ namespace redGrapes
             }
         }
 
-        std::optional<scheduler::EventPtr> event;
+        std::optional<scheduler::EventPtr<TTask>> event;
 
     private:
         std::mutex yield_cont_mutex;

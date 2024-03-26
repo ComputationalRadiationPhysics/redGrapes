@@ -7,45 +7,46 @@
 
 TEST_CASE("Resource User")
 {
-    redGrapes::init();
+    auto rg = redGrapes::init();
+    using RGTask = decltype(rg)::RGTask;
 
-    redGrapes::IOResource<int> a, b;
+    redGrapes::IOResource<int, RGTask> a, b;
 
-    redGrapes::ResourceUser f1({a.read()});
-    redGrapes::ResourceUser f2({a.read(), a.write()});
-    redGrapes::ResourceUser f3({b.read()});
-    redGrapes::ResourceUser f4({b.read(), b.write()});
-    redGrapes::ResourceUser f5({a.read(), a.write(), b.read(), b.write()});
+    redGrapes::ResourceUser<RGTask> f1({a.read()});
+    redGrapes::ResourceUser<RGTask> f2({a.read(), a.write()});
+    redGrapes::ResourceUser<RGTask> f3({b.read()});
+    redGrapes::ResourceUser<RGTask> f4({b.read(), b.write()});
+    redGrapes::ResourceUser<RGTask> f5({a.read(), a.write(), b.read(), b.write()});
 
-    REQUIRE(redGrapes::ResourceUser::is_serial(f1, f1) == false);
-    REQUIRE(redGrapes::ResourceUser::is_serial(f1, f2) == true);
-    REQUIRE(redGrapes::ResourceUser::is_serial(f1, f3) == false);
-    REQUIRE(redGrapes::ResourceUser::is_serial(f1, f4) == false);
-    REQUIRE(redGrapes::ResourceUser::is_serial(f1, f5) == true);
+    REQUIRE(redGrapes::ResourceUser<RGTask>::is_serial(f1, f1) == false);
+    REQUIRE(redGrapes::ResourceUser<RGTask>::is_serial(f1, f2) == true);
+    REQUIRE(redGrapes::ResourceUser<RGTask>::is_serial(f1, f3) == false);
+    REQUIRE(redGrapes::ResourceUser<RGTask>::is_serial(f1, f4) == false);
+    REQUIRE(redGrapes::ResourceUser<RGTask>::is_serial(f1, f5) == true);
 
-    REQUIRE(redGrapes::ResourceUser::is_serial(f2, f1) == true);
-    REQUIRE(redGrapes::ResourceUser::is_serial(f2, f2) == true);
-    REQUIRE(redGrapes::ResourceUser::is_serial(f2, f3) == false);
-    REQUIRE(redGrapes::ResourceUser::is_serial(f2, f4) == false);
-    REQUIRE(redGrapes::ResourceUser::is_serial(f2, f5) == true);
+    REQUIRE(redGrapes::ResourceUser<RGTask>::is_serial(f2, f1) == true);
+    REQUIRE(redGrapes::ResourceUser<RGTask>::is_serial(f2, f2) == true);
+    REQUIRE(redGrapes::ResourceUser<RGTask>::is_serial(f2, f3) == false);
+    REQUIRE(redGrapes::ResourceUser<RGTask>::is_serial(f2, f4) == false);
+    REQUIRE(redGrapes::ResourceUser<RGTask>::is_serial(f2, f5) == true);
 
-    REQUIRE(redGrapes::ResourceUser::is_serial(f3, f1) == false);
-    REQUIRE(redGrapes::ResourceUser::is_serial(f3, f2) == false);
-    REQUIRE(redGrapes::ResourceUser::is_serial(f3, f3) == false);
-    REQUIRE(redGrapes::ResourceUser::is_serial(f3, f4) == true);
-    REQUIRE(redGrapes::ResourceUser::is_serial(f3, f5) == true);
+    REQUIRE(redGrapes::ResourceUser<RGTask>::is_serial(f3, f1) == false);
+    REQUIRE(redGrapes::ResourceUser<RGTask>::is_serial(f3, f2) == false);
+    REQUIRE(redGrapes::ResourceUser<RGTask>::is_serial(f3, f3) == false);
+    REQUIRE(redGrapes::ResourceUser<RGTask>::is_serial(f3, f4) == true);
+    REQUIRE(redGrapes::ResourceUser<RGTask>::is_serial(f3, f5) == true);
 
-    REQUIRE(redGrapes::ResourceUser::is_serial(f4, f1) == false);
-    REQUIRE(redGrapes::ResourceUser::is_serial(f4, f2) == false);
-    REQUIRE(redGrapes::ResourceUser::is_serial(f4, f3) == true);
-    REQUIRE(redGrapes::ResourceUser::is_serial(f4, f4) == true);
-    REQUIRE(redGrapes::ResourceUser::is_serial(f4, f5) == true);
+    REQUIRE(redGrapes::ResourceUser<RGTask>::is_serial(f4, f1) == false);
+    REQUIRE(redGrapes::ResourceUser<RGTask>::is_serial(f4, f2) == false);
+    REQUIRE(redGrapes::ResourceUser<RGTask>::is_serial(f4, f3) == true);
+    REQUIRE(redGrapes::ResourceUser<RGTask>::is_serial(f4, f4) == true);
+    REQUIRE(redGrapes::ResourceUser<RGTask>::is_serial(f4, f5) == true);
 
-    REQUIRE(redGrapes::ResourceUser::is_serial(f5, f1) == true);
-    REQUIRE(redGrapes::ResourceUser::is_serial(f5, f2) == true);
-    REQUIRE(redGrapes::ResourceUser::is_serial(f5, f3) == true);
-    REQUIRE(redGrapes::ResourceUser::is_serial(f5, f4) == true);
-    REQUIRE(redGrapes::ResourceUser::is_serial(f5, f5) == true);
+    REQUIRE(redGrapes::ResourceUser<RGTask>::is_serial(f5, f1) == true);
+    REQUIRE(redGrapes::ResourceUser<RGTask>::is_serial(f5, f2) == true);
+    REQUIRE(redGrapes::ResourceUser<RGTask>::is_serial(f5, f3) == true);
+    REQUIRE(redGrapes::ResourceUser<RGTask>::is_serial(f5, f4) == true);
+    REQUIRE(redGrapes::ResourceUser<RGTask>::is_serial(f5, f5) == true);
 
 
     REQUIRE(f1.is_superset_of(f1) == true);
@@ -59,6 +60,4 @@ TEST_CASE("Resource User")
     REQUIRE(f2.is_superset_of(f3) == false);
     REQUIRE(f2.is_superset_of(f4) == false);
     REQUIRE(f2.is_superset_of(f5) == false);
-
-    redGrapes::finalize();
 }

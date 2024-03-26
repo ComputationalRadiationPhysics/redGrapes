@@ -12,6 +12,8 @@ DartConfiguration.tcl
 Testing
 
 build/
+.build/
+.cache/
 
 *.swp
 *.png

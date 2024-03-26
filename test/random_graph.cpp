@@ -1,5 +1,13 @@
+/* Copyright 2023-2024 Michael Sippel, Tapish Narwal
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+
 #include "sha256.c"
 
+#include <redGrapes/SchedulerDescription.hpp>
 #include <redGrapes/redGrapes.hpp>
 #include <redGrapes/resource/ioresource.hpp>
 
@@ -9,14 +17,12 @@
 
 #include <algorithm>
 #include <array>
-#include <cassert>
 #include <chrono>
 #include <cstdint>
 #include <iostream>
 #include <random>
 #include <vector>
 
-namespace rg = redGrapes;
 using namespace std::chrono;
 
 void sleep(std::chrono::microseconds d)
@@ -54,10 +60,10 @@ void generate_access_pattern()
     expected_hash = std::vector<std::array<uint64_t, 8>>(n_resources);
     std::vector<unsigned> path_length(n_resources);
 
-    for(int i = 0; i < n_tasks; ++i)
+    for(unsigned i = 0; i < n_tasks; ++i)
     {
         unsigned n_dependencies = distrib_n_deps(gen);
-        for(int j = 0; j < n_dependencies; ++j)
+        for(unsigned j = 0; j < n_dependencies; ++j)
         {
             unsigned max_path_length = 0;
 
@@ -96,20 +102,20 @@ TEST_CASE("RandomGraph")
 
     generate_access_pattern();
 
-    rg::init(n_threads);
-
+    using TTask = redGrapes::Task<>;
+    auto rg = redGrapes::init(n_threads);
     {
-        std::vector<rg::IOResource<std::array<uint64_t, 8>>> resources(n_resources);
+        std::vector<redGrapes::IOResource<std::array<uint64_t, 8>, TTask>> resources(n_resources);
 
-        for(int i = 0; i < n_tasks; ++i)
+        for(unsigned i = 0; i < n_tasks; ++i)
             switch(access_pattern[i].size())
             {
             case 0:
-                rg::emplace_task([i]() { sleep(task_duration); });
+                rg.emplace_task([i]() { sleep(task_duration); });
                 break;
 
             case 1:
-                rg::emplace_task(
+                rg.emplace_task(
                     [i](auto ra1)
                     {
                         sleep(task_duration);
@@ -119,7 +125,7 @@ TEST_CASE("RandomGraph")
                 break;
 
             case 2:
-                rg::emplace_task(
+                rg.emplace_task(
                     [i](auto ra1, auto ra2)
                     {
                         sleep(task_duration);
@@ -131,7 +137,7 @@ TEST_CASE("RandomGraph")
                 break;
 
             case 3:
-                rg::emplace_task(
+                rg.emplace_task(
                     [i](auto ra1, auto ra2, auto ra3)
                     {
                         sleep(task_duration);
@@ -145,7 +151,7 @@ TEST_CASE("RandomGraph")
                 break;
 
             case 4:
-                rg::emplace_task(
+                rg.emplace_task(
                     [i](auto ra1, auto ra2, auto ra3, auto ra4)
                     {
                         sleep(task_duration);
@@ -161,7 +167,7 @@ TEST_CASE("RandomGraph")
                 break;
 
             case 5:
-                rg::emplace_task(
+                rg.emplace_task(
                     [i](auto ra1, auto ra2, auto ra3, auto ra4, auto ra5)
                     {
                         sleep(task_duration);
@@ -179,10 +185,8 @@ TEST_CASE("RandomGraph")
                 break;
             }
 
-        rg::barrier();
-        for(int i = 0; i < n_resources; ++i)
+        rg.barrier();
+        for(unsigned i = 0; i < n_resources; ++i)
             REQUIRE(*resources[i] == expected_hash[i]);
     }
-
-    rg::finalize();
 }

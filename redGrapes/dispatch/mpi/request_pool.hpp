@@ -1,4 +1,4 @@
-/* Copyright 2019-2020 Michael Sippel
+/* Copyright 2019-2024 Michael Sippel, Tapish Narwal
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -7,30 +7,28 @@
 
 #pragma once
 
-#include <redGrapes/scheduler/event.hpp>
+#include "redGrapes/TaskCtx.hpp"
+#include "redGrapes/scheduler/event.hpp"
 
 #include <mpi.h>
 
-#include <map>
 #include <memory>
 #include <mutex>
 
 namespace redGrapes
 {
-    void yield(scheduler::EventPtr event);
-    std::optional<scheduler::EventPtr> create_event();
-
     namespace dispatch
     {
         namespace mpi
         {
 
+            template<typename TTask>
             struct RequestPool
             {
                 std::mutex mutex;
 
                 std::vector<MPI_Request> requests;
-                std::vector<scheduler::EventPtr> events;
+                std::vector<scheduler::EventPtr<TTask>> events;
                 std::vector<std::shared_ptr<MPI_Status>> statuses;
 
                 RequestPool()
@@ -85,7 +83,7 @@ namespace redGrapes
                 MPI_Status get_status(MPI_Request request)
                 {
                     auto status = memory::alloc_shared<MPI_Status>();
-                    auto event = *create_event();
+                    auto event = *TaskCtx<TTask>::create_event();
 
                     // SPDLOG_TRACE("MPI RequestPool: status event = {}", (void*)event.get());
 
@@ -96,7 +94,7 @@ namespace redGrapes
                         statuses.push_back(status);
                     }
 
-                    yield(event);
+                    TaskCtx<TTask>::yield(event);
 
                     return *status;
                 }

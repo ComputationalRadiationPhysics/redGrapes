@@ -1,4 +1,4 @@
-/* Copyright 2020 Michael Sippel
+/* Copyright 2020-2024 Michael Sippel, Tapish Narwal
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -8,13 +8,13 @@
 #pragma once
 
 
-#include <redGrapes/memory/chunked_bump_alloc.hpp>
-#include <redGrapes/scheduler/scheduler.hpp>
-#include <redGrapes/scheduler/tag_match_property.hpp>
-#include <redGrapes/task/task.hpp>
+#include "redGrapes/scheduler/scheduler.hpp"
 
 #include <spdlog/spdlog.h>
 
+#include <bitset>
+#include <initializer_list>
+#include <memory>
 #include <vector>
 
 namespace redGrapes
@@ -22,23 +22,23 @@ namespace redGrapes
     namespace scheduler
     {
 
-        template<std::size_t T_tag_count = 64>
-        struct TagMatch : IScheduler
+        template<typename TTask, std::size_t T_tag_count = 64>
+        struct TagMatch : IScheduler<TTask>
         {
             struct SubScheduler
             {
                 std::bitset<T_tag_count> supported_tags;
-                std::shared_ptr<IScheduler> s;
+                std::shared_ptr<IScheduler<TTask>> s;
             };
 
             std::vector<SubScheduler> sub_schedulers;
 
-            void add_scheduler(std::bitset<T_tag_count> supported_tags, std::shared_ptr<IScheduler> s)
+            void add_scheduler(std::bitset<T_tag_count> supported_tags, std::shared_ptr<IScheduler<TTask>> s)
             {
                 sub_schedulers.push_back(SubScheduler{supported_tags, s});
             }
 
-            void add_scheduler(std::initializer_list<unsigned> tag_list, std::shared_ptr<IScheduler> s)
+            void add_scheduler(std::initializer_list<unsigned> tag_list, std::shared_ptr<IScheduler<TTask>> s)
             {
                 std::bitset<T_tag_count> supported_tags;
                 for(auto tag : tag_list)
@@ -46,16 +46,7 @@ namespace redGrapes
                 this->add_scheduler(supported_tags, s);
             }
 
-            Task* steal_task(dispatch::thread::Worker& worker)
-            {
-                for(auto& s : sub_schedulers)
-                    if(Task* t = s.s->steal_task(worker))
-                        return t;
-
-                return nullptr;
-            }
-
-            void emplace_task(Task& task)
+            void emplace_task(TTask& task)
             {
                 if(auto sub_scheduler = get_matching_scheduler(task.required_scheduler_tags))
                     return (*sub_scheduler)->emplace_task(task);
@@ -63,7 +54,7 @@ namespace redGrapes
                     throw std::runtime_error("no scheduler found for task");
             }
 
-            void activate_task(Task& task)
+            void activate_task(TTask& task)
             {
                 if(auto sub_scheduler = get_matching_scheduler(task.required_scheduler_tags))
                     return (*sub_scheduler)->activate_task(task);
@@ -71,7 +62,7 @@ namespace redGrapes
                     throw std::runtime_error("no scheduler found for task");
             }
 
-            std::optional<std::shared_ptr<IScheduler>> get_matching_scheduler(
+            std::optional<std::shared_ptr<IScheduler<TTask>>> get_matching_scheduler(
                 std::bitset<T_tag_count> const& required_tags)
             {
                 for(auto const& s : sub_schedulers)
@@ -81,7 +72,7 @@ namespace redGrapes
                 return std::nullopt;
             }
 
-            bool task_dependency_type(Task const& a, Task& b)
+            bool task_dependency_type(TTask const& a, TTask& b)
             {
                 /// fixme: b or a ?
                 if(auto sub_scheduler = get_matching_scheduler(b.required_scheduler_tags))
@@ -108,27 +99,27 @@ namespace redGrapes
 
         /*! Factory function to easily create a tag-match-scheduler object
          */
-        template<std::size_t T_tag_count = 64>
+        template<typename TTask, std::size_t T_tag_count = 64>
         struct TagMatchBuilder
         {
-            std::shared_ptr<TagMatch<T_tag_count>> tag_match;
+            std::shared_ptr<TagMatch<TTask, T_tag_count>> tag_match;
 
-            operator std::shared_ptr<IScheduler>() const
+            operator std::shared_ptr<IScheduler<TTask>>() const
             {
                 return tag_match;
             }
 
-            TagMatchBuilder add(std::initializer_list<unsigned> tags, std::shared_ptr<IScheduler> s)
+            TagMatchBuilder add(std::initializer_list<unsigned> tags, std::shared_ptr<IScheduler<TTask>> s)
             {
                 tag_match->add_scheduler(tags, s);
                 return *this;
             }
         };
 
-        template<size_t T_tag_count = 64>
+        template<typename TTask, size_t T_tag_count = 64>
         auto make_tag_match_scheduler()
         {
-            return TagMatchBuilder<T_tag_count>{std::make_shared<TagMatch<T_tag_count>>()};
+            return TagMatchBuilder<TTask, T_tag_count>{std::make_shared<TagMatch<TTask, T_tag_count>>()};
         }
 
 

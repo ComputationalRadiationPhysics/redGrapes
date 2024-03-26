@@ -1,5 +1,4 @@
-/* Copyright 2020 Michael Sippel
- *
+/* Copyright 2020-2024 Michael Sippel, Tapish Narwal
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -7,11 +6,11 @@
 
 #pragma once
 
-#include <redGrapes/dispatch/cuda/event_pool.hpp>
-#include <redGrapes/dispatch/cuda/task_properties.hpp>
-#include <redGrapes/scheduler/event.hpp>
-#include <redGrapes/scheduler/scheduler.hpp>
-#include <redGrapes/task/property/graph.hpp>
+#include "redGrapes/dispatch/cuda/event_pool.hpp"
+#include "redGrapes/dispatch/cuda/task_properties.hpp"
+#include "redGrapes/scheduler/event.hpp"
+#include "redGrapes/scheduler/scheduler.hpp"
+#include "redGrapes/task/property/graph.hpp"
 
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
@@ -111,7 +110,8 @@ namespace redGrapes
                 }
             };
 
-            struct CudaScheduler : redGrapes::scheduler::IScheduler
+            template<typename TTask>
+            struct CudaScheduler : redGrapes::scheduler::IScheduler<TTask>
             {
             private:
                 bool recording;
@@ -119,13 +119,13 @@ namespace redGrapes
 
                 std::recursive_mutex mutex;
                 unsigned int current_stream;
-                std::vector<CudaStreamDispatcher<Task>> streams;
+                std::vector<CudaStreamDispatcher<TTask>> streams;
 
-                std::function<bool(Task const&)> is_cuda_task;
+                std::function<bool(TTask const&)> is_cuda_task;
 
             public:
                 CudaScheduler(
-                    std::function<bool(Task const&)> is_cuda_task,
+                    std::function<bool(TTask const&)> is_cuda_task,
                     size_t stream_count = 1,
                     bool cuda_graph_enabled = false)
                     : is_cuda_task(is_cuda_task)
@@ -142,7 +142,7 @@ namespace redGrapes
                 }
 
                 //! submits the call to the cuda runtime
-                void activate_task(Task& task)
+                void activate_task(TTask& task)
                 {
                     unsigned int stream_id = current_stream;
                     current_stream = (current_stream + 1) % streams.size();
@@ -162,7 +162,7 @@ namespace redGrapes
                  * @return true if task b depends on the pre event of task a, false if task b depends on the post event
                  * of task b.
                  */
-                bool task_dependency_type(Task const& a, Task const& b)
+                bool task_dependency_type(TTask const& a, TTask const& b)
                 {
                     assert(is_cuda_task(b));
                     return is_cuda_task(a);

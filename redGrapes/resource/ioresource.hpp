@@ -1,4 +1,4 @@
-/* Copyright 2019 Michael Sippel
+/* Copyright 2019-2024 Michael Sippel, Tapish Narwal
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -11,20 +11,18 @@
 
 #pragma once
 
-#include <redGrapes/resource/access/io.hpp>
-#include <redGrapes/resource/resource.hpp>
-#include <redGrapes/task/property/resource.hpp>
-#include <redGrapes/task/property/trait.hpp>
+#include "redGrapes/resource/access/io.hpp"
+#include "redGrapes/resource/resource.hpp"
 
 namespace redGrapes
 {
     namespace ioresource
     {
 
-        template<typename T>
-        struct ReadGuard : public SharedResourceObject<T, access::IOAccess>
+        template<typename T, typename TTask>
+        struct ReadGuard : public SharedResourceObject<T, TTask, access::IOAccess>
         {
-            operator ResourceAccess() const noexcept
+            operator ResourceAccess<TTask>() const noexcept
             {
                 return this->make_access(access::IOAccess::read);
             }
@@ -50,15 +48,15 @@ namespace redGrapes
             }
 
         protected:
-            ReadGuard(std::shared_ptr<T> obj) : SharedResourceObject<T, access::IOAccess>(obj)
+            ReadGuard(std::shared_ptr<T> obj) : SharedResourceObject<T, TTask, access::IOAccess>(obj)
             {
             }
         };
 
-        template<typename T>
-        struct WriteGuard : public ReadGuard<T>
+        template<typename T, typename TTask>
+        struct WriteGuard : public ReadGuard<T, TTask>
         {
-            operator ResourceAccess() const noexcept
+            operator ResourceAccess<TTask>() const noexcept
             {
                 return this->make_access(access::IOAccess::write);
             }
@@ -84,22 +82,23 @@ namespace redGrapes
             }
 
         protected:
-            WriteGuard(std::shared_ptr<T> obj) : ReadGuard<T>(obj)
+            WriteGuard(std::shared_ptr<T> obj) : ReadGuard<T, TTask>(obj)
             {
             }
         };
 
     } // namespace ioresource
 
-    template<typename T>
-    struct IOResource : public ioresource::WriteGuard<T>
+    template<typename T, typename TTask>
+    struct IOResource : public ioresource::WriteGuard<T, TTask>
     {
         template<typename... Args>
-        IOResource(Args&&... args) : ioresource::WriteGuard<T>(memory::alloc_shared<T>(std::forward<Args>(args)...))
+        IOResource(Args&&... args)
+            : ioresource::WriteGuard<T, TTask>(memory::alloc_shared<T>(std::forward<Args>(args)...))
         {
         }
 
-        IOResource(std::shared_ptr<T> o) : ioresource::WriteGuard<T>(o)
+        IOResource(std::shared_ptr<T> o) : ioresource::WriteGuard<T, TTask>(o)
         {
         }
 

@@ -11,7 +11,6 @@ TEST_CASE("CV")
     for(int i = 0; i < 5000; ++i)
     {
         std::atomic<bool> finished = {false};
-        bool volatile start = false;
 
         redGrapes::CondVar cv;
 

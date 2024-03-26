@@ -1,7 +1,14 @@
+/* Copyright 2023-2024 Michael Sippel, Tapish Narwal
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+
 #pragma once
 
-#include <redGrapes/memory/block.hpp>
-#include <redGrapes/resource/access/area.hpp>
+#include "redGrapes/TaskFreeCtx.hpp"
+#include "redGrapes/memory/block.hpp"
 
 #include <boost/core/demangle.hpp>
 #include <spdlog/spdlog.h>
@@ -10,33 +17,30 @@
 
 namespace redGrapes
 {
-
-    namespace dispatch
-    {
-        namespace thread
-        {
-            using WorkerId = unsigned;
-            struct WorkerPool;
-        } // namespace thread
-    } // namespace dispatch
-
-    extern std::shared_ptr<dispatch::thread::WorkerPool> worker_pool;
-
     namespace memory
     {
-
         struct Allocator
         {
-            dispatch::thread::WorkerId worker_id;
+            WorkerId worker_id;
 
-            // allocate on `current_arena` given by `SingletonContext`
-            Allocator();
+            Allocator() : Allocator(*TaskFreeCtx::current_worker_id)
+            {
+            }
 
             // allocate on arena for specific worker
-            Allocator(dispatch::thread::WorkerId worker_id);
+            Allocator(WorkerId worker_id) : worker_id(worker_id)
+            {
+            }
 
-            Block allocate(size_t n_bytes);
-            void deallocate(Block blk);
+            Block allocate(size_t n_bytes)
+            {
+                return TaskFreeCtx::worker_alloc_pool->get_alloc(worker_id).allocate(n_bytes);
+            }
+
+            void deallocate(Block blk)
+            {
+                TaskFreeCtx::worker_alloc_pool->get_alloc(worker_id).deallocate(blk);
+            }
         };
 
         template<typename T>
@@ -49,7 +53,7 @@ namespace redGrapes
             {
             }
 
-            StdAllocator(dispatch::thread::WorkerId worker_id) : alloc(worker_id)
+            StdAllocator(WorkerId worker_id) : alloc(worker_id)
             {
             }
 
@@ -103,9 +107,9 @@ namespace redGrapes
         /* allocates a shared_ptr in the memory pool of a given worker
          */
         template<typename T, typename... Args>
-        std::shared_ptr<T> alloc_shared_bind(dispatch::thread::WorkerId worker_id, Args&&... args)
+        std::shared_ptr<T> alloc_shared_bind(WorkerId worker_id, Args&&... args)
         {
-            return std::allocate_shared<T, StdAllocator<T>>(StdAllocator<T>(worker_id), std::forward<Args>(args)...);
+            return std::allocate_shared<T>(StdAllocator<T>(worker_id), std::forward<Args>(args)...);
         }
 
         /* allocates a shared_ptr in the memory pool of the current worker
@@ -113,7 +117,7 @@ namespace redGrapes
         template<typename T, typename... Args>
         std::shared_ptr<T> alloc_shared(Args&&... args)
         {
-            return std::allocate_shared<T, StdAllocator<T>>(StdAllocator<T>(), std::forward<Args>(args)...);
+            return std::allocate_shared<T>(StdAllocator<T>(), std::forward<Args>(args)...);
         }
 
     } // namespace memory

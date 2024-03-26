@@ -1,4 +1,4 @@
-/* Copyright 2020-2023 Michael Sippel
+/* Copyright 2020-2024 Michael Sippel, Tapish Narwal
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -7,20 +7,15 @@
 
 #pragma once
 
-#include <redGrapes/dispatch/thread/worker_pool.hpp>
-#include <redGrapes/memory/chunked_bump_alloc.hpp>
-#include <redGrapes/memory/hwloc_alloc.hpp>
-#include <redGrapes/sync/cv.hpp>
-#include <redGrapes/task/queue.hpp>
+#include "redGrapes/scheduler/scheduler.hpp"
+#include "redGrapes/sync/cv.hpp"
+#include "redGrapes/task/queue.hpp"
+#include "redGrapes/util/bitfield.hpp"
 
 #include <hwloc.h>
 #include <moodycamel/concurrentqueue.h>
 
 #include <atomic>
-#include <exception>
-#include <functional>
-#include <memory>
-#include <thread>
 
 namespace redGrapes
 {
@@ -30,7 +25,8 @@ namespace redGrapes
         namespace thread
         {
 
-            struct WorkerThread;
+            template<typename TTask, typename Worker>
+            struct WorkerPool;
 
             /*!
              * Creates a thread which repeatedly calls consume()
@@ -38,17 +34,18 @@ namespace redGrapes
              *
              * Sleeps when no jobs are available.
              */
-            struct Worker : redGrapes::scheduler::IScheduler
+            template<typename TTask>
+            struct DefaultWorker
             {
                 // private:
                 WorkerId id;
+                AtomicBitfield& m_worker_state;
+                WorkerPool<TTask, DefaultWorker>& m_worker_pool;
 
                 /*! if true, the thread shall stop
                  * instead of waiting when it is out of jobs
                  */
                 std::atomic_bool m_stop{false};
-
-
                 std::atomic<unsigned> task_count{0};
 
                 //! condition variable for waiting if queue is empty
@@ -57,23 +54,20 @@ namespace redGrapes
                 static constexpr size_t queue_capacity = 128;
 
             public:
-                memory::ChunkedBumpAlloc<memory::HwlocAlloc>& alloc;
-                HwlocContext& hwloc_ctx;
+                task::Queue<TTask> emplacement_queue{queue_capacity};
+                task::Queue<TTask> ready_queue{queue_capacity};
 
-                task::Queue emplacement_queue{queue_capacity};
-                task::Queue ready_queue{queue_capacity};
-
-                Worker(
-                    memory::ChunkedBumpAlloc<memory::HwlocAlloc>& alloc,
-                    HwlocContext& hwloc_ctx,
-                    hwloc_obj_t const& obj,
-                    WorkerId id);
-                virtual ~Worker();
-
-                inline WorkerId get_worker_id()
+                DefaultWorker(
+                    WorkerId worker_id,
+                    AtomicBitfield& worker_state,
+                    WorkerPool<TTask, DefaultWorker>& worker_pool)
+                    : id(worker_id)
+                    , m_worker_state(worker_state)
+                    , m_worker_pool(worker_pool)
                 {
-                    return id;
                 }
+
+                ~DefaultWorker();
 
                 inline scheduler::WakerId get_waker_id()
                 {
@@ -85,22 +79,18 @@ namespace redGrapes
                     return cv.notify();
                 }
 
-                virtual void stop();
+                void stop();
 
                 /* adds a new task to the emplacement queue
                  * and wakes up thread to kickstart execution
                  */
-                inline void emplace_task(Task& task)
+                inline void dispatch_task(TTask& task)
                 {
                     emplacement_queue.push(&task);
                     wake();
                 }
 
-                inline void activate_task(Task& task)
-                {
-                    ready_queue.push(&task);
-                    wake();
-                }
+                inline void execute_task(TTask& task);
 
                 // private:
 
@@ -111,7 +101,7 @@ namespace redGrapes
 
                 /* find a task that shall be executed next
                  */
-                Task* gather_task();
+                TTask* gather_task();
 
                 /*! take a task from the emplacement queue and initialize it,
                  * @param t is set to the task if the new task is ready,
@@ -121,31 +111,7 @@ namespace redGrapes
                  *
                  * @return false if queue is empty
                  */
-                bool init_dependencies(Task*& t, bool claimed = true);
-            };
-
-            struct WorkerThread
-                : Worker
-                , std::enable_shared_from_this<WorkerThread>
-            {
-                std::thread thread;
-
-                WorkerThread(
-                    memory::ChunkedBumpAlloc<memory::HwlocAlloc>& alloc,
-                    HwlocContext& hwloc_ctx,
-                    hwloc_obj_t const& obj,
-                    WorkerId worker_id);
-                ~WorkerThread();
-
-                void start();
-                void stop();
-
-                /* function the thread will execute
-                 */
-                void run();
-
-                void cpubind();
-                void membind();
+                bool init_dependencies(TTask*& t, bool claimed = true);
             };
 
         } // namespace thread

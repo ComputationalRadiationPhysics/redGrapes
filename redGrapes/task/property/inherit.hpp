@@ -1,4 +1,4 @@
-/* Copyright 2019-2020 Michael Sippel
+/* Copyright 2019-2024 Michael Sippel, Tapish Narwal
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -11,7 +11,7 @@
 
 #pragma once
 
-#include <redGrapes/task/property/trait.hpp>
+#include "redGrapes/task/property/trait.hpp"
 
 #include <fmt/format.h>
 
@@ -20,7 +20,6 @@
 namespace redGrapes
 {
 
-    struct Task;
 
     template<typename T_Head, typename... T_Tail>
     struct TaskPropertiesInherit

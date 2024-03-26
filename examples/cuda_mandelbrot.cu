@@ -1,4 +1,4 @@
-/* Copyright 2020 Michael Sippel
+/* Copyright 2020-2024 Michael Sippel, Tapish Narwal
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -20,13 +20,13 @@ enum SchedulerTag
 
 #define REDGRAPES_TASK_PROPERTIES dispatch::cuda::CudaTaskProperties, scheduler::SchedulingTagProperties<SchedulerTag>
 
-#include <redGrapes/dispatch/cuda/scheduler.hpp>
+#include "redGrapes/dispatch/cuda/scheduler.hpp"
 #include <redGrapes/redGrapes.hpp>
-#include <redGrapes/resource/fieldresource.hpp>
-#include <redGrapes/resource/ioresource.hpp>
-#include <redGrapes/scheduler/default_scheduler.hpp>
-#include <redGrapes/scheduler/tag_match.hpp>
-#include <redGrapes/task/property/resource.hpp>
+#include "redGrapes/resource/fieldresource.hpp"
+#include "redGrapes/resource/ioresource.hpp"
+#include "redGrapes/scheduler/pool_scheduler.hpp"
+#include "redGrapes/scheduler/tag_match.hpp"
+#include "redGrapes/task/property/resource.hpp"
 
 namespace rg = redGrapes;
 
@@ -72,7 +72,7 @@ __global__ void mandelbrot(
 
 int main()
 {
-    auto default_scheduler = std::make_shared<rg::scheduler::DefaultScheduler>(4 /* number of CPU workers */);
+    auto pool_scheduler = std::make_shared<rg::scheduler::PoolScheduler>(4 /* number of CPU workers */);
 
     auto cuda_scheduler = std::make_shared<rg::dispatch::cuda::CudaScheduler>(
         [](rg::Task const& t) { return t.required_scheduler_tags.test(SCHED_CUDA); },
@@ -81,7 +81,7 @@ int main()
 
     rg::idle = [cuda_scheduler] { cuda_scheduler->poll(); };
 
-    rg::init(rg::scheduler::make_tag_match_scheduler().add({}, default_scheduler).add({SCHED_CUDA}, cuda_scheduler));
+    rg::init(rg::scheduler::make_tag_match_scheduler().add({}, pool_scheduler).add({SCHED_CUDA}, cuda_scheduler));
 
     double mid_x = 0.41820187155955555;
     double mid_y = 0.32743154895555555;
