@@ -2,13 +2,13 @@
 **Re**source-based, **D**eclarative task-**Gra**phs for **P**arallel, **E**vent-driven **S**cheduling
 
 [![GitHub commits](https://img.shields.io/github/commits-since/ComputationalRadiationPhysics/redGrapes/v0.1.0/dev.svg)](https://GitHub.com/ComputationalRadiationPhysics/redGrapes/commit/)
-[![Language](https://img.shields.io/badge/language-C%2B%2B14-orange)](https://isocpp.org/)
+[![Language](https://img.shields.io/badge/language-C%2B%2B20-orange)](https://isocpp.org/)
 [![License](https://img.shields.io/badge/license-MPL--2.0-blue.svg)](https://www.mozilla.org/en-US/MPL/2.0/)
 [![Documentation Status](https://readthedocs.org/projects/redgrapes/badge/?version=dev)](https://redgrapes.readthedocs.io/en/dev/?badge=dev)
 
 <hr>
 
-RedGrapes is a C++17 framework for declaratively creating and scheduling task-graphs, based on a high-level resource description.
+RedGrapes is a C++20 framework for declaratively creating and scheduling task-graphs, based on a high-level resource description.
 
 ### Motivation
 
@@ -103,7 +103,7 @@ However since we want to achieve **declarative task dependencies**, for which th
 
 **compile time checked memory access**: The automatic creation of a task graph is often done via annotations, e.g., a pragma in OpenMP, but that does not guarantee the correctness of the access specifications. RedGrapes leverages the type system to write relatively safe code in that regard.
 
-**native C++**: PaRSEC has a complicated toolchain using additional compilers, OpenMP makes use of pragmas that require compiler support. RedGrapes only requires the C++14 standard.
+**native C++**: PaRSEC has a complicated toolchain using additional compilers, OpenMP makes use of pragmas that require compiler support. RedGrapes only requires the C++20 standard.
 
 **typesafe**: Some libraries like Legion or StarPU use an untyped ``argc``/``argv`` interface to pass parameters to tasks, which is error-prone. Both libraries in general also require a lot of C-style boilerplate.
 
@@ -154,7 +154,7 @@ Its conceptual design is based on a [whitepaper by A. Huebl, R. Widera, and A. M
 
 ### Dependencies
 
-RedGrapes requires a compiler supporting the C++17 standard.
+RedGrapes requires a compiler supporting the C++20 standard.
 RedGrapes further depends on the following libraries:
 
 * [ConcurrentQueue](https://github.com/cameron314/concurrentqueue) by [Cameron Desrochers](https://moodycamel.com)

@@ -1,4 +1,4 @@
-/* Copyright 2019 Michael Sippel
+/* Copyright 2019-2024 Michael Sippel, Tapish Narwal
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -15,13 +15,14 @@
 int main(void)
 {
     spdlog::set_level(spdlog::level::trace);
-    redGrapes::init();
+    auto rg = redGrapes::init();
 
-    redGrapes::IOResource<int> a, b;
+    auto a = rg.createIOResource<int>();
+    auto b = rg.createIOResource<int>();
 
     for(int i = 0; i < 1; ++i)
     {
-        redGrapes::emplace_task(
+        rg.emplace_task(
             [](auto a)
             {
                 std::cout << "Write to A" << std::endl;
@@ -31,7 +32,7 @@ int main(void)
             },
             a.write());
 
-        redGrapes::emplace_task(
+        rg.emplace_task(
             [](auto a)
             {
                 std::cout << "Read A: " << *a << std::endl;
@@ -39,17 +40,17 @@ int main(void)
             },
             a.read());
 
-        redGrapes::emplace_task(
+        rg.emplace_task(
             [](auto b)
             {
                 std::cout << "Write to B" << std::endl;
-                std::this_thread::sleep_for(std::chrono::seconds(2));
+                std::this_thread::sleep_for(std::chrono::seconds(3));
                 *b = 7;
                 std::cout << "Write B done" << std::endl;
             },
             b.write());
 
-        redGrapes::emplace_task(
+        rg.emplace_task(
             [](auto a, auto b)
             {
                 std::cout << "Read A & B: " << *a << ", " << *b << std::endl;
@@ -58,8 +59,6 @@ int main(void)
             a.read(),
             b.read());
     }
-
-    redGrapes::finalize();
 
     return 0;
 }

@@ -1,4 +1,4 @@
-/* Copyright 2021-2022 Michael Sippel
+/* Copyright 2021-2024 Michael Sippel, Tapish Narwal
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -7,13 +7,15 @@
 
 #pragma once
 
-#include <redGrapes/dispatch/thread/cpuset.hpp>
-#include <redGrapes/memory/allocator.hpp>
-#include <redGrapes/task/queue.hpp>
-#include <redGrapes/task/task.hpp>
+#include "redGrapes/TaskFreeCtx.hpp"
+#include "redGrapes/memory/block.hpp"
+#include "redGrapes/resource/resource_user.hpp"
+#include "redGrapes/scheduler/scheduler.hpp"
+#include "redGrapes/util/trace.hpp"
 
 #include <atomic>
-#include <mutex>
+#include <memory>
+#include <shared_mutex>
 #include <vector>
 
 namespace redGrapes
@@ -21,34 +23,92 @@ namespace redGrapes
 
     /*! TaskSpace handles sub-taskspaces of child tasks
      */
-    struct TaskSpace : std::enable_shared_from_this<TaskSpace>
+    template<typename TTask>
+    struct TaskSpace : std::enable_shared_from_this<TaskSpace<TTask>>
     {
         std::atomic<unsigned long> task_count;
 
         unsigned depth;
-        Task* parent;
+        TTask* parent;
 
         std::shared_mutex active_child_spaces_mutex;
-        std::vector<std::shared_ptr<TaskSpace>> active_child_spaces;
+        std::vector<std::shared_ptr<TaskSpace<TTask>>> active_child_spaces;
 
-        virtual ~TaskSpace();
+        virtual ~TaskSpace()
+        {
+        }
 
         // top space
-        TaskSpace();
+        TaskSpace() : depth(0), parent(nullptr)
+        {
+            task_count = 0;
+        }
 
         // sub space
-        TaskSpace(Task* parent);
 
-        virtual bool is_serial(Task& a, Task& b);
-        virtual bool is_superset(Task& a, Task& b);
+        TaskSpace(TTask* parent) : depth(parent->space->depth + 1), parent(parent)
+        {
+            task_count = 0;
+        }
+
+        virtual bool is_serial(TTask& a, TTask& b)
+        {
+            return ResourceUser<TTask>::is_serial(a, b);
+        }
+
+        virtual bool is_superset(TTask& a, TTask& b)
+        {
+            return ResourceUser<TTask>::is_superset(a, b);
+        }
 
         // add a new task to the task-space
-        void submit(Task* task);
+        void submit(TTask* task)
+        {
+            TRACE_EVENT("TaskSpace", "submit()");
+            task->space = this->shared_from_this();
+            task->task = task;
+
+            ++task_count;
+
+            if(parent)
+                assert(this->is_superset(*parent, *task));
+
+            for(auto r = task->unique_resources.rbegin(); r != task->unique_resources.rend(); ++r)
+            {
+                r->task_entry = r->resource->users.push(task);
+            }
+
+            task->scheduler.emplace_task(*task);
+        }
 
         // remove task from task-space
-        void free_task(Task* task);
+        void free_task(TTask* task)
+        {
+            TRACE_EVENT("TaskSpace", "free_task()");
+            unsigned count = task_count.fetch_sub(1) - 1;
 
-        bool empty() const;
+            unsigned worker_id = task->worker_id;
+            scheduler::IScheduler<TTask>& task_scheduler = task->scheduler;
+            task->~TTask(); // TODO check if this is really required
+
+            // FIXME: len of the Block is not correct since FunTask object is bigger than sizeof(Task)
+            // TODO check if arenaID is correct for the global alloc pool
+            TaskFreeCtx::worker_alloc_pool->get_alloc(worker_id).deallocate(
+                memory::Block{(uintptr_t) task, sizeof(TTask)});
+
+            // TODO: implement this using post-event of root-task?
+            //  - event already has in_edge count
+            //  -> never have current_task = nullptr
+            // spdlog::info("kill task... {} remaining", count);
+            if(count == 0)
+                task_scheduler.wake_all(); // TODO think if this should call wake_all on all schedulers
+        }
+
+        bool empty() const
+        {
+            unsigned tc = task_count.load();
+            return tc == 0;
+        }
     };
 
 } // namespace redGrapes

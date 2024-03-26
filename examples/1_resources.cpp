@@ -1,4 +1,4 @@
-/* Copyright 2019 Michael Sippel
+/* Copyright 2019-2024 Michael Sippel, Tapish Narwal
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -6,31 +6,31 @@
  */
 
 #include <redGrapes/redGrapes.hpp>
-#include <redGrapes/resource/fieldresource.hpp>
-#include <redGrapes/resource/ioresource.hpp>
-#include <redGrapes/resource/resource_user.hpp>
+
+#include <iostream>
 
 int main(int, char*[])
 {
-    redGrapes::init(1);
-    redGrapes::FieldResource<std::vector<int>> a;
-    redGrapes::IOResource<int> b;
-    redGrapes::IOResource<int> c;
+    auto rg = redGrapes::init(1);
+    using TTask = decltype(rg)::RGTask;
 
-    redGrapes::ResourceUser user1(
+    auto a = rg.createFieldResource<std::vector<int>>();
+    auto b = rg.createIOResource<int>();
+    auto c = rg.createIOResource<int>();
+
+    redGrapes::ResourceUser<TTask> user1(
         {a.read(), // complete resource
          a.write().area({0}, {10}), // write only indices 0 to 10
          b.write()});
 
-    redGrapes::ResourceUser user2({b.read()});
+    redGrapes::ResourceUser<TTask> user2({b.read()});
 
-    redGrapes::ResourceUser user3({b.read(), c.write()});
+    redGrapes::ResourceUser<TTask> user3({b.read(), c.write()});
 
-    std::cout << "is_serial(user1,user1) = " << redGrapes::ResourceUser::is_serial(user1, user1) << std::endl;
-    std::cout << "is_serial(user1,user2) = " << redGrapes::ResourceUser::is_serial(user1, user2) << std::endl;
-    std::cout << "is_serial(user1,user3) = " << redGrapes::ResourceUser::is_serial(user1, user3) << std::endl;
-    std::cout << "is_serial(user2,user3) = " << redGrapes::ResourceUser::is_serial(user2, user3) << std::endl;
+    std::cout << "is_serial(user1,user1) = " << redGrapes::ResourceUser<TTask>::is_serial(user1, user1) << std::endl;
+    std::cout << "is_serial(user1,user2) = " << redGrapes::ResourceUser<TTask>::is_serial(user1, user2) << std::endl;
+    std::cout << "is_serial(user1,user3) = " << redGrapes::ResourceUser<TTask>::is_serial(user1, user3) << std::endl;
+    std::cout << "is_serial(user2,user3) = " << redGrapes::ResourceUser<TTask>::is_serial(user2, user3) << std::endl;
 
-    redGrapes::finalize();
     return 0;
 }

@@ -1,4 +1,4 @@
-/* Copyright 2020 Michael Sippel
+/* Copyright 2020-2024 Michael Sippel, Tapish Narwal
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -9,21 +9,8 @@
 
 #include <spdlog/spdlog.h>
 
-#include <optional>
-
 namespace redGrapes
 {
-
-    struct Task;
-
-    namespace dispatch
-    {
-        namespace thread
-        {
-            struct Worker;
-        } // namespace thread
-    } // namespace dispatch
-
     namespace scheduler
     {
 
@@ -31,6 +18,7 @@ namespace redGrapes
 
         /*! Scheduler Interface
          */
+        template<typename TTask>
         struct IScheduler
         {
             virtual ~IScheduler()
@@ -41,7 +29,7 @@ namespace redGrapes
              * @return true if task b depends on the pre event of task a, false if task b depends on the post event of
              * task b.
              */
-            virtual bool task_dependency_type(Task const& a, Task const& b)
+            virtual bool task_dependency_type(TTask const& a, TTask const& b)
             {
                 return false;
             }
@@ -51,19 +39,13 @@ namespace redGrapes
             }
 
             //! add task to the set of to-initialize tasks
-            virtual void emplace_task(Task& task)
+            virtual void emplace_task(TTask& task)
             {
             }
 
             //! add task to ready set
-            virtual void activate_task(Task& task)
+            virtual void activate_task(TTask& task)
             {
-            }
-
-            //! give worker work if available
-            virtual Task* steal_task(dispatch::thread::Worker& worker)
-            {
-                return nullptr;
             }
 
             virtual void wake_all()
@@ -73,6 +55,26 @@ namespace redGrapes
             virtual bool wake(WakerId id = 0)
             {
                 return false;
+            }
+
+            virtual unsigned getNextWorkerID()
+            {
+                return 0;
+            }
+
+            // initialize the execution context pointed to by the scheduler
+            virtual void init()
+            {
+            }
+
+            // start the execution context pointed to by the scheduler
+            virtual void startExecution()
+            {
+            }
+
+            // stop the execution context pointed to by the scheduler
+            virtual void stopExecution()
+            {
             }
         };
 

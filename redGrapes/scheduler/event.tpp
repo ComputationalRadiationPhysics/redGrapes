@@ -1,70 +1,72 @@
-/* Copyright 2022 Michael Sippel
+/* Copyright 2022-2024 Michael Sippel, Tapish Narwal
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
+#pragma once
 
-#include <redGrapes/redGrapes.hpp>
-#include <redGrapes/scheduler/event.hpp>
-#include <redGrapes/scheduler/scheduler.hpp>
-#include <redGrapes/task/property/id.hpp>
-#include <redGrapes/task/task.hpp>
-#include <redGrapes/task/task_space.hpp>
-#include <redGrapes/util/trace.hpp>
+#include "redGrapes/scheduler/event.hpp"
+#include "redGrapes/util/trace.hpp"
 
 #include <spdlog/spdlog.h>
 
 #include <atomic>
 #include <cassert>
-#include <memory>
-#include <mutex>
-#include <shared_mutex>
 
 namespace redGrapes
 {
     namespace scheduler
     {
-
-        Event::Event() : state(1), waker_id(-1), followers(memory::Allocator())
+        template<typename TTask>
+        Event<TTask>::Event() : state(1)
+                              , waker_id(-1)
+                              , followers(memory::Allocator())
         {
         }
 
-        Event::Event(Event& other)
+        template<typename TTask>
+        Event<TTask>::Event(Event& other)
             : state((uint16_t) other.state)
             , waker_id(other.waker_id)
             , followers(memory::Allocator())
         {
         }
 
-        Event::Event(Event&& other)
+        template<typename TTask>
+        Event<TTask>::Event(Event&& other)
             : state((uint16_t) other.state)
             , waker_id(other.waker_id)
             , followers(memory::Allocator())
         {
         }
 
-        bool Event::is_reached()
+        template<typename TTask>
+        bool Event<TTask>::is_reached()
         {
             return state == 0;
         }
 
-        bool Event::is_ready()
+        template<typename TTask>
+        bool Event<TTask>::is_ready()
         {
             return state == 1;
         }
 
-        void Event::up()
+        template<typename TTask>
+        void Event<TTask>::up()
         {
             state++;
         }
 
-        void Event::dn()
+        template<typename TTask>
+        void Event<TTask>::dn()
         {
             state--;
         }
 
-        void Event::add_follower(EventPtr follower)
+        template<typename TTask>
+        void Event<TTask>::add_follower(EventPtr<TTask> follower)
         {
             TRACE_EVENT("Event", "add_follower");
 
@@ -77,14 +79,16 @@ namespace redGrapes
         }
 
         //! note: follower has to be notified separately!
-        void Event::remove_follower(EventPtr follower)
+        template<typename TTask>
+        void Event<TTask>::remove_follower(EventPtr<TTask> follower)
         {
             TRACE_EVENT("Event", "remove_follower");
 
             followers.erase(follower);
         }
 
-        void Event::notify_followers()
+        template<typename TTask>
+        void Event<TTask>::notify_followers()
         {
             TRACE_EVENT("Event", "notify_followers");
 
@@ -101,7 +105,8 @@ namespace redGrapes
          *
          * @return true if event is ready
          */
-        bool EventPtr::notify(bool claimed)
+        template<typename TTask>
+        bool EventPtr<TTask>::notify(bool claimed)
         {
             TRACE_EVENT("Event", "notify");
 
@@ -126,19 +131,20 @@ namespace redGrapes
             case EventPtrTag::T_EVT_EXT:
                 tag_string = "external";
                 break;
+            case EventPtrTag::T_UNINITIALIZED:
+                tag_string = "uninitialized";
+                break;
             }
 
-            if(this->task)
+            if(task)
                 SPDLOG_TRACE(
                     "notify event {} ({}-event of task {}) ~~> state = {}",
-                    (void*) &this->get_event(),
+                    (void*) &get_event(),
                     tag_string,
-                    this->task->task_id,
+                    task->task_id,
                     state);
 
             assert(old_state > 0);
-
-            bool remove_task = false;
 
             if(task)
             {
@@ -146,7 +152,7 @@ namespace redGrapes
                 if(tag == scheduler::T_EVT_PRE && state == 1)
                 {
                     if(!claimed)
-                        SingletonContext::get().scheduler->activate_task(*task);
+                        task->scheduler.activate_task(*task);
                 }
 
                 // post event reached:
@@ -155,14 +161,14 @@ namespace redGrapes
                 if(state == 0 && tag == scheduler::T_EVT_POST)
                     task->delete_from_resources();
             }
-
+            // TODO rework this to reduce if(task) checks
             // if event is ready or reached (state ∈ {0,1})
-            if(state <= 1 && this->get_event().waker_id >= 0)
-                SingletonContext::get().scheduler->wake(this->get_event().waker_id);
+            if(state <= 1 && get_event().waker_id >= 0)
+                task->scheduler.wake(get_event().waker_id);
 
             if(state == 0)
             {
-                this->get_event().notify_followers();
+                get_event().notify_followers();
 
                 // the second one of either post-event or result-get-event shall destroy the task
                 if(task)

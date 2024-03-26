@@ -1,6 +1,4 @@
-/* Copyright 2022-2023 The RedGrapes Community.
- *
- * Authors: Michael Sippel
+/* Copyright 2022-2024 Michael Sippel, Tapish Narwal
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -9,45 +7,107 @@
 
 #pragma once
 
-#include <redGrapes/scheduler/event.hpp>
-#include <redGrapes/scheduler/scheduler.hpp>
+#include "redGrapes/SchedulerDescription.hpp"
+#include "redGrapes/TaskCtx.hpp"
+#include "redGrapes/TaskFreeCtx.hpp"
+#include "redGrapes/memory/hwloc_alloc.hpp"
+#include "redGrapes/resource/fieldresource.hpp"
+#include "redGrapes/resource/ioresource.hpp"
+#include "redGrapes/scheduler/event.hpp"
+#include "redGrapes/scheduler/pool_scheduler.hpp"
+#include "redGrapes/task/task.hpp"
+#include "redGrapes/task/task_space.hpp"
+#include "redGrapes/util/bind_args.hpp"
+#include "redGrapes/util/tuple_map.hpp"
 
+#include <boost/mp11.hpp>
 #include <spdlog/spdlog.h>
 
-#include <memory> // std::shared_ptr
+#include <memory>
+#include <new>
 
-// #include <redGrapes/task/future.hpp>
-#include <redGrapes/dispatch/thread/worker.hpp>
-#include <redGrapes/memory/hwloc_alloc.hpp>
-#include <redGrapes/task/task.hpp>
-#include <redGrapes/task/task_space.hpp>
+// `TaskBuilder` needs "RedGrapes`, so can only include here after definiton
+#include "redGrapes/task/task_builder.hpp" // TODO change this to needs LocalImpl
 
 namespace redGrapes
 {
 
-    struct Context
+    template<typename TSchedMap, C_TaskProperty... TUserTaskProperties>
+    struct RedGrapes
     {
-        Context();
-        ~Context();
+    public:
+        using RGTask = Task<TUserTaskProperties...>;
+
+        template<typename... TSchedulerDesc>
+        RedGrapes(TSchedulerDesc... execDescs)
+        {
+            init_tracing();
+
+            (..., (scheduler_map[(typename TSchedulerDesc::Key{})] = execDescs.scheduler));
+
+            // TODO find n_workers without making a tuple
+            auto execDescTuple = std::make_tuple(execDescs...);
+            TaskFreeCtx::n_workers
+                = std::apply([](auto... args) { return (args.scheduler->n_workers + ...); }, execDescTuple);
+
+            TaskFreeCtx::n_pus = hwloc_get_nbobjs_by_type(TaskFreeCtx::hwloc_ctx.topology, HWLOC_OBJ_PU);
+            if(TaskFreeCtx::n_workers > TaskFreeCtx::n_pus)
+                spdlog::warn(
+                    "{} worker-threads requested, but only {} PUs available!",
+                    TaskFreeCtx::n_workers,
+                    TaskFreeCtx::n_pus);
+
+            TaskFreeCtx::worker_alloc_pool = std::make_shared<WorkerAllocPool>();
+            TaskFreeCtx::worker_alloc_pool->allocs.reserve(TaskFreeCtx::n_workers);
+
+            TaskCtx<RGTask>::root_space = std::make_shared<TaskSpace<RGTask>>();
+
+            auto initAdd = [](auto scheduler, auto& base_worker_id)
+            {
+                scheduler->init(base_worker_id);
+                base_worker_id = base_worker_id + scheduler->n_workers;
+            };
+            unsigned base_worker_id = 0;
+            std::apply(
+                [&base_worker_id, initAdd](auto... args) { ((initAdd(args.scheduler, base_worker_id)), ...); },
+                execDescTuple);
+
+            boost::mp11::mp_for_each<TSchedMap>(
+                [&](auto pair) { scheduler_map[boost::mp11::mp_first<decltype(pair)>{}]->startExecution(); });
+        }
+
+        ~RedGrapes()
+        {
+            barrier();
+
+            boost::mp11::mp_for_each<TSchedMap>(
+                [&](auto pair) { scheduler_map[boost::mp11::mp_first<decltype(pair)>{}]->stopExecution(); });
+            boost::mp11::mp_for_each<TSchedMap>([&](auto pair)
+                                                { scheduler_map[boost::mp11::mp_first<decltype(pair)>{}].reset(); });
+            TaskCtx<RGTask>::root_space.reset();
+
+            finalize_tracing();
+        }
 
         void init_tracing();
         void finalize_tracing();
-
-        void init(size_t n_workers, std::shared_ptr<scheduler::IScheduler> scheduler);
-        void init(size_t n_workers = std::thread::hardware_concurrency());
-        void finalize();
 
         //! wait until all tasks in the current task space finished
         void barrier();
 
         //! pause the currently running task at least until event is reached
-        void yield(scheduler::EventPtr event);
+        //  TODO make this generic template<typename TEventPtr>
+        void yield(scheduler::EventPtr<RGTask> event)
+        {
+            TaskCtx<RGTask>::yield(event);
+        }
 
         //! apply a patch to the properties of the currently running task
-        void update_properties(typename TaskProperties::Patch const& patch);
+        void update_properties(
+            typename RGTask::TaskProperties::Patch const& patch); // TODO ensure TaskProperties is a TaskProperties1
 
         //! get backtrace from currently running task
-        std::vector<std::reference_wrapper<Task>> backtrace();
+        std::vector<std::reference_wrapper<RGTask>> backtrace() const;
 
         /*! Create an event on which the termination of the current task depends.
          *  A task must currently be running.
@@ -55,12 +115,20 @@ namespace redGrapes
          * @return Handle to flag the event with `reach_event` later.
          *         nullopt if there is no task running currently
          */
-        std::optional<scheduler::EventPtr> create_event();
+        std::optional<scheduler::EventPtr<RGTask>> create_event()
+        {
+            return TaskCtx<RGTask>::create_event();
+        }
 
-        unsigned scope_depth() const;
-        std::shared_ptr<TaskSpace> current_task_space() const;
+        unsigned scope_depth() const
+        {
+            return TaskCtx<RGTask>::scope_depth();
+        }
 
-        void execute_task(Task& task);
+        std::shared_ptr<TaskSpace<RGTask>> current_task_space() const
+        {
+            return TaskCtx<RGTask>::current_task_space();
+        }
 
         /*! create a new task, as child of the currently running task (if there is one)
          *
@@ -74,121 +142,115 @@ namespace redGrapes
          *
          * @return future from f's result
          */
-        template<typename Callable, typename... Args>
-        auto emplace_task(Callable&& f, Args&&... args);
-
-        static thread_local Task* current_task;
-        static thread_local std::function<void()> idle;
-        static thread_local unsigned next_worker;
-
-        static thread_local scheduler::WakerId current_waker_id;
-        static thread_local std::shared_ptr<dispatch::thread::WorkerThread> current_worker;
-
-        unsigned n_workers;
-        static thread_local unsigned current_arena;
-        HwlocContext hwloc_ctx;
-        std::shared_ptr<dispatch::thread::WorkerPool> worker_pool;
-
-        std::shared_ptr<TaskSpace> root_space;
-        std::shared_ptr<scheduler::IScheduler> scheduler;
-
-#if REDGRAPES_ENABLE_TRACE
-        std::shared_ptr<perfetto::TracingSession> tracing_session;
-#endif
-    };
-
-    /* ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
-     *  S I N G L E T O N
-     * ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
-     */
-
-    struct SingletonContext
-    {
-        static inline Context& get()
+        template<typename TSchedTag, typename Callable, typename... Args>
+        auto emplace_task(Callable&& f, Args&&... args)
         {
-            static Context ctx;
-            return ctx;
+            WorkerId worker_id = scheduler_map[TSchedTag{}]->getNextWorkerID();
+
+            SPDLOG_TRACE("emplace task to worker {} next_worker={}", worker_id, TaskFreeCtx::next_worker);
+
+            using Impl = typename std::invoke_result_t<BindArgs<Callable, Args...>, Callable, Args...>;
+            // this is not set to nullptr. But it goes out of scope. Memory is managed by allocate
+            FunTask<Impl, RGTask>* task;
+            memory::Allocator alloc(worker_id);
+            memory::Block blk = alloc.allocate(sizeof(FunTask<Impl, RGTask>));
+            task = (FunTask<Impl, RGTask>*) blk.ptr;
+
+            if(!task)
+                throw std::bad_alloc();
+
+            // construct task in-place
+            new(task) FunTask<Impl, RGTask>(*scheduler_map[TSchedTag{}]);
+
+            task->worker_id = worker_id;
+
+            return std::move(TaskBuilder<RGTask, Callable, Args...>(task, std::move(f), std::forward<Args>(args)...));
         }
+
+        template<typename Callable, typename... Args>
+        auto emplace_task(Callable&& f, Args&&... args)
+        {
+            return emplace_task<DefaultTag, Callable, Args...>(std::forward<Callable>(f), std::forward<Args>(args)...);
+        }
+
+        template<typename TSchedTag>
+        auto& getScheduler()
+        {
+            return *scheduler_map[TSchedTag{}];
+        }
+
+        auto& getScheduler()
+        {
+            return getScheduler<DefaultTag>();
+        }
+
+        template<typename Container>
+        auto createFieldResource(Container* c) -> FieldResource<Container, RGTask>
+        {
+            return FieldResource<Container, RGTask>(c);
+        }
+
+        template<typename Container, typename... Args>
+        auto createFieldResource(Args&&... args) -> FieldResource<Container, RGTask>
+        {
+            return FieldResource<Container, RGTask>(args...);
+        }
+
+        template<typename T>
+        auto createIOResource(std::shared_ptr<T> o) -> IOResource<T, RGTask>
+        {
+            return IOResource<T, RGTask>(o);
+        }
+
+        template<typename T, typename... Args>
+        auto createIOResource(Args&&... args) -> IOResource<T, RGTask>
+        {
+            return IOResource<T, RGTask>(args...);
+        }
+
+        template<typename AccessPolicy>
+        auto createResource() -> Resource<RGTask, AccessPolicy>
+        {
+            return Resource<RGTask, AccessPolicy>();
+        }
+
+    private:
+        MapTuple<TSchedMap> scheduler_map;
     };
 
-    inline void init(size_t n_workers, std::shared_ptr<scheduler::IScheduler> scheduler)
+    // TODO make sure init can only be called once
+    template<C_TaskProperty... UserTaskProps, C_Exec... Ts>
+    [[nodiscard]] inline auto init(Ts... execDescs)
     {
-        SingletonContext::get().init(n_workers, scheduler);
+        using DescType = boost::mp11::mp_list<Ts...>;
+        using DescMap = boost::mp11::mp_transform<MakeKeyValList, DescType>;
+
+        return RedGrapes<DescMap, UserTaskProps...>(execDescs...);
     }
 
-    inline void init(size_t n_workers = std::thread::hardware_concurrency())
+    template<C_TaskProperty... UserTaskProps>
+    [[nodiscard]] inline auto init(size_t n_workers = std::thread::hardware_concurrency())
     {
-        SingletonContext::get().init(n_workers);
+        auto execDesc = SchedulerDescription(
+            std::make_shared<scheduler::PoolScheduler<
+                Task<UserTaskProps...>,
+                dispatch::thread::DefaultWorker<Task<UserTaskProps...>>>>(n_workers),
+            DefaultTag{});
+        using DescType = boost::mp11::mp_list<decltype(execDesc)>;
+        using DescMap = boost::mp11::mp_transform<MakeKeyValList, DescType>;
+
+        return RedGrapes<DescMap, UserTaskProps...>(execDesc);
     }
 
-    inline void finalize()
-    {
-        SingletonContext::get().finalize();
-    }
-
-    inline void barrier()
-    {
-        SingletonContext::get().barrier();
-    }
-
-    inline void yield(scheduler::EventPtr event)
-    {
-        SingletonContext::get().yield(event);
-    }
-
-    inline void update_properties(typename TaskProperties::Patch const& patch)
-    {
-        SingletonContext::get().update_properties(patch);
-    }
-
-    inline std::vector<std::reference_wrapper<Task>> backtrace()
-    {
-        return SingletonContext::get().backtrace();
-    }
-
-    inline std::optional<scheduler::EventPtr> create_event()
-    {
-        return SingletonContext::get().create_event();
-    }
-
-    inline unsigned scope_depth()
-    {
-        return SingletonContext::get().scope_depth();
-    }
-
-    inline std::shared_ptr<TaskSpace> current_task_space()
-    {
-        return SingletonContext::get().current_task_space();
-    }
-
-    template<typename Callable, typename... Args>
-    inline auto emplace_task(Callable&& f, Args&&... args)
-    {
-        return std::move(SingletonContext::get().emplace_task(std::move(f), std::forward<Args>(args)...));
-    }
 
 } // namespace redGrapes
 
-// `TaskBuilder` needs "Context`, so can only include here after definiton
-#include <redGrapes/task/task_builder.hpp>
-
-namespace redGrapes
-{
-    template<typename Callable, typename... Args>
-    auto Context::emplace_task(Callable&& f, Args&&... args)
-    {
-        dispatch::thread::WorkerId worker_id =
-            // linear
-            next_worker % worker_pool->size();
-
-        // interleaved
-        //    2*next_worker % worker_pool->size() + ((2*next_worker) / worker_pool->size())%2;
-
-        next_worker++;
-        current_arena = worker_id;
-
-        SPDLOG_TRACE("emplace task to worker {} next_worker={}", worker_id, next_worker);
-
-        return std::move(TaskBuilder<Callable, Args...>(std::move(f), std::forward<Args>(args)...));
-    }
-} // namespace redGrapes
+#include "redGrapes/dispatch/thread/DefaultWorker.tpp"
+#include "redGrapes/dispatch/thread/worker_pool.tpp"
+#include "redGrapes/redGrapes.tpp"
+#include "redGrapes/resource/resource_user.tpp"
+#include "redGrapes/scheduler/event.tpp"
+#include "redGrapes/scheduler/event_ptr.tpp"
+#include "redGrapes/scheduler/pool_scheduler.tpp"
+#include "redGrapes/task/property/graph.tpp"
+#include "redGrapes/util/trace.tpp"

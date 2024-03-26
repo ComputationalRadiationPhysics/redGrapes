@@ -1,4 +1,4 @@
-/* Copyright 2019 Michael Sippel, Sergei Bastrakov
+/* Copyright 2019-2024 Michael Sippel, Sergei Bastrakov, Tapish Narwal
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -9,17 +9,14 @@
  * @file examples/game_of_life.cpp
  */
 
+#include "redGrapes/resource/fieldresource.hpp"
+
 #include <redGrapes/redGrapes.hpp>
-#include <redGrapes/resource/fieldresource.hpp>
-#include <redGrapes/resource/ioresource.hpp>
-#include <redGrapes/task/property/inherit.hpp>
-#include <redGrapes/task/property/resource.hpp>
 
 #include <array>
 #include <cstdlib>
 #include <iostream>
 #include <random>
-#include <thread>
 
 struct Vec2
 {
@@ -52,11 +49,12 @@ int main(int, char*[])
     spdlog::set_level(spdlog::level::trace);
     spdlog::set_pattern("[thread %t] %^[%l]%$ %v");
 
-    redGrapes::init(4);
+    auto rg = redGrapes::init(4);
 
     using Buffer = std::array<std::array<Cell, size.x + 2>, size.y + 2>;
 
-    std::vector<redGrapes::FieldResource<Buffer>> buffers;
+    using TaskType = decltype(rg)::RGTask;
+    std::vector<redGrapes::FieldResource<Buffer, TaskType>> buffers;
 
     for(size_t i = 0; i < 4; ++i)
         buffers.emplace_back(new Buffer());
@@ -64,7 +62,7 @@ int main(int, char*[])
     int current = 0;
 
     // initialization
-    redGrapes::emplace_task(
+    rg.emplace_task(
         [](auto buf)
         {
             std::default_random_engine generator;
@@ -81,7 +79,7 @@ int main(int, char*[])
         int next = (current + 1) % buffers.size();
 
         // copy borders
-        redGrapes::emplace_task(
+        rg.emplace_task(
             [](auto buf)
             {
                 for(size_t x = 0; x < size.x + 2; ++x)
@@ -99,26 +97,26 @@ int main(int, char*[])
             buffers[current].write());
 
         // print buffer
-        redGrapes::emplace_task(
-            [](auto buf)
-            {
-                for(size_t x = 1; x < size.x; ++x)
-                {
-                    for(size_t y = 1; y < size.y; ++y)
-                    {
-                        std::cout << ((buf[{x, y}] == ALIVE) ? "[47m" : "[100m") << "  ";
-                    }
-                    std::cout << "[0m" << std::endl;
-                }
-                std::cout << std::endl;
-            },
-            buffers[current].read())
+        rg.emplace_task(
+              [](auto buf)
+              {
+                  for(size_t x = 1; x < size.x; ++x)
+                  {
+                      for(size_t y = 1; y < size.y; ++y)
+                      {
+                          std::cout << ((buf[{x, y}] == ALIVE) ? "[47m" : "[100m") << "  ";
+                      }
+                      std::cout << "[0m" << std::endl;
+                  }
+                  std::cout << std::endl;
+              },
+              buffers[current].read())
             .get();
 
         // calculate next step
         for(size_t x = 1; x <= size.x; x += chunk_size.x)
             for(size_t y = 1; y <= size.y; y += chunk_size.y)
-                redGrapes::emplace_task(
+                rg.emplace_task(
                     [x, y](auto dst, auto src)
                     {
                         for(int xi = 0; xi < chunk_size.x; ++xi)
@@ -131,8 +129,6 @@ int main(int, char*[])
 
         current = next;
     }
-
-    redGrapes::finalize();
 
     SPDLOG_DEBUG("END!!!!");
 

@@ -1,4 +1,4 @@
-/* Copyright 2019-2021 Michael Sippel
+/* Copyright 2019-2024 Michael Sippel, Tapish Narwal
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -10,22 +10,20 @@
  */
 #pragma once
 
-#include <redGrapes/scheduler/event.hpp>
-#include <redGrapes/task/task.hpp>
+#include "redGrapes/TaskCtx.hpp"
 
 namespace redGrapes
 {
 
-    void yield(scheduler::EventPtr event);
 
     /*!
      * Wrapper for std::future which consumes jobs
      * instead of waiting in get()
      */
-    template<typename T>
+    template<typename T, typename TTask>
     struct Future
     {
-        Future(Task& task) : task(task), taken(false)
+        Future(TTask& task) : task(task), taken(false)
         {
         }
 
@@ -53,7 +51,7 @@ namespace redGrapes
         T get(void)
         {
             // wait until result is set
-            yield(task.get_result_set_event());
+            TaskCtx<TTask>::yield(task.get_result_set_event());
 
             // take result
             T result = std::move(*reinterpret_cast<T*>(task.get_result_data()));
@@ -72,13 +70,13 @@ namespace redGrapes
 
     private:
         bool taken;
-        Task& task;
+        TTask& task;
     }; // struct Future
 
-    template<>
-    struct Future<void>
+    template<typename TTask>
+    struct Future<void, TTask>
     {
-        Future(Task& task) : task(task), taken(false)
+        Future(TTask& task) : task(task), taken(false)
         {
         }
 
@@ -106,7 +104,7 @@ namespace redGrapes
         void get(void)
         {
             // wait until result is set
-            yield(task.get_result_set_event());
+            TaskCtx<TTask>::yield(task.get_result_set_event());
 
             // take result
             taken = true;
@@ -122,7 +120,7 @@ namespace redGrapes
 
     private:
         bool taken;
-        Task& task;
+        TTask& task;
     };
 
 } // namespace redGrapes

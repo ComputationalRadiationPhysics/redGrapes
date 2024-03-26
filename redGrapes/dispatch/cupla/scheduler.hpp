@@ -1,4 +1,4 @@
-/* Copyright 2020 Michael Sippel
+/* Copyright 2020-2024 Michael Sippel, Tapish Narwal
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -7,11 +7,9 @@
 
 #pragma once
 
-#include <redGrapes/dispatch/cupla/event_pool.hpp>
-#include <redGrapes/dispatch/cupla/task_properties.hpp>
-#include <redGrapes/scheduler/event.hpp>
-#include <redGrapes/scheduler/scheduler.hpp>
-#include <redGrapes/task/property/graph.hpp>
+#include "redGrapes/dispatch/cupla/event_pool.hpp"
+#include "redGrapes/dispatch/cupla/task_properties.hpp"
+#include "redGrapes/scheduler/scheduler.hpp"
 
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
@@ -111,7 +109,8 @@ namespace redGrapes
                 }
             };
 
-            struct CuplaScheduler : redGrapes::scheduler::IScheduler
+            template<typename TTask>
+            struct CuplaScheduler : redGrapes::scheduler::IScheduler<TTask>
             {
             private:
                 bool recording;
@@ -119,13 +118,13 @@ namespace redGrapes
 
                 std::recursive_mutex mutex;
                 unsigned int current_stream;
-                std::vector<CuplaStreamDispatcher<Task>> streams;
+                std::vector<CuplaStreamDispatcher<TTask>> streams;
 
-                std::function<bool(Task const&)> is_cupla_task;
+                std::function<bool(TTask const&)> is_cupla_task;
 
             public:
                 CuplaScheduler(
-                    std::function<bool(Task const&)> is_cupla_task,
+                    std::function<bool(TTask const&)> is_cupla_task,
                     size_t stream_count = 1,
                     bool cupla_graph_enabled = false)
                     : is_cupla_task(is_cupla_task)
@@ -142,7 +141,7 @@ namespace redGrapes
                 }
 
                 //! submits the call to the cupla runtime
-                void activate_task(Task& task)
+                void activate_task(TTask& task)
                 {
                     unsigned int stream_id = current_stream;
                     current_stream = (current_stream + 1) % streams.size();
@@ -162,7 +161,7 @@ namespace redGrapes
                  * @return true if task b depends on the pre event of task a, false if task b depends on the post event
                  * of task b.
                  */
-                bool task_dependency_type(Task const& a, Task const& b)
+                bool task_dependency_type(TTask const& a, TTask const& b)
                 {
                     assert(is_cupla_task(b));
                     return is_cupla_task(a);

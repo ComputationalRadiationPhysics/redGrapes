@@ -1,4 +1,4 @@
-/* Copyright 2022-2023 Michael Sippel
+/* Copyright 2022-2024 Michael Sippel, Tapish Narwal
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -7,27 +7,18 @@
 
 #pragma once
 
-#include <redGrapes/dispatch/thread/cpuset.hpp>
-#include <redGrapes/memory/bump_allocator.hpp>
-#include <redGrapes/memory/hwloc_alloc.hpp>
-#include <redGrapes/scheduler/scheduler.hpp>
-#include <redGrapes/util/atomic_list.hpp>
-#include <redGrapes/util/trace.hpp>
+#include "redGrapes/memory/bump_allocator.hpp"
+#include "redGrapes/memory/hwloc_alloc.hpp"
+#include "redGrapes/util/atomic_list.hpp"
+#include "redGrapes/util/trace.hpp"
 
 #include <boost/core/demangle.hpp>
 #include <spdlog/spdlog.h>
 
-#include <atomic>
 #include <cstddef>
-#include <cstdint>
-#include <memory>
-#include <mutex>
-#include <vector>
-
-// #include <redGrapes_config.hpp>
 
 #if REDGRAPES_ENABLE_BACKWARDCPP
-#    include <backward.hpp>
+#    include <backward.hpp"
 #endif
 
 namespace redGrapes

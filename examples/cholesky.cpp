@@ -1,3 +1,10 @@
+/* Copyright 2019-2024 Michael Sippel, Tapish Narwal
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ */
+
 #include <cblas.h>
 
 #include <iostream>
@@ -9,19 +16,33 @@
 #define lapack_complex_double std::complex<double>
 // end work-around
 
-#include <redGrapes/task/property/inherit.hpp>
-#include <redGrapes/task/property/label.hpp>
-
 #include <lapacke.h>
 
 #define REDGRAPES_TASK_PROPERTIES redGrapes::LabelProperty
 
+#include "redGrapes/resource/ioresource.hpp"
+
 #include <redGrapes/redGrapes.hpp>
-#include <redGrapes/resource/ioresource.hpp>
 
-namespace rg = redGrapes;
-
-void print_matrix(std::vector<redGrapes::IOResource<double*>> A, int n_blocks, int blocksize);
+template<typename TTask>
+void print_matrix(std::vector<redGrapes::IOResource<double*, TTask>> A, int nblks, int blocksize)
+{
+    for(int ia = 0; ia < nblks; ++ia)
+    {
+        for(int ib = 0; ib < blocksize; ++ib)
+        {
+            for(int ja = 0; ja < nblks; ++ja)
+            {
+                for(int jb = 0; jb < blocksize; ++jb)
+                {
+                    std::cout << (*A[ja * nblks + ia])[jb * blocksize + ib] << "; ";
+                }
+            }
+            std::cout << std::endl;
+        }
+    }
+    std::cout << std::endl;
+}
 
 int main(int argc, char* argv[])
 {
@@ -44,7 +65,8 @@ int main(int argc, char* argv[])
     if(argc >= 4)
         n_threads = atoi(argv[3]);
 
-    rg::init(n_threads);
+    auto rg = redGrapes::init(n_threads);
+    using RGTask = decltype(rg)::RGTask;
 
     size_t N = nblks * blksz;
 
@@ -59,9 +81,8 @@ int main(int argc, char* argv[])
     for(size_t i = 0; i < N; i++)
         Alin[i * N + i] += N;
 
-
     // initialize tiled matrix in column-major layout
-    std::vector<rg::IOResource<double*>> A(nblks * nblks);
+    std::vector<redGrapes::IOResource<double*, RGTask>> A(nblks * nblks);
 
     // allocate each tile (also in column-major layout)
     for(size_t j = 0; j < nblks; ++j)
@@ -88,10 +109,10 @@ int main(int argc, char* argv[])
             for(size_t i = j + 1; i < nblks; i++)
             {
                 // A[i,j] = A[i,j] - A[i,k] * (A[j,k])^t
-                rg::emplace_task(
+                rg.emplace_task(
                     [blksz](auto a, auto b, auto c)
                     {
-                        spdlog::info("dgemm");
+                        spdlog::debug("dgemm");
                         cblas_dgemm(
                             CblasColMajor,
                             CblasNoTrans,
@@ -117,10 +138,10 @@ int main(int argc, char* argv[])
         for(size_t i = 0; i < j; i++)
         {
             // A[j,j] = A[j,j] - A[j,i] * (A[j,i])^t
-            rg::emplace_task(
+            rg.emplace_task(
                 [blksz, nblks](auto a, auto c)
                 {
-                    spdlog::info("dsyrk");
+                    spdlog::debug("dsyrk");
                     cblas_dsyrk(
                         CblasColMajor,
                         CblasLower,
@@ -139,10 +160,10 @@ int main(int argc, char* argv[])
         }
 
         // Cholesky Factorization of A[j,j]
-        rg::emplace_task(
+        rg.emplace_task(
             [j, blksz, nblks](auto a)
             {
-                spdlog::info("dpotrf");
+                spdlog::debug("dpotrf");
                 LAPACKE_dpotrf(LAPACK_COL_MAJOR, 'L', blksz, *a, blksz);
             },
             A[j * nblks + j].write());
@@ -150,10 +171,10 @@ int main(int argc, char* argv[])
         for(size_t i = j + 1; i < nblks; i++)
         {
             // A[i,j] <- A[i,j] = X * (A[j,j])^t
-            rg::emplace_task(
+            rg.emplace_task(
                 [blksz, nblks](auto a, auto b)
                 {
-                    spdlog::info("dtrsm");
+                    spdlog::debug("dtrsm");
                     cblas_dtrsm(
                         CblasColMajor,
                         CblasRight,
@@ -173,28 +194,7 @@ int main(int argc, char* argv[])
         }
     }
 
-    rg::finalize();
-
     print_matrix(A, nblks, blksz);
 
     return 0;
-}
-
-void print_matrix(std::vector<redGrapes::IOResource<double*>> A, int nblks, int blocksize)
-{
-    for(int ia = 0; ia < nblks; ++ia)
-    {
-        for(int ib = 0; ib < blocksize; ++ib)
-        {
-            for(int ja = 0; ja < nblks; ++ja)
-            {
-                for(int jb = 0; jb < blocksize; ++jb)
-                {
-                    std::cout << (*A[ja * nblks + ia])[jb * blocksize + ib] << "; ";
-                }
-            }
-            std::cout << std::endl;
-        }
-    }
-    std::cout << std::endl;
 }

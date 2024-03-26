@@ -1,4 +1,4 @@
-/* Copyright 2023 Michael Sippel
+/* Copyright 2023-2024 Michael Sippel, Tapish Narwal
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -7,8 +7,8 @@
 
 #pragma once
 
-#include <redGrapes/memory/block.hpp>
-#include <redGrapes/util/trace.hpp>
+#include "redGrapes/memory/block.hpp"
+#include "redGrapes/util/trace.hpp"
 
 #include <fmt/format.h>
 #include <hwloc.h>

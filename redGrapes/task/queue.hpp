@@ -1,4 +1,4 @@
-/* Copyright 2020 Michael Sippel
+/* Copyright 2020-2024 Michael Sippel, Tapish Narwal
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -7,19 +7,14 @@
 
 #pragma once
 
-#include <redGrapes/memory/allocator.hpp>
-#include <redGrapes/memory/block.hpp>
-#include <redGrapes/util/trace.hpp>
+#include "redGrapes/memory/allocator.hpp"
+#include "redGrapes/memory/block.hpp"
+#include "redGrapes/util/trace.hpp"
 
 #include <moodycamel/concurrentqueue.h>
 
-#include <mutex>
-
 namespace redGrapes
 {
-
-    struct Task;
-
     namespace task
     {
 
@@ -111,6 +106,7 @@ namespace redGrapes
             }
         };
 
+        template<typename TTask>
         struct Queue
         {
             /*
@@ -119,7 +115,7 @@ namespace redGrapes
 
             std::mutex m;
         */
-            moodycamel::ConcurrentQueue<Task* /*, TaskQueueTraits */> cq;
+            moodycamel::ConcurrentQueue<TTask* /*, TaskQueueTraits */> cq;
 
             Queue();
 
@@ -127,16 +123,16 @@ namespace redGrapes
             {
             }
 
-            inline void push(Task* task)
+            inline void push(TTask* task)
             {
                 TRACE_EVENT("Task", "TaskQueue::push()");
                 this->cq.enqueue(task);
             }
 
-            inline Task* pop()
+            inline TTask* pop()
             {
                 TRACE_EVENT("Task", "TaskQueue::pop()");
-                Task* t = nullptr;
+                TTask* t = nullptr;
                 if(this->cq.try_dequeue(t))
                     return t;
                 else

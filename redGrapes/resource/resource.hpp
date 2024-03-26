@@ -1,4 +1,4 @@
-/* Copyright 2019-2022 Michael Sippel
+/* Copyright 2019-2024 Michael Sippel, Tapish Narwal
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -11,23 +11,21 @@
 
 #pragma once
 
-#include <redGrapes/memory/allocator.hpp>
-#include <redGrapes/sync/spinlock.hpp>
-#include <redGrapes/task/property/trait.hpp>
-#include <redGrapes/util/chunked_list.hpp>
+#include "redGrapes/TaskCtx.hpp"
+#include "redGrapes/TaskFreeCtx.hpp"
+#include "redGrapes/memory/allocator.hpp"
+#include "redGrapes/sync/spinlock.hpp"
+#include "redGrapes/task/property/trait.hpp"
+#include "redGrapes/util/chunked_list.hpp"
 
 #include <boost/type_index.hpp>
-
-#include <functional>
-#include <iostream>
-#include <memory> // std::unique_ptr<>
-#include <mutex>
-#include <vector>
-// #include <redGrapes/dispatch/thread/worker_pool.hpp>
-#include <redGrapes_config.hpp>
-// #include <redGrapes/redGrapes.hpp>
-
 #include <fmt/format.h>
+
+#include <memory>
+#include <string>
+#include <type_traits>
+#include <utility>
+
 
 #ifndef REDGRAPES_RUL_CHUNKSIZE
 #    define REDGRAPES_RUL_CHUNKSIZE 128
@@ -36,43 +34,53 @@
 namespace redGrapes
 {
 
-    template<typename AccessPolicy>
+    template<typename TTask, typename AccessPolicy>
     class Resource;
 
-    struct Task;
-
+    template<typename TTask>
     class ResourceBase
     {
     protected:
-        static unsigned int generateID();
+        static unsigned int generateID()
+        {
+            static std::atomic<unsigned int> id_counter;
+            return id_counter.fetch_add(1);
+        }
 
     public:
         unsigned int id;
         unsigned int scope_level;
 
         SpinLock users_mutex;
-        ChunkedList<Task*, REDGRAPES_RUL_CHUNKSIZE> users;
+        ChunkedList<TTask*, REDGRAPES_RUL_CHUNKSIZE> users;
 
         /**
          * Create a new resource with an unused ID.
          */
-        ResourceBase();
+        ResourceBase()
+            : id(generateID())
+            , scope_level(TaskCtx<TTask>::scope_depth())
+            , users(memory::Allocator(get_arena_id()))
+        {
+        }
 
-        unsigned get_arena_id() const;
+        unsigned get_arena_id() const
+        {
+            return id % TaskFreeCtx::n_workers;
+        }
     };
 
-    template<typename AccessPolicy>
-    class Resource;
-
+    template<typename TTask>
     class ResourceAccess
     {
-        template<typename AccessPolicy>
+        // https://stackoverflow.com/questions/16567212/why-does-the-standard-prohibit-friend-declarations-of-partial-specializations
+        template<typename TFrenTask, typename AccessPolicy>
         friend class Resource;
 
     private:
         struct AccessBase
         {
-            AccessBase(boost::typeindex::type_index access_type, std::shared_ptr<ResourceBase> resource)
+            AccessBase(boost::typeindex::type_index access_type, std::shared_ptr<ResourceBase<TTask>> resource)
                 : access_type(access_type)
                 , resource(resource)
             {
@@ -85,7 +93,7 @@ namespace redGrapes
             virtual ~AccessBase(){};
             virtual bool operator==(AccessBase const& r) const = 0;
 
-            bool is_same_resource(ResourceAccess::AccessBase const& a) const
+            bool is_same_resource(ResourceAccess<TTask>::AccessBase const& a) const
             {
                 return this->resource == a.resource;
             }
@@ -96,7 +104,7 @@ namespace redGrapes
             virtual std::string mode_format() const = 0;
 
             boost::typeindex::type_index access_type;
-            std::shared_ptr<ResourceBase> resource;
+            std::shared_ptr<ResourceBase<TTask>> resource;
         }; // AccessBase
 
         // todo use allocator!!
@@ -107,22 +115,22 @@ namespace redGrapes
         {
         }
 
-        ResourceAccess(ResourceAccess const& other) : obj(other.obj)
+        ResourceAccess(ResourceAccess<TTask> const& other) : obj(other.obj)
         {
         }
 
-        ResourceAccess(ResourceAccess&& other) : obj(std::move(other.obj))
+        ResourceAccess(ResourceAccess<TTask>&& other) : obj(std::move(other.obj))
         {
             other.obj.reset();
         }
 
-        ResourceAccess& operator=(ResourceAccess const& other)
+        ResourceAccess& operator=(ResourceAccess<TTask> const& other)
         {
             this->obj = other.obj;
             return *this;
         }
 
-        static bool is_serial(ResourceAccess const& a, ResourceAccess const& b)
+        static bool is_serial(ResourceAccess<TTask> const& a, ResourceAccess<TTask> const& b)
         {
             if(a.obj->access_type == b.obj->access_type)
                 return a.obj->is_serial(*b.obj);
@@ -130,7 +138,7 @@ namespace redGrapes
                 return false;
         }
 
-        bool is_superset_of(ResourceAccess const& a) const
+        bool is_superset_of(ResourceAccess<TTask> const& a) const
         {
             // if ( this->obj->resource.scope_level < a.obj->resource.scope_level )
             //     return true;
@@ -160,7 +168,7 @@ namespace redGrapes
             return this->obj->mode_format();
         }
 
-        std::shared_ptr<ResourceBase> get_resource()
+        std::shared_ptr<ResourceBase<TTask>> get_resource()
         {
             return obj->resource;
         }
@@ -171,14 +179,14 @@ namespace redGrapes
          * @param a another ResourceAccess
          * @return true if `a` is associated with the same resource as `this`
          */
-        bool is_same_resource(ResourceAccess const& a) const
+        bool is_same_resource(ResourceAccess<TTask> const& a) const
         {
             if(this->obj->access_type == a.obj->access_type)
                 return this->obj->is_same_resource(*a.obj);
             return false;
         }
 
-        bool operator==(ResourceAccess const& a) const
+        bool operator==(ResourceAccess<TTask> const& a) const
         {
             if(this->obj->access_type == a.obj->access_type)
                 return *(this->obj) == *(a.obj);
@@ -193,8 +201,11 @@ namespace redGrapes
          * implements BuildProperties for any type which
          * can be casted to a ResourceAccess
          */
-        template<typename T>
-        struct BuildProperties<T, typename std::enable_if<std::is_convertible<T, ResourceAccess>::value>::type>
+        template<typename T, typename TTask>
+        struct BuildProperties<
+            T,
+            TTask,
+            typename std::enable_if<std::is_convertible<T, ResourceAccess<TTask>>::value>::type>
         {
             template<typename Builder>
             static inline void build(Builder& builder, T const& obj)
@@ -239,19 +250,22 @@ namespace redGrapes
      * Represents a concrete resource.
      * Copied objects represent the same resource.
      */
-    template<typename AccessPolicy = DefaultAccessPolicy>
+    template<typename TTask, typename AccessPolicy = DefaultAccessPolicy>
     class Resource
     {
     protected:
-        struct Access : public ResourceAccess::AccessBase
+        struct Access : public ResourceAccess<TTask>::AccessBase
         {
-            Access(std::shared_ptr<ResourceBase> resource, AccessPolicy policy)
-                : ResourceAccess::AccessBase(boost::typeindex::type_id<AccessPolicy>(), resource)
+            Access(std::shared_ptr<ResourceBase<TTask>> resource, AccessPolicy policy)
+                : ResourceAccess<TTask>::AccessBase(boost::typeindex::type_id<AccessPolicy>(), resource)
                 , policy(policy)
             {
             }
 
-            Access(Access&& other) : AccessBase(std::move((AccessBase&&) other)), policy(std::move(other.policy))
+            Access(Access&& other)
+                : ResourceAccess<TTask>::AccessBase(
+                    std::move(std::forward<ResourceAccess<TTask>::AccessBase>(other))) // TODO check this
+                , policy(std::move(other.policy))
             {
             }
 
@@ -264,21 +278,21 @@ namespace redGrapes
                 return policy.is_synchronizing();
             }
 
-            bool is_serial(ResourceAccess::AccessBase const& a_) const
+            bool is_serial(typename ResourceAccess<TTask>::AccessBase const& a_) const
             {
                 Access const& a
                     = *static_cast<Access const*>(&a_); // no dynamic cast needed, type checked in ResourceAccess
                 return this->is_same_resource(a) && AccessPolicy::is_serial(this->policy, a.policy);
             }
 
-            bool is_superset_of(ResourceAccess::AccessBase const& a_) const
+            bool is_superset_of(typename ResourceAccess<TTask>::AccessBase const& a_) const
             {
                 Access const& a
                     = *static_cast<Access const*>(&a_); // no dynamic cast needed, type checked in ResourceAccess
                 return this->is_same_resource(a) && this->policy.is_superset_of(a.policy);
             }
 
-            bool operator==(ResourceAccess::AccessBase const& a_) const
+            bool operator==(typename ResourceAccess<TTask>::AccessBase const& a_) const
             {
                 Access const& a
                     = *static_cast<Access const*>(&a_); // no dynamic cast needed, type checked in ResourceAccess
@@ -294,11 +308,11 @@ namespace redGrapes
             AccessPolicy policy;
         }; // struct ThisResourceAccess
 
-        friend class ResourceBase;
+        friend class ResourceBase<TTask>;
 
-        std::shared_ptr<ResourceBase> base;
+        std::shared_ptr<ResourceBase<TTask>> base;
 
-        Resource(std::shared_ptr<ResourceBase> base) : base(base)
+        Resource(std::shared_ptr<ResourceBase<TTask>> base) : base(base)
         {
         }
 
@@ -307,11 +321,8 @@ namespace redGrapes
         {
             static unsigned i = 0;
 
-            /* NOTE: Because of #include loops we cannot access Context and thus not worker_pool->size().
-             *       for this reason the modulo is done in constructor of Allocator()
-             */
-            dispatch::thread::WorkerId worker_id = i++; // % SingletonContext::get().worker_pool->size();
-            base = redGrapes::memory::alloc_shared_bind<ResourceBase>(worker_id);
+            WorkerId worker_id = i++ % TaskFreeCtx::n_workers;
+            base = redGrapes::memory::alloc_shared_bind<ResourceBase<TTask>>(worker_id);
         }
 
         /**
@@ -321,15 +332,15 @@ namespace redGrapes
          * @param pol AccessPolicy object, containing all access information
          * @return ResourceAccess on this resource
          */
-        ResourceAccess make_access(AccessPolicy pol) const
+        ResourceAccess<TTask> make_access(AccessPolicy pol) const
         {
             auto a = redGrapes::memory::alloc_shared_bind<Access>(base->get_arena_id(), base, pol);
-            return ResourceAccess(a);
+            return ResourceAccess<TTask>(a);
         }
     }; // class Resource
 
-    template<typename T, typename AccessPolicy>
-    struct SharedResourceObject : Resource<AccessPolicy>
+    template<typename T, typename TTask, typename AccessPolicy>
+    struct SharedResourceObject : Resource<TTask, AccessPolicy>
     {
         // protected:
         std::shared_ptr<T> obj;
@@ -338,15 +349,15 @@ namespace redGrapes
         {
         }
 
-        SharedResourceObject(SharedResourceObject const& other) : Resource<AccessPolicy>(other), obj(other.obj)
+        SharedResourceObject(SharedResourceObject const& other) : Resource<TTask, AccessPolicy>(other), obj(other.obj)
         {
         }
     }; // struct SharedResourceObject
 
 } // namespace redGrapes
 
-template<>
-struct fmt::formatter<redGrapes::ResourceAccess>
+template<typename TTask>
+struct fmt::formatter<redGrapes::ResourceAccess<TTask>>
 {
     constexpr auto parse(format_parse_context& ctx)
     {
@@ -354,7 +365,7 @@ struct fmt::formatter<redGrapes::ResourceAccess>
     }
 
     template<typename FormatContext>
-    auto format(redGrapes::ResourceAccess const& acc, FormatContext& ctx)
+    auto format(redGrapes::ResourceAccess<TTask> const& acc, FormatContext& ctx)
     {
         return fmt::format_to(
             ctx.out(),
