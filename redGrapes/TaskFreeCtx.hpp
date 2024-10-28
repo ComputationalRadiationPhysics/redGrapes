@@ -13,6 +13,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <vector>
 
@@ -36,10 +37,10 @@ namespace redGrapes
         inline memory::ChunkedBumpAlloc<memory::HwlocAlloc>& get_alloc(WorkerId worker_id)
         {
             assert(worker_id < allocs.size());
-            return allocs[worker_id];
+            return *allocs[worker_id];
         }
 
-        std::vector<memory::ChunkedBumpAlloc<memory::HwlocAlloc>> allocs;
+        std::vector<std::unique_ptr<memory::ChunkedBumpAlloc<memory::HwlocAlloc>>> allocs;
     };
 
     struct TaskFreeCtx

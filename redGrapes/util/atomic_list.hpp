@@ -45,10 +45,10 @@ namespace redGrapes
             struct ItemControlBlock
             {
                 bool volatile deleted;
-                std::shared_ptr<ItemControlBlock> prev;
+                std::atomic<std::shared_ptr<ItemControlBlock>> prev;
                 uintptr_t item_data_ptr;
 
-                ItemControlBlock(memory::Block blk) : deleted(false), item_data_ptr(blk.ptr)
+                ItemControlBlock(memory::Block blk) : deleted(false), prev(nullptr), item_data_ptr(blk.ptr)
                 {
                     /* put Item at front and initialize it
                      * with the remaining memory region
@@ -76,11 +76,11 @@ namespace redGrapes
                  */
                 void skip_deleted_prev()
                 {
-                    std::shared_ptr<ItemControlBlock> p = std::atomic_load(&prev);
+                    std::shared_ptr<ItemControlBlock> p = prev.load();
                     while(p && p->deleted)
-                        p = std::atomic_load(&p->prev);
+                        p = (p->prev).load();
 
-                    std::atomic_store(&prev, p);
+                    prev.store(p);
                 }
 
                 Item* get() const
@@ -90,7 +90,7 @@ namespace redGrapes
             };
 
             Allocator alloc;
-            std::shared_ptr<ItemControlBlock> head;
+            std::atomic<std::shared_ptr<ItemControlBlock>> head;
             size_t const chunk_capacity;
 
             /* keeps a single, predefined pointer
@@ -256,7 +256,7 @@ namespace redGrapes
              */
             MutBackwardIterator rbegin() const
             {
-                return MutBackwardIterator{std::atomic_load(&head)};
+                return MutBackwardIterator{head.load()};
             }
 
             MutBackwardIterator rend() const
@@ -266,7 +266,7 @@ namespace redGrapes
 
             ConstBackwardIterator crbegin() const
             {
-                return ConstBackwardIterator{std::atomic_load(&head)};
+                return ConstBackwardIterator{head.load()};
             }
 
             ConstBackwardIterator crend() const
@@ -297,9 +297,9 @@ namespace redGrapes
                 bool append_successful = false;
                 while(!append_successful)
                 {
-                    old_head = std::atomic_load(&head);
-                    std::atomic_store(&new_head->prev, old_head);
-                    append_successful = std::atomic_compare_exchange_strong(&head, &old_head, new_head);
+                    old_head = head.load();
+                    (new_head->prev).store(old_head);
+                    append_successful = head.compare_exchange_strong(old_head, new_head);
                 }
 
                 return MutBackwardIterator{old_head};
@@ -312,7 +312,7 @@ namespace redGrapes
 
                 std::shared_ptr<ItemControlBlock> expected(nullptr);
                 std::shared_ptr<ItemControlBlock> const& desired = new_head;
-                return std::atomic_compare_exchange_strong(&head, &expected, desired);
+                return head.compare_exchange_strong(expected, desired);
             }
         };
 

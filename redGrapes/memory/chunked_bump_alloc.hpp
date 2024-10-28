@@ -47,12 +47,6 @@ namespace redGrapes
             {
             }
 
-            ChunkedBumpAlloc(ChunkedBumpAlloc&& other)
-                : chunk_size(other.chunk_size)
-                , bump_allocators(other.bump_allocators)
-            {
-            }
-
             static inline size_t roundup_to_poweroftwo(size_t s)
             {
                 s--;

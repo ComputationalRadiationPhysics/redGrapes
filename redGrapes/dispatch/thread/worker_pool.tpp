@@ -15,6 +15,8 @@
 #include "redGrapes/memory/hwloc_alloc.hpp"
 #include "redGrapes/util/trace.hpp"
 
+#include <memory>
+
 namespace redGrapes
 {
     namespace dispatch
@@ -45,9 +47,10 @@ namespace redGrapes
                     WorkerId pu_id = worker_id % TaskFreeCtx::n_pus;
                     // allocate worker with id `i` on arena `i`,
                     hwloc_obj_t obj = hwloc_get_obj_by_type(TaskFreeCtx::hwloc_ctx.topology, HWLOC_OBJ_PU, pu_id);
-                    TaskFreeCtx::worker_alloc_pool.allocs.emplace_back(
-                        memory::HwlocAlloc(TaskFreeCtx::hwloc_ctx, obj),
-                        REDGRAPES_ALLOC_CHUNKSIZE);
+                    TaskFreeCtx::worker_alloc_pool.allocs.push_back(
+                        std::make_unique<memory::ChunkedBumpAlloc<memory::HwlocAlloc>>(
+                            memory::HwlocAlloc(TaskFreeCtx::hwloc_ctx, obj),
+                            REDGRAPES_ALLOC_CHUNKSIZE));
 
                     auto worker = memory::alloc_shared_bind<WorkerThread<Worker>>(worker_id, obj, worker_id, *this);
                     workers.emplace_back(worker);
