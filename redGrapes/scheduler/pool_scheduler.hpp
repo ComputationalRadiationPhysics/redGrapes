@@ -55,7 +55,7 @@ namespace redGrapes
 
             WorkerId getNextWorkerID();
 
-            void init(WorkerId base_id);
+            void init(WorkerId base_id) override;
 
             void startExecution();
 

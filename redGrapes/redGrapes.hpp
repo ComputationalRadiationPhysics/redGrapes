@@ -10,8 +10,6 @@
 #include "redGrapes/SchedulerDescription.hpp"
 #include "redGrapes/TaskFreeCtx.hpp"
 #include "redGrapes/globalSpace.hpp"
-#include "redGrapes/resource/fieldresource.hpp"
-#include "redGrapes/resource/ioresource.hpp"
 #include "redGrapes/scheduler/event.hpp"
 #include "redGrapes/scheduler/pool_scheduler.hpp"
 #include "redGrapes/task/task.hpp"
@@ -139,7 +137,10 @@ namespace redGrapes
 
             SPDLOG_TRACE("emplace task to worker {}", worker_id);
 
-            using Impl = typename std::invoke_result_t<BindArgs<Callable, Args...>, Callable, Args...>;
+            using Impl = typename std::invoke_result_t<
+                BindArgs<Callable, decltype(forward_arg(std::declval<Args>()))...>,
+                Callable,
+                decltype(forward_arg(std::declval<Args>()))...>;
             // this is not set to nullptr. But it goes out of scope. Memory is managed by allocate
             FunTask<Impl, RGTask>* task;
             memory::Allocator alloc(worker_id);
@@ -154,10 +155,10 @@ namespace redGrapes
             new(task) FunTask<Impl, RGTask>(worker_id, scope_depth_impl(), *scheduler_map[TSchedTag{}]);
 
             return TaskBuilder<RGTask, Callable, Args...>(
-              task,
-              current_task_space(),
-              std::forward<Callable>(f),
-              std::forward<Args>(args)...);
+                task,
+                current_task_space(),
+                std::forward<Callable>(f),
+                std::forward<Args>(args)...);
         }
 
         template<typename Callable, typename... Args>
@@ -175,30 +176,6 @@ namespace redGrapes
         auto& getScheduler()
         {
             return getScheduler<DefaultTag>();
-        }
-
-        template<typename Container>
-        auto createFieldResource(Container* c) -> FieldResource<Container>
-        {
-            return FieldResource<Container>(c);
-        }
-
-        template<typename Container, typename... Args>
-        auto createFieldResource(Args&&... args) -> FieldResource<Container>
-        {
-            return FieldResource<Container>(std::forward<Args>(args)...);
-        }
-
-        template<typename T>
-        auto createIOResource(std::shared_ptr<T> o) -> IOResource<T>
-        {
-            return IOResource<T>(o);
-        }
-
-        template<typename T, typename... Args>
-        auto createIOResource(Args&&... args) -> IOResource<T>
-        {
-            return IOResource<T>(std::forward<Args>(args)...);
         }
 
         template<typename AccessPolicy>

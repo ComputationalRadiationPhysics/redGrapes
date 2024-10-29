@@ -289,7 +289,7 @@ namespace redGrapes
              * and returns the previous head to which the new_head
              * is now linked.
              */
-            auto append_item(std::shared_ptr<ItemControlBlock> new_head)
+            auto append_item(std::shared_ptr<ItemControlBlock> const& new_head)
             {
                 TRACE_EVENT("Allocator", "AtomicList::append_item()");
                 std::shared_ptr<ItemControlBlock> old_head;
@@ -306,7 +306,7 @@ namespace redGrapes
             }
 
             // append the first head item if not already exists
-            bool try_append_first_item(std::shared_ptr<ItemControlBlock> new_head)
+            bool try_append_first_item(std::shared_ptr<ItemControlBlock> const& new_head)
             {
                 TRACE_EVENT("Allocator", "AtomicList::append_first_item()");
 

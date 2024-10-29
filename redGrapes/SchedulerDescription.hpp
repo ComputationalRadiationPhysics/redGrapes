@@ -29,7 +29,7 @@ namespace redGrapes
         using Key = TTag;
         using ValueType = TScheduler;
 
-        SchedulerDescription(std::shared_ptr<TScheduler> scheduler, TTag = DefaultTag{}) : scheduler{scheduler}
+        SchedulerDescription(std::shared_ptr<TScheduler> const& scheduler, TTag = DefaultTag{}) : scheduler{scheduler}
         {
         }
 

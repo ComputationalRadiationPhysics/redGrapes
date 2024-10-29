@@ -49,7 +49,7 @@ namespace redGrapes
                 return builder;
             }
 
-            inline PropertiesBuilder& add_resource(ResourceAccess access)
+            inline PropertiesBuilder& add_resource(ResourceAccess const& access)
             {
                 (*builder.task) += access;
                 return builder;

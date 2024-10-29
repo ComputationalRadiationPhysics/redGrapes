@@ -14,6 +14,7 @@
 #include <spdlog/spdlog.h>
 
 #include <type_traits>
+#include <utility>
 
 namespace redGrapes
 {
@@ -38,13 +39,37 @@ namespace redGrapes
         }
     };
 
+    // Helper function to conditionally forward the argument
+    template<typename T>
+    constexpr auto forward_arg(T&& arg)
+    {
+        if constexpr(traits::is_derived_from_pair_v<std::decay_t<T>>)
+        {
+            if constexpr(std::is_same_v<typename std::decay_t<T>::second_type, ResourceAccess>)
+            {
+                return std::forward<typename T::first_type>(arg.first);
+            }
+            else
+            {
+                return std::forward<T>(arg);
+            }
+        }
+        else
+        {
+            return std::forward<T>(arg);
+        }
+    }
+
     /* TASK BUILDER */
 
     template<typename TTask, typename Callable, typename... Args>
     struct TaskBuilder : TTask::TaskProperties::template Builder<TaskBuilder<TTask, Callable, Args...>>
     {
-        using Impl = typename std::invoke_result_t<BindArgs<Callable, Args...>, Callable, Args...>;
-        using Result = typename std::invoke_result_t<Callable, Args...>;
+        using Impl = typename std::invoke_result_t<
+            BindArgs<Callable, decltype(forward_arg(std::declval<Args>()))...>,
+            Callable,
+            decltype(forward_arg(std::declval<Args>()))...>;
+        using Result = typename std::invoke_result_t<Callable, decltype(forward_arg(std::declval<Args>()))...>;
 
         std::shared_ptr<TaskSpace> space;
         FunTask<Impl, TTask>* task;
@@ -66,7 +91,9 @@ namespace redGrapes
             this->init_id();
 
             // set impl
-            task->impl.emplace(BindArgs<Callable, Args...>{}(std::move(f), std::forward<Args>(args)...));
+            task->impl.emplace(BindArgs<Callable, decltype(forward_arg(std::declval<Args>()))...>{}(
+                std::move(f),
+                forward_arg(std::forward<Args>(args))...));
         }
 
         TaskBuilder(TaskBuilder& other)

@@ -20,16 +20,16 @@ namespace redGrapes
 {
     namespace access
     {
-
-        struct AreaAccess : std::array<size_t, 2>
+        // Must be in increasing order
+        struct RangeAccess : std::array<size_t, 2>
         {
-            AreaAccess()
+            RangeAccess()
             {
                 (*this)[0] = std::numeric_limits<size_t>::min();
                 (*this)[1] = std::numeric_limits<size_t>::max();
             }
 
-            AreaAccess(std::array<size_t, 2> a) : std::array<size_t, 2>(a)
+            RangeAccess(std::array<size_t, 2> a) : std::array<size_t, 2>(a)
             {
             }
 
@@ -39,17 +39,17 @@ namespace redGrapes
                        && (*this)[1] == std::numeric_limits<size_t>::max();
             }
 
-            static bool is_serial(AreaAccess const& a, AreaAccess const& b)
+            static bool is_serial(RangeAccess const& a, RangeAccess const& b)
             {
-                return (a[1] > b[0]) && (a[0] < b[1]);
+                return !((a[1] <= b[0]) || (a[0] >= b[1]));
             }
 
-            bool is_superset_of(AreaAccess const& a) const
+            bool is_superset_of(RangeAccess const& a) const
             {
                 return (((*this)[0] <= a[0]) && ((*this)[1] >= a[1]));
             }
 
-            bool operator==(AreaAccess const& other) const
+            bool operator==(RangeAccess const& other) const
             {
                 return (*this)[0] == other[0] && (*this)[1] == other[1];
             }
@@ -62,7 +62,7 @@ namespace redGrapes
 } // namespace redGrapes
 
 template<>
-struct fmt::formatter<redGrapes::access::AreaAccess>
+struct fmt::formatter<redGrapes::access::RangeAccess>
 {
     constexpr auto parse(format_parse_context& ctx)
     {
@@ -70,7 +70,7 @@ struct fmt::formatter<redGrapes::access::AreaAccess>
     }
 
     template<typename FormatContext>
-    auto format(redGrapes::access::AreaAccess const& acc, FormatContext& ctx) const
+    auto format(redGrapes::access::RangeAccess const& acc, FormatContext& ctx)
     {
         return fmt::format_to(ctx.out(), "{{ \"area\" : {{ \"begin\" : {}, \"end\" : {} }} }}", acc[0], acc[1]);
     }

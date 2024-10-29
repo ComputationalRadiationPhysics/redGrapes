@@ -1,8 +1,8 @@
 
-#include <redGrapes/resource/access/area.hpp>
 #include <redGrapes/resource/access/combine.hpp>
 #include <redGrapes/resource/access/field.hpp>
 #include <redGrapes/resource/access/io.hpp>
+#include <redGrapes/resource/access/range.hpp>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -52,86 +52,86 @@ TEST_CASE("IOAccess")
     REQUIRE(IOAccess{IOAccess::amul}.is_superset_of(IOAccess{IOAccess::amul}) == true);
 }
 
-TEST_CASE("AreaAccess")
+TEST_CASE("RangeAccess")
 {
     // --[-----]--(-----)--
-    REQUIRE(AreaAccess::is_serial(AreaAccess({10, 20}), AreaAccess({30, 40})) == false);
-    REQUIRE(AreaAccess({10, 20}).is_superset_of(AreaAccess({30, 40})) == false);
+    REQUIRE(RangeAccess::is_serial(RangeAccess({10, 20}), RangeAccess({30, 40})) == false);
+    REQUIRE(RangeAccess({10, 20}).is_superset_of(RangeAccess({30, 40})) == false);
     // --(-----)--[-----]--
-    REQUIRE(AreaAccess::is_serial(AreaAccess({30, 40}), AreaAccess({10, 20})) == false);
-    REQUIRE(AreaAccess({30, 40}).is_superset_of(AreaAccess({10, 20})) == false);
+    REQUIRE(RangeAccess::is_serial(RangeAccess({30, 40}), RangeAccess({10, 20})) == false);
+    REQUIRE(RangeAccess({30, 40}).is_superset_of(RangeAccess({10, 20})) == false);
 
     // --[--(--]--)--
-    REQUIRE(AreaAccess::is_serial(AreaAccess({10, 20}), AreaAccess({15, 25})) == true);
-    REQUIRE(AreaAccess({10, 20}).is_superset_of(AreaAccess({15, 25})) == false);
+    REQUIRE(RangeAccess::is_serial(RangeAccess({10, 20}), RangeAccess({15, 25})) == true);
+    REQUIRE(RangeAccess({10, 20}).is_superset_of(RangeAccess({15, 25})) == false);
     // --(--[--)--]--
-    REQUIRE(AreaAccess::is_serial(AreaAccess({15, 25}), AreaAccess({10, 20})) == true);
-    REQUIRE(AreaAccess({15, 15}).is_superset_of(AreaAccess({10, 20})) == false);
+    REQUIRE(RangeAccess::is_serial(RangeAccess({15, 25}), RangeAccess({10, 20})) == true);
+    REQUIRE(RangeAccess({15, 15}).is_superset_of(RangeAccess({10, 20})) == false);
 
     // --[--(--)--]--
-    REQUIRE(AreaAccess::is_serial(AreaAccess({10, 30}), AreaAccess({15, 25})) == true);
-    REQUIRE(AreaAccess({10, 30}).is_superset_of(AreaAccess({15, 25})) == true);
+    REQUIRE(RangeAccess::is_serial(RangeAccess({10, 30}), RangeAccess({15, 25})) == true);
+    REQUIRE(RangeAccess({10, 30}).is_superset_of(RangeAccess({15, 25})) == true);
     // --(--[--]--)--
-    REQUIRE(AreaAccess::is_serial(AreaAccess({15, 25}), AreaAccess({10, 30})) == true);
-    REQUIRE(AreaAccess({15, 25}).is_superset_of(AreaAccess({10, 30})) == false);
+    REQUIRE(RangeAccess::is_serial(RangeAccess({15, 25}), RangeAccess({10, 30})) == true);
+    REQUIRE(RangeAccess({15, 25}).is_superset_of(RangeAccess({10, 30})) == false);
 }
 
 TEST_CASE("CombineAccess")
 {
-    using A = CombineAccess<IOAccess, AreaAccess, And_t>;
+    using A = CombineAccess<IOAccess, RangeAccess, And_t>;
 
     REQUIRE(
         A::is_serial(
-            A(IOAccess{IOAccess::read}, AreaAccess({10, 20})),
-            A(IOAccess{IOAccess::read}, AreaAccess({15, 25})))
+            A(IOAccess{IOAccess::read}, RangeAccess({10, 20})),
+            A(IOAccess{IOAccess::read}, RangeAccess({15, 25})))
         == false);
 
     REQUIRE(
         A::is_serial(
-            A(IOAccess{IOAccess::read}, AreaAccess({10, 20})),
-            A(IOAccess{IOAccess::write}, AreaAccess({15, 25})))
+            A(IOAccess{IOAccess::read}, RangeAccess({10, 20})),
+            A(IOAccess{IOAccess::write}, RangeAccess({15, 25})))
         == true);
 
     REQUIRE(
         A::is_serial(
-            A(IOAccess{IOAccess::read}, AreaAccess({10, 20})),
-            A(IOAccess{IOAccess::write}, AreaAccess({30, 40})))
+            A(IOAccess{IOAccess::read}, RangeAccess({10, 20})),
+            A(IOAccess{IOAccess::write}, RangeAccess({30, 40})))
         == false);
 
     REQUIRE(
-        A(IOAccess{IOAccess::read}, AreaAccess({10, 20}))
-            .is_superset_of(A(IOAccess{IOAccess::read}, AreaAccess({15, 25})))
+        A(IOAccess{IOAccess::read}, RangeAccess({10, 20}))
+            .is_superset_of(A(IOAccess{IOAccess::read}, RangeAccess({15, 25})))
         == false);
 
     REQUIRE(
-        A(IOAccess{IOAccess::write}, AreaAccess({10, 30}))
-            .is_superset_of(A(IOAccess{IOAccess::read}, AreaAccess({15, 25})))
+        A(IOAccess{IOAccess::write}, RangeAccess({10, 30}))
+            .is_superset_of(A(IOAccess{IOAccess::read}, RangeAccess({15, 25})))
         == true);
 
-    using B = CombineAccess<IOAccess, AreaAccess, Or_t>;
+    using B = CombineAccess<IOAccess, RangeAccess, Or_t>;
 
     REQUIRE(
         B::is_serial(
-            B(IOAccess{IOAccess::read}, AreaAccess({10, 20})),
-            B(IOAccess{IOAccess::read}, AreaAccess({30, 40})))
+            B(IOAccess{IOAccess::read}, RangeAccess({10, 20})),
+            B(IOAccess{IOAccess::read}, RangeAccess({30, 40})))
         == false);
 
     REQUIRE(
         B::is_serial(
-            B(IOAccess{IOAccess::read}, AreaAccess({10, 20})),
-            B(IOAccess{IOAccess::read}, AreaAccess({15, 25})))
-        == true);
-
-    REQUIRE(
-        B::is_serial(
-            B(IOAccess{IOAccess::read}, AreaAccess({10, 20})),
-            B(IOAccess{IOAccess::write}, AreaAccess({15, 25})))
+            B(IOAccess{IOAccess::read}, RangeAccess({10, 20})),
+            B(IOAccess{IOAccess::read}, RangeAccess({15, 25})))
         == true);
 
     REQUIRE(
         B::is_serial(
-            B(IOAccess{IOAccess::read}, AreaAccess({10, 20})),
-            B(IOAccess{IOAccess::write}, AreaAccess({30, 40})))
+            B(IOAccess{IOAccess::read}, RangeAccess({10, 20})),
+            B(IOAccess{IOAccess::write}, RangeAccess({15, 25})))
+        == true);
+
+    REQUIRE(
+        B::is_serial(
+            B(IOAccess{IOAccess::read}, RangeAccess({10, 20})),
+            B(IOAccess{IOAccess::write}, RangeAccess({30, 40})))
         == true);
 }
 
@@ -191,24 +191,24 @@ TEST_CASE("ArrayAccess")
 
 TEST_CASE("FieldAccess")
 {
-    using Arr = ArrayAccess<AreaAccess, 3, And_t>;
+    using Arr = ArrayAccess<RangeAccess, 3, And_t>;
     REQUIRE(
         FieldAccess<3>::is_serial(
             FieldAccess<3>(
                 IOAccess{IOAccess::read},
-                Arr({AreaAccess({0, 10}), AreaAccess({0, 10}), AreaAccess({0, 10})})),
+                Arr({RangeAccess({0, 10}), RangeAccess({0, 10}), RangeAccess({0, 10})})),
             FieldAccess<3>(
                 IOAccess{IOAccess::read},
-                Arr({AreaAccess({0, 10}), AreaAccess({0, 10}), AreaAccess({0, 10})})))
+                Arr({RangeAccess({0, 10}), RangeAccess({0, 10}), RangeAccess({0, 10})})))
         == false);
 
     REQUIRE(
         FieldAccess<3>::is_serial(
             FieldAccess<3>(
                 IOAccess{IOAccess::write},
-                Arr({AreaAccess({0, 10}), AreaAccess({0, 10}), AreaAccess({0, 10})})),
+                Arr({RangeAccess({0, 10}), RangeAccess({0, 10}), RangeAccess({0, 10})})),
             FieldAccess<3>(
                 IOAccess{IOAccess::read},
-                Arr({AreaAccess({0, 10}), AreaAccess({0, 10}), AreaAccess({0, 10})})))
+                Arr({RangeAccess({0, 10}), RangeAccess({0, 10}), RangeAccess({0, 10})})))
         == true);
 }

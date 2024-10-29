@@ -13,6 +13,8 @@
 
 #include <fmt/format.h>
 
+#include <cstdint>
+
 namespace redGrapes
 {
     namespace access
@@ -22,7 +24,7 @@ namespace redGrapes
          */
         struct IOAccess
         {
-            enum Mode
+            enum Mode : uint8_t
             {
                 write,
                 read,

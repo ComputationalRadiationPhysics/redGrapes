@@ -33,7 +33,7 @@ namespace redGrapes
             }
 
             ThreadScheduler(std::shared_ptr<dispatch::thread::WorkerThread<Worker>> workerThread)
-                : m_worker_thread(workerThread)
+                : m_worker_thread(std::move(workerThread))
             {
             }
 
@@ -86,7 +86,7 @@ namespace redGrapes
                 return m_base_id;
             }
 
-            virtual void init(WorkerId base_id)
+            void init(WorkerId base_id) override
             {
                 m_base_id = base_id;
                 // TODO check if it was already initalized

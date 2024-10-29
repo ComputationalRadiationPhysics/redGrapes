@@ -15,13 +15,13 @@ namespace rg = redGrapes;
 int main()
 {
     auto rg = rg::init(1);
-    auto a = rg.createIOResource<int>(); // scope-level=0
+    auto a = redGrapes::IOResource<int>(); // scope-level=0
 
     rg.emplace_task(
           [&]([[maybe_unused]] auto a)
           {
               std::cout << "scope = " << rg.scope_depth() << std::endl;
-              auto b = rg.createIOResource<int>(); // scope-level=1
+              auto b = redGrapes::IOResource<int>(); // scope-level=1
 
               rg.emplace_task(
                     [&](auto b)

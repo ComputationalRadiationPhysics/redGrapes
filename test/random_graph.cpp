@@ -186,6 +186,6 @@ TEST_CASE("RandomGraph")
 
         rg.barrier();
         for(unsigned i = 0; i < n_resources; ++i)
-            REQUIRE(*resources[i] == expected_hash[i]);
+            REQUIRE(*resources[i].getObject() == expected_hash[i]);
     }
 }

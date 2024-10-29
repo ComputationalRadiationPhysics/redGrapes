@@ -8,6 +8,7 @@
 #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_OFF
 
 #include <redGrapes/redGrapes.hpp>
+#include <redGrapes/resource/ioresource.hpp>
 
 #include <chrono>
 #include <iostream>

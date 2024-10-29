@@ -123,8 +123,8 @@ int main(int, char*[])
                                 dst[{x + xi, y + yi}]
                                     = next_state((Cell const(*)[size.x + 2]) & (src[{x + xi, y + yi}]));
                     },
-                    buffers[next].write().area({x, y}, {x + chunk_size.x, y + chunk_size.y}),
-                    buffers[current].read().area({x - 1, y - 1}, {x + chunk_size.x + 2, y + chunk_size.y + 2}));
+                    buffers[next].write({x, y}, {x + chunk_size.x, y + chunk_size.y}),
+                    buffers[current].read({x - 1, y - 1}, {x + chunk_size.x + 2, y + chunk_size.y + 2}));
 
         current = next;
     }

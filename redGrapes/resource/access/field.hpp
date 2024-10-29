@@ -11,9 +11,9 @@
 
 #pragma once
 
-#include "redGrapes/resource/access/area.hpp"
 #include "redGrapes/resource/access/combine.hpp"
 #include "redGrapes/resource/access/io.hpp"
+#include "redGrapes/resource/access/range.hpp"
 
 namespace redGrapes
 {
@@ -21,7 +21,7 @@ namespace redGrapes
     {
 
         template<size_t dimension_t>
-        using FieldAccess = CombineAccess<IOAccess, ArrayAccess<AreaAccess, dimension_t, And_t>, And_t>;
+        using FieldAccess = CombineAccess<IOAccess, ArrayAccess<RangeAccess, dimension_t, And_t>, And_t>;
 
     } // namespace access
 

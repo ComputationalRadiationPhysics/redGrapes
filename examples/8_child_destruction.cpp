@@ -17,27 +17,35 @@ int main()
     spdlog::set_level(spdlog::level::off);
 
     auto rg = redGrapes::init(1);
-    auto a = rg.createIOResource<int>(1);
+    auto a = redGrapes::IOResource<int>(1);
 
     rg.emplace_task(
           [&rg]([[maybe_unused]] auto a)
           {
               std::cout << "scope = " << rg.scope_depth() << " a = " << *a << std::endl;
-
+              auto a2 = redGrapes::IOResource(a);
               rg.emplace_task(
                   [&rg](auto a)
                   {
                       *a = 2;
                       std::cout << "scope = " << rg.scope_depth() << " a = " << *a << std::endl;
                   },
-                  a.write());
+                  a2.write());
               rg.emplace_task(
                   [&rg](auto a)
                   {
                       *a = 3;
                       std::cout << "scope = " << rg.scope_depth() << " a = " << *a << std::endl;
+                      auto a3 = redGrapes::IOResource(a);
+                      rg.emplace_task(
+                          [&rg](auto a)
+                          {
+                              std::cout << "scope = " << rg.scope_depth() << " a = " << *a << std::endl;
+                              *a = 4;
+                          },
+                          a3.write());
                   },
-                  a.write());
+                  a2.write());
 
               *a = 4;
               std::cout << "scope = " << rg.scope_depth() << " a = " << *a << std::endl;

@@ -6,6 +6,8 @@
  */
 
 #include <redGrapes/redGrapes.hpp>
+#include <redGrapes/resource/fieldresource.hpp>
+#include <redGrapes/resource/ioresource.hpp>
 
 #include <iostream>
 
@@ -13,13 +15,13 @@ int main(int, char*[])
 {
     auto rg = redGrapes::init(1);
 
-    auto a = rg.createFieldResource<std::vector<int>>();
-    auto b = rg.createIOResource<int>();
-    auto c = rg.createIOResource<int>();
+    auto a = redGrapes::FieldResource<std::vector<int>>();
+    auto b = redGrapes::IOResource<int>();
+    auto c = redGrapes::IOResource<int>();
 
     redGrapes::ResourceUser user1(
         {a.read(), // complete resource
-         a.write().area({0}, {10}), // write only indices 0 to 10
+         a.write({0}, {10}), // write only indices 0 to 10
          b.write()},
         0,
         0);

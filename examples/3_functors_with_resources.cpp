@@ -17,8 +17,8 @@ int main(void)
     spdlog::set_level(spdlog::level::trace);
     auto rg = redGrapes::init();
 
-    auto a = rg.createIOResource<int>();
-    auto b = rg.createIOResource<int>();
+    auto a = redGrapes::IOResource<int>();
+    auto b = redGrapes::IOResource<int>();
 
     for(int i = 0; i < 1; ++i)
     {

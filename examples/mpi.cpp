@@ -140,7 +140,7 @@ int main()
 
                   mpi_request_pool->get_status(request);
               },
-              field[current].at({3}).read(),
+              field[current].read({3}),
               mpi_config.read())
             .enable_stack_switching();
 
@@ -158,18 +158,18 @@ int main()
                   int recv_data_count;
                   MPI_Get_count(&status, MPI_CHAR, &recv_data_count);
               },
-              field[current].at({0}).write(),
+              field[current].write({0}),
               mpi_config.read())
             .enable_stack_switching();
 
         /*
          * Compute iteration
          */
-        for(size_t i = 1; i < field[current]->size(); ++i)
+        for(size_t i = 1; i < field[current].getObject()->size(); ++i)
             rg.emplace_task(
                 [i](auto dst, auto src) { dst[{i}] = src[{i - 1}]; },
-                field[next].at({i}).write(),
-                field[current].at({i - 1}).read());
+                field[next].write({i}),
+                field[current].read({i - 1}));
 
         /*
          * Write Output

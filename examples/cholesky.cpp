@@ -23,7 +23,7 @@ void print_matrix(std::vector<redGrapes::IOResource<double*>> A, int nblks, int 
             {
                 for(int jb = 0; jb < blocksize; ++jb)
                 {
-                    std::cout << (*A[ja * nblks + ia])[jb * blocksize + ib] << "; ";
+                    std::cout << (*A[ja * nblks + ia].getObject())[jb * blocksize + ib] << "; ";
                 }
             }
             std::cout << std::endl;
@@ -84,7 +84,8 @@ int main(int argc, char* argv[])
         for(size_t ib = 0; ib < blksz; ++ib)
             for(size_t ja = 0; ja < nblks; ++ja)
                 for(size_t jb = 0; jb < blksz; ++jb)
-                    (*A[ja * nblks + ia])[jb * blksz + ib] = Alin[(ia * blksz + ib) + (ja * blksz + jb) * N];
+                    (*A[ja * nblks + ia].getObject())[jb * blksz + ib]
+                        = Alin[(ia * blksz + ib) + (ja * blksz + jb) * N];
 
     print_matrix(A, nblks, blksz);
 
